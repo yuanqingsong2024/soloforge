@@ -1,0 +1,272 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   Workshop OS Design Tokens
+   工坊操作台设计系统 - CSS Variables
+   ============================================ */
+
+:root {
+  /* 颜色系统 - 浅色主题 */
+  --background: 0 0% 100%;           /* 纯白背景 */
+  --foreground: 222 47% 11%;         /* 深灰文字 */
+  
+  --muted: 210 40% 96%;              /* 次要背景（灰白） */
+  --muted-foreground: 215 16% 47%;   /* 次要文字（中灰） */
+  
+  --card: 0 0% 100%;                 /* 卡片背景 */
+  --card-foreground: 222 47% 11%;    /* 卡片文字 */
+  
+  --popover: 0 0% 100%;              /* 弹窗背景 */
+  --popover-foreground: 222 47% 11%; /* 弹窗文字 */
+  
+  --border: 214 32% 91%;             /* 边框（浅灰） */
+  --input: 214 32% 91%;              /* 输入框边框 */
+  
+  --primary: 222 47% 11%;            /* 主色（深灰黑） */
+  --primary-foreground: 210 40% 98%; /* 主色文字（白） */
+  
+  --secondary: 210 40% 96%;          /* 次要色（浅灰） */
+  --secondary-foreground: 222 47% 11%; /* 次要色文字 */
+  
+  --accent: 210 40% 96%;             /* 强调色（浅灰） */
+  --accent-foreground: 222 47% 11%;  /* 强调色文字 */
+  
+  --destructive: 0 84% 60%;          /* 危险色（红） */
+  --destructive-foreground: 210 40% 98%; /* 危险色文字 */
+  
+  --success: 142 76% 36%;            /* 成功色（绿） */
+  --success-foreground: 210 40% 98%; /* 成功色文字 */
+  
+  --warning: 38 92% 50%;             /* 警告色（橙） */
+  --warning-foreground: 222 47% 11%; /* 警告色文字 */
+  
+  --info: 199 89% 48%;               /* 信息色（蓝） */
+  --info-foreground: 210 40% 98%;    /* 信息色文字 */
+  
+  --ring: 222 47% 11%;               /* 焦点环 */
+  
+  /* 圆角系统（8px 网格） */
+  --radius-sm: 0.25rem;  /* 4px */
+  --radius-md: 0.5rem;   /* 8px */
+  --radius-lg: 0.75rem;  /* 12px */
+  
+  /* 阴影系统（轻阴影） */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  
+  /* 间距系统（8px 网格） */
+  --spacing-xs: 0.5rem;   /* 8px */
+  --spacing-sm: 0.75rem;  /* 12px */
+  --spacing-md: 1rem;     /* 16px */
+  --spacing-lg: 1.5rem;   /* 24px */
+  --spacing-xl: 2rem;     /* 32px */
+  --spacing-2xl: 3rem;    /* 48px */
+}
+
+/* 深色主题 */
+[data-theme="dark"] {
+  --background: 222 47% 11%;         /* 深灰黑背景 */
+  --foreground: 210 40% 98%;         /* 浅灰白文字 */
+  
+  --muted: 217 33% 17%;              /* 次要背景（深灰） */
+  --muted-foreground: 215 20% 65%;   /* 次要文字（中灰） */
+  
+  --card: 222 47% 11%;               /* 卡片背景 */
+  --card-foreground: 210 40% 98%;    /* 卡片文字 */
+  
+  --popover: 222 47% 11%;            /* 弹窗背景 */
+  --popover-foreground: 210 40% 98%; /* 弹窗文字 */
+  
+  --border: 217 33% 17%;             /* 边框（深灰） */
+  --input: 217 33% 17%;              /* 输入框边框 */
+  
+  --primary: 210 40% 98%;            /* 主色（浅灰白） */
+  --primary-foreground: 222 47% 11%; /* 主色文字（深灰黑） */
+  
+  --secondary: 217 33% 17%;          /* 次要色（深灰） */
+  --secondary-foreground: 210 40% 98%; /* 次要色文字 */
+  
+  --accent: 217 33% 17%;             /* 强调色（深灰） */
+  --accent-foreground: 210 40% 98%;  /* 强调色文字 */
+  
+  --destructive: 0 63% 31%;          /* 危险色（暗红） */
+  --destructive-foreground: 210 40% 98%; /* 危险色文字 */
+  
+  --success: 142 70% 45%;            /* 成功色（绿） */
+  --success-foreground: 210 40% 98%; /* 成功色文字 */
+  
+  --warning: 38 92% 50%;             /* 警告色（橙） */
+  --warning-foreground: 222 47% 11%; /* 警告色文字 */
+  
+  --info: 199 89% 48%;               /* 信息色（蓝） */
+  --info-foreground: 210 40% 98%;    /* 信息色文字 */
+  
+  --ring: 212 35% 70%;               /* 焦点环 */
+}
+
+/* ============================================
+   全局样式
+   ============================================ */
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  margin: 0;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+/* 等宽字体（用于 ID 显示） */
+code,
+.font-mono,
+.trace-id,
+.ticket-id {
+  font-family: 'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* 焦点样式 */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* 选择文本样式 */
+::selection {
+  background-color: hsl(var(--primary) / 0.2);
+  color: hsl(var(--foreground));
+}
+
+/* ============================================
+   工具类扩展
+   ============================================ */
+
+@layer utilities {
+  /* 文本截断 */
+  .truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .truncate-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  /* 阴影工具类 */
+  .shadow-workshop-sm {
+    box-shadow: var(--shadow-sm);
+  }
+  
+  .shadow-workshop-md {
+    box-shadow: var(--shadow-md);
+  }
+  
+  .shadow-workshop-lg {
+    box-shadow: var(--shadow-lg);
+  }
+  
+  /* 间距工具类 */
+  .gap-workshop-xs { gap: var(--spacing-xs); }
+  .gap-workshop-sm { gap: var(--spacing-sm); }
+  .gap-workshop-md { gap: var(--spacing-md); }
+  .gap-workshop-lg { gap: var(--spacing-lg); }
+  .gap-workshop-xl { gap: var(--spacing-xl); }
+  
+  /* 圆角工具类 */
+  .rounded-workshop-sm { border-radius: var(--radius-sm); }
+  .rounded-workshop-md { border-radius: var(--radius-md); }
+  .rounded-workshop-lg { border-radius: var(--radius-lg); }
+  
+  /* 动画工具类 */
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-in-out;
+  }
+  
+  .animate-slide-in-up {
+    animation: slideInUp 0.3s ease-out;
+  }
+  
+  .animate-slide-in-down {
+    animation: slideInDown 0.3s ease-out;
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+}
+
+/* 动画关键帧 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

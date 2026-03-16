@@ -1,0 +1,1246 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Role {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  description   String
+  defaultPrompt String   @map("default_prompt")
+  outputSchema  String   @map("output_schema") // JSON string
+  riskLevel     String   @map("risk_level") // LOW, MEDIUM, HIGH
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  agents Agent[]
+
+  @@map("roles")
+}
+
+model Agent {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  roleId    String   @map("role_id")
+  model     String
+  runtime   String // cloud, local
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  role    Role        @relation(fields: [roleId], references: [id])
+  tools   AgentTool[]
+  tickets Ticket[]
+
+  @@map("agents")
+}
+
+model Tool {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  scope        String
+  riskClass    String   @map("risk_class") // LOW, MEDIUM, HIGH, CRITICAL
+  configSchema String   @map("config_schema") // JSON string
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  agents AgentTool[]
+
+  @@map("tools")
+}
+
+model AgentTool {
+  id             String   @id @default(uuid())
+  agentId        String   @map("agent_id")
+  toolId         String   @map("tool_id")
+  permissionJson String   @map("permission_json") // JSON string for minimal permissions
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  tool  Tool  @relation(fields: [toolId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, toolId])
+  @@map("agent_tools")
+}
+
+model Ticket {
+  id              String    @id @default(uuid())
+  workspaceId     String    @default("00000000-0000-0000-0000-000000000001") @map("workspace_id")
+  title           String
+  source          String
+  status          String // INBOX, SPEC, DEV, TEST, DELIVERY, DONE
+  priority        String // LOW, MEDIUM, HIGH, URGENT
+  assigneeAgentId String?   @map("assignee_agent_id")
+  contactId       String?   @map("contact_id")
+  primaryTargetId String?   @map("primary_target_id")
+  dueAt           DateTime? @map("due_at")
+  customerMeta    String    @map("customer_meta") // JSON string
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  assignee         Agent?               @relation(fields: [assigneeAgentId], references: [id])
+  contact          Contact?             @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  primaryTarget    CommsTarget?         @relation("TicketPrimaryTarget", fields: [primaryTargetId], references: [id], onDelete: SetNull)
+  workspace        Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  artifacts        Artifact[]
+  approvals        Approval[]
+  auditLogs        AuditLog[]
+  tags             TicketTag[]
+  outboundMessages OutboundMessage[]
+  templateRuns     TemplateRun[]
+  pipelineState    TicketPipelineState?
+  jobs             Job[]
+
+  @@index([workspaceId])
+  @@index([contactId])
+  @@index([primaryTargetId])
+  @@map("tickets")
+}
+
+model Artifact {
+  id        String   @id @default(uuid())
+  ticketId  String   @map("ticket_id")
+  type      String // PRD, PLAN, CODE_CHANGE, TEST_CASES, DEPLOY, ROLLBACK, DELIVERY_LIST, CLIENT_MSG
+  content   String // Markdown content
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  outboundMessages OutboundMessage[]
+
+  @@map("artifacts")
+}
+
+model Approval {
+  id          String    @id @default(uuid())
+  ticketId    String?   @map("ticket_id")
+  actionType  String    @map("action_type") // SEND_EXTERNAL, MERGE_MAIN, DEPLOY_PROD, EXPORT_DATA, PURCHASE, CHANGE_CONFIG, ROTATE_TOKEN
+  payload     String // JSON string
+  status      String // PENDING, APPROVED, REJECTED
+  requestedBy String    @map("requested_by")
+  approvedBy  String?   @map("approved_by")
+  decidedAt   DateTime? @map("decided_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@map("approvals")
+}
+
+model AuditLog {
+  id                String   @id @default(uuid())
+  workspaceId       String   @default("00000000-0000-0000-0000-000000000001") @map("workspace_id")
+  ticketId          String?  @map("ticket_id")
+  traceId           String   @map("trace_id")
+  actor             String
+  action            String
+  tool              String?
+  approvalId        String?  @map("approval_id")
+  templateId        String?  @map("template_id")
+  outboundMessageId String?  @map("outbound_message_id")
+  providerMessageId String?  @map("provider_message_id")
+  changeRequestId   String?  @map("change_request_id")
+  snapshotId        String?  @map("snapshot_id")
+  diffId            String?  @map("diff_id")
+  request           String // JSON string (masked sensitive fields)
+  response          String // JSON string (masked sensitive fields)
+  ts                DateTime @default(now())
+
+  ticket    Ticket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([traceId])
+  @@index([ticketId])
+  @@index([actor])
+  @@index([approvalId])
+  @@index([outboundMessageId])
+  @@index([changeRequestId])
+  @@map("audit_logs")
+}
+
+model ConnectionProfile {
+  id                String             @id @default(uuid())
+  name              String             @unique
+  baseUrl           String             @map("base_url")
+  wsUrl             String             @map("ws_url")
+  authMode          String             @map("auth_mode") // token, password, trusted-proxy
+  eventPath         String?            @map("event_path")
+  approvalPath      String?            @map("approval_path")
+  lastHealthCheck   DateTime?          @map("last_health_check")
+  lastHealthStatus  String?            @map("last_health_status")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  commsProfiles     CommsProfile[]
+  workspaceProfiles WorkspaceProfile[]
+
+  @@map("connection_profiles")
+}
+
+model ConfigSnapshot {
+  id        String   @id @default(uuid())
+  profileId String   @map("profile_id")
+  config    String // JSON string
+  hash      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([profileId])
+  @@map("config_snapshots")
+}
+
+model CommsProfile {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  provider          String // openclaw, webhook
+  openclawProfileId String?  @map("openclaw_profile_id")
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  openclawProfile ConnectionProfile? @relation(fields: [openclawProfileId], references: [id], onDelete: SetNull)
+  targets         CommsTarget[]
+
+  @@index([enabled])
+  @@map("comms_profiles")
+}
+
+model CommsTarget {
+  id             String   @id @default(uuid())
+  workspaceId    String   @default("00000000-0000-0000-0000-000000000001") @map("workspace_id")
+  commsProfileId String   @map("comms_profile_id")
+  channel        String
+  to             String
+  displayName    String   @map("display_name")
+  allowlisted    Boolean  @default(false)
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  commsProfile   CommsProfile    @relation(fields: [commsProfileId], references: [id], onDelete: Cascade)
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contactTargets ContactTarget[]
+  ticketsPrimary Ticket[]        @relation("TicketPrimaryTarget")
+
+  @@unique([commsProfileId, channel, to])
+  @@index([workspaceId])
+  @@index([allowlisted])
+  @@map("comms_targets")
+}
+
+model OutboundMessage {
+  id                String    @id @default(uuid())
+  workspaceId       String    @default("00000000-0000-0000-0000-000000000001") @map("workspace_id")
+  ticketId          String?   @map("ticket_id")
+  artifactId        String?   @map("artifact_id")
+  approvalId        String?   @map("approval_id")
+  templateId        String?   @map("template_id")
+  provider          String    @default("openclaw")
+  channel           String
+  to                String
+  toMasked          String?   @map("to_masked")
+  subject           String?
+  body              String // Markdown 或 plain text
+  status            String // DRAFT, PENDING_APPROVAL, APPROVED, SENDING, SENT, FAILED, CANCELED
+  idempotencyKey    String    @unique @map("idempotency_key")
+  traceId           String    @map("trace_id")
+  providerMessageId String?   @map("provider_message_id")
+  providerReceipt   String?   @map("provider_receipt") // JSON string (masked)
+  attempts          Int       @default(0)
+  nextRetryAt       DateTime? @map("next_retry_at")
+  lastError         String?   @map("last_error")
+  lastSentAt        DateTime? @map("last_sent_at")
+  contentHash       String    @map("content_hash")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  ticket    Ticket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  artifact  Artifact? @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([ticketId])
+  @@index([artifactId])
+  @@index([status])
+  @@index([traceId])
+  @@index([nextRetryAt])
+  @@index([contentHash])
+  @@map("outbound_messages")
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  color     String   @default("#3B82F6") // 蓝色
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tickets TicketTag[]
+
+  @@map("tags")
+}
+
+model TicketTag {
+  id        String   @id @default(uuid())
+  ticketId  String   @map("ticket_id")
+  tagId     String   @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, tagId])
+  @@map("ticket_tags")
+}
+
+model Contact {
+  id          String   @id @default(uuid())
+  workspaceId String   @default("00000000-0000-0000-0000-000000000001") @map("workspace_id")
+  name        String
+  company     String?
+  tags        String // JSON array
+  notes       String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contactTargets ContactTarget[]
+  tickets        Ticket[]
+
+  @@index([workspaceId])
+  @@index([name])
+  @@map("contacts")
+}
+
+model ContactTarget {
+  id            String   @id @default(uuid())
+  contactId     String   @map("contact_id")
+  commsTargetId String   @map("comms_target_id")
+  isPrimary     Boolean  @default(false) @map("is_primary")
+  channel       String
+  toMasked      String   @map("to_masked")
+  displayName   String   @map("display_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  contact     Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  commsTarget CommsTarget @relation(fields: [commsTargetId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, commsTargetId])
+  @@index([contactId, isPrimary])
+  @@map("contact_targets")
+}
+
+model MessageTemplate {
+  id                 String   @id @default(uuid())
+  name               String   @unique
+  scenario           String // REQUIREMENTS_CLARIFY, QUOTE, DELIVERY_NOTICE, STATUS_UPDATE, CUSTOM
+  channelConstraints String   @map("channel_constraints") // JSON array
+  contentFormat      String   @map("content_format") // MARKDOWN, PLAINTEXT
+  subjectTemplate    String?  @map("subject_template")
+  bodyTemplate       String   @map("body_template")
+  variablesSchema    String   @map("variables_schema") // JSON schema
+  defaults           String // JSON
+  version            Int      @default(1)
+  enabled            Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  templateRuns TemplateRun[]
+
+  @@index([scenario, enabled])
+  @@map("message_templates")
+}
+
+model TemplateRun {
+  id              String   @id @default(uuid())
+  templateId      String   @map("template_id")
+  ticketId        String?  @map("ticket_id")
+  variables       String // JSON
+  renderedSubject String?  @map("rendered_subject")
+  renderedBody    String   @map("rendered_body")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  template MessageTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  ticket   Ticket?         @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([templateId])
+  @@index([ticketId])
+  @@map("template_runs")
+}
+
+// ============================================
+// Pipeline 编排系统
+// ============================================
+
+model Pipeline {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  steps        PipelineStep[]
+  ticketStates TicketPipelineState[]
+
+  @@map("pipelines")
+}
+
+model PipelineStep {
+  id                     String   @id @default(uuid())
+  pipelineId             String   @map("pipeline_id")
+  order                  Int
+  roleName               String   @map("role_name")
+  inputArtifacts         String   @map("input_artifacts") // JSON array of artifact types
+  outputArtifacts        String   @map("output_artifacts") // JSON array of artifact types
+  requireApprovalActions String   @map("require_approval_actions") // JSON array of action types
+  allowRework            Boolean  @default(false) @map("allow_rework")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@unique([pipelineId, order])
+  @@index([pipelineId])
+  @@map("pipeline_steps")
+}
+
+model TicketPipelineState {
+  id               String   @id @default(uuid())
+  ticketId         String   @unique @map("ticket_id")
+  pipelineId       String   @map("pipeline_id")
+  currentStepOrder Int      @map("current_step_order")
+  status           String // RUNNING, PAUSED, COMPLETED, FAILED
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  ticket   Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@index([pipelineId])
+  @@index([status])
+  @@map("ticket_pipeline_states")
+}
+
+// ============================================
+// Jobs 执行状态机
+// ============================================
+
+model Job {
+  id          String   @id @default(uuid())
+  workspaceId String   @default("00000000-0000-0000-0000-000000000001") @map("workspace_id")
+  ticketId    String?  @map("ticket_id")
+  stepOrder   Int?     @map("step_order") // 可选：关联到 Pipeline 步骤
+  type        String // APPLY_CONFIG, RUN_TOOL, SYNC_STATE, ROTATE_TOKEN, CUSTOM
+  status      String // PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED
+  traceId     String   @map("trace_id")
+  request     String // JSON
+  result      String? // JSON
+  logs        String? // Markdown/text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ticket    Ticket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([ticketId])
+  @@index([traceId])
+  @@index([status])
+  @@map("jobs")
+}
+
+// ============================================
+// 系统级 Outbox（可靠外部同步）
+// ============================================
+
+model OutboxEvent {
+  id          String    @id @default(uuid())
+  workspaceId String    @default("00000000-0000-0000-0000-000000000001") @map("workspace_id")
+  kind        String // SYNC_JOB, SYNC_AUDIT, SYNC_CONFIG, SYNC_HOOK, CUSTOM
+  payload     String // JSON
+  traceId     String    @map("trace_id")
+  status      String // PENDING, SENDING, SUCCEEDED, FAILED
+  attempts    Int       @default(0)
+  nextRetryAt DateTime? @map("next_retry_at")
+  lastError   String?   @map("last_error")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([nextRetryAt])
+  @@index([traceId])
+  @@map("outbox_events")
+}
+
+// ============================================
+// Workspace 隔离系统
+// ============================================
+
+model Workspace {
+  id                String    @id @default(uuid())
+  name              String    @unique
+  description       String    @default("")
+  envType           String    @default("DEV") @map("env_type") // DEV, STAGING, PROD
+  isReadOnlyDefault Boolean   @default(false) @map("is_read_only_default") // PROD 默认 true
+  unlockUntil       DateTime? @map("unlock_until") // 临时解锁到期时间
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  profiles             WorkspaceProfile[]
+  policies             WorkspacePolicy[]
+  tickets              Ticket[]
+  contacts             Contact[]
+  commsTargets         CommsTarget[]
+  outboundMessages     OutboundMessage[]
+  auditLogs            AuditLog[]
+  outboxEvents         OutboxEvent[]
+  jobs                 Job[]
+  snapshots            WorkspaceSnapshot[]
+  snapshotDiffs        SnapshotDiff[]
+  changeRequests       ChangeRequest[]
+  eventRecords         EventRecord[]
+  operations           Operation[]
+  doctorChecks         DoctorCheck[]
+  alerts               Alert[]
+  doctorSchedules      DoctorSchedule[]
+  notificationPolicies NotificationPolicy[]
+  modelTestResults     ModelTestResult[]
+  modelCatalog         ModelCatalog[]
+  configDrafts         ConfigDraft[]
+  diagnosticReports    DiagnosticReport[]
+  deploymentTargets    DeploymentTarget[]
+  hostAgents           HostAgent[]
+  agentRegistrations   AgentRegistration[]
+  agentActions         AgentAction[]
+  agentHeartbeats      AgentHeartbeat[]
+  agentLogs            AgentLog[]
+  deploymentJobs       DeploymentJob[]
+  versionCatalogs      VersionCatalog[]
+  installedVersions    InstalledVersion[]
+  upgradePolicies      UpgradePolicy[]
+  maintenanceWindows   MaintenanceWindow[]
+  upgradePlans         UpgradePlan[]
+  upgradeRuns          UpgradeRun[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceProfile {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  profileId   String   @map("profile_id")
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  profile   ConnectionProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, profileId])
+  @@index([workspaceId])
+  @@map("workspace_profiles")
+}
+
+model WorkspacePolicy {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  policyJson  String   @map("policy_json") // JSON: tools_policy, comms_policy, config_policy, approval_policy
+  version     Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("workspace_policies")
+}
+
+// ============================================
+// Desired State & Drift Detection
+// ============================================
+
+model WorkspaceSnapshot {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  kind        String // DESIRED, ACTUAL
+  source      String // LOCAL_SAVE, REMOTE_SYNC
+  contentJson String   @map("content_json") // OpenClaw config/state 脱敏后的快照
+  contentHash String   @map("content_hash")
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  desiredDiffs SnapshotDiff[] @relation("DesiredSnapshot")
+  actualDiffs  SnapshotDiff[] @relation("ActualSnapshot")
+
+  @@index([workspaceId])
+  @@index([kind])
+  @@index([createdAt])
+  @@map("workspace_snapshots")
+}
+
+model SnapshotDiff {
+  id                String   @id @default(uuid())
+  workspaceId       String   @map("workspace_id")
+  desiredSnapshotId String   @map("desired_snapshot_id")
+  actualSnapshotId  String   @map("actual_snapshot_id")
+  diffJson          String   @map("diff_json") // JSON Patch 或 diff 结构
+  summary           String
+  severity          String // LOW, MED, HIGH
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  desiredSnapshot WorkspaceSnapshot @relation("DesiredSnapshot", fields: [desiredSnapshotId], references: [id], onDelete: Cascade)
+  actualSnapshot  WorkspaceSnapshot @relation("ActualSnapshot", fields: [actualSnapshotId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("snapshot_diffs")
+}
+
+// ============================================
+// Change Management
+// ============================================
+
+model ChangeRequest {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  type        String // CONFIG, POLICY, TOOLS, COMMS, MIXED
+  title       String
+  description String
+  diffJson    String   @map("diff_json") // 期望对实际的变更补丁
+  status      String // DRAFT, PENDING_APPROVAL, APPROVED, APPLYING, APPLIED, FAILED, ROLLED_BACK
+  approvalId  String?  @map("approval_id")
+  jobId       String?  @map("job_id")
+  traceId     String   @map("trace_id")
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([type])
+  @@index([traceId])
+  @@map("change_requests")
+}
+
+// ============================================
+// 模型配置与测试
+// ============================================
+
+model ModelTestResult {
+  id           String   @id @default(uuid())
+  workspaceId  String   @map("workspace_id")
+  provider     String // openai, anthropic, etc.
+  modelName    String   @map("model_name")
+  status       String // SUCCESS, FAILED, TIMEOUT
+  latencyMs    Int?     @map("latency_ms") // 延迟（毫秒）
+  errorMessage String?  @map("error_message")
+  testPayload  String   @map("test_payload") // JSON string
+  response     String? // JSON string (masked)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([provider])
+  @@index([status])
+  @@index([createdAt])
+  @@map("model_test_results")
+}
+
+model ModelCatalog {
+  id            String   @id @default(uuid())
+  workspaceId   String   @map("workspace_id")
+  provider      String
+  modelName     String   @map("model_name")
+  displayName   String   @map("display_name")
+  enabled       Boolean  @default(true)
+  isPrimary     Boolean  @default(false) @map("is_primary") // 是否为 primary 模型
+  fallbackOrder Int?     @map("fallback_order") // fallback 顺序（null 表示不在 fallback 列表）
+  metadata      String   @default("{}") // JSON: capabilities, pricing, etc.
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider, modelName])
+  @@index([workspaceId])
+  @@index([enabled])
+  @@map("model_catalog")
+}
+
+model ConfigDraft {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  category    String // MODELS, GATEWAY, HOOKS, TOOLS, MIXED
+  contentJson String   @map("content_json") // JSON string
+  contentHash String   @map("content_hash")
+  version     Int      @default(1) // Undo/Redo 版本号
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([category])
+  @@index([updatedAt])
+  @@map("config_drafts")
+}
+
+model ConfigEditorHistory {
+  id            String   @id @default(uuid())
+  workspaceId   String   @map("workspace_id")
+  draftId       String   @map("draft_id")
+  actionType    String   @map("action_type") // SET_FIELD, ADD_ITEM, REMOVE_ITEM, REORDER_ITEM, RESET_DRAFT
+  actionPayload String   @map("action_payload") // JSON
+  seqNo         Int      @map("seq_no")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId])
+  @@index([draftId])
+  @@index([seqNo])
+  @@map("config_editor_history")
+}
+
+model DiagnosticReport {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  reportType  String   @map("report_type") // FULL, WS_CONNECTION, AUTH, CONFIG_DRIFT, HOOKS
+  status      String // RUNNING, COMPLETED, FAILED
+  findings    String // JSON array of findings
+  summary     String
+  severity    String // OK, WARNING, ERROR, CRITICAL
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([reportType])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("diagnostic_reports")
+}
+
+// ============================================
+// Deployment & Operations Management
+// ============================================
+
+model DeploymentTarget {
+  id               String    @id @default(uuid())
+  workspaceId      String    @default("00000000-0000-0000-0000-000000000001") @map("workspace_id")
+  name             String
+  targetType       String    @map("target_type") // LOCAL_HOST, LOCAL_DOCKER, REMOTE_HOST, REMOTE_DOCKER
+  connectionMode   String    @map("connection_mode") // LOCAL, SSH, TAILSCALE, DIRECT_WS, REVERSE_PROXY
+  host             String?
+  port             Int?
+  sshUser          String?   @map("ssh_user")
+  sshPort          Int?      @map("ssh_port")
+  gatewayUrl       String?   @map("gateway_url")
+  dockerEnabled    Boolean   @default(false) @map("docker_enabled")
+  tailscaleEnabled Boolean   @default(false) @map("tailscale_enabled")
+  envType          String    @default("DEV") @map("env_type") // DEV, STAGING, PROD
+  status           String    @default("UNKNOWN") // UNKNOWN, HEALTHY, DEGRADED, UNREACHABLE
+  lastCheckAt      DateTime? @map("last_check_at")
+  metadata         String    @default("{}") // JSON: additional config
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  hostAgents        HostAgent[]
+  agentRegistrations AgentRegistration[]
+  agentActions      AgentAction[]
+  jobs              DeploymentJob[]
+  installedVersions InstalledVersion[]
+  upgradePlans      UpgradePlan[]
+  upgradeRuns       UpgradeRun[]
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([envType])
+  @@map("deployment_targets")
+}
+
+model HostAgent {
+  id              String   @id @default(uuid())
+  workspaceId     String   @map("workspace_id")
+  targetId        String?  @map("target_id")
+  name            String
+  hostname        String
+  osType          String   @map("os_type")
+  arch            String
+  agentVersion    String   @map("agent_version")
+  status          String   @default("UNREGISTERED") // ONLINE, OFFLINE, DEGRADED, UNKNOWN, UNREGISTERED
+  lastHeartbeatAt DateTime? @map("last_heartbeat_at")
+  lastSeenIp      String?  @map("last_seen_ip")
+  authMode        String   @default("TOKEN") @map("auth_mode") // TOKEN, MTLS, BOOTSTRAP_SECRET
+  capabilitiesJson String  @default("{}") @map("capabilities_json")
+  labelsJson      String   @default("{}") @map("labels_json")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  target     DeploymentTarget? @relation(fields: [targetId], references: [id], onDelete: SetNull)
+  actions    AgentAction[]
+  heartbeats AgentHeartbeat[]
+  logs       AgentLog[]
+
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([status])
+  @@index([lastHeartbeatAt])
+  @@map("host_agents")
+}
+
+model AgentRegistration {
+  id                 String    @id @default(uuid())
+  workspaceId        String    @map("workspace_id")
+  targetId           String?   @map("target_id")
+  bootstrapTokenHash String    @map("bootstrap_token_hash")
+  status             String    @default("PENDING") // PENDING, ACTIVATED, REVOKED, EXPIRED
+  expiresAt          DateTime  @map("expires_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  activatedAt        DateTime? @map("activated_at")
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  target    DeploymentTarget? @relation(fields: [targetId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("agent_registrations")
+}
+
+model AgentAction {
+  id             String    @id @default(uuid())
+  workspaceId    String    @map("workspace_id")
+  targetId       String    @map("target_id")
+  hostAgentId    String    @map("host_agent_id")
+  actionType     String    @map("action_type") // COLLECT_STATE, VERIFY_HEALTH, etc.
+  requestJson    String    @map("request_json")
+  status         String    @default("PENDING") // PENDING, DISPATCHED, ACKED, RUNNING, SUCCEEDED, FAILED, TIMEOUT, CANCELED, BLOCKED
+  traceId        String    @map("trace_id")
+  timeoutSeconds Int       @default(60) @map("timeout_seconds")
+  startedAt      DateTime? @map("started_at")
+  finishedAt     DateTime? @map("finished_at")
+  resultJson     String?   @map("result_json")
+  errorSummary   String?   @map("error_summary")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  target    DeploymentTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  hostAgent HostAgent        @relation(fields: [hostAgentId], references: [id], onDelete: Cascade)
+  logs      AgentLog[]
+
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([hostAgentId])
+  @@index([status])
+  @@index([traceId])
+  @@map("agent_actions")
+}
+
+model AgentHeartbeat {
+  id           String   @id @default(uuid())
+  workspaceId  String   @map("workspace_id")
+  hostAgentId  String   @map("host_agent_id")
+  targetId     String?  @map("target_id")
+  heartbeatJson String  @map("heartbeat_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  hostAgent HostAgent   @relation(fields: [hostAgentId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([hostAgentId])
+  @@index([targetId])
+  @@index([createdAt])
+  @@map("agent_heartbeats")
+}
+
+model AgentLog {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  hostAgentId String   @map("host_agent_id")
+  actionId    String?  @map("action_id")
+  level       String
+  message     String
+  dataJson    String   @default("{}") @map("data_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  hostAgent HostAgent   @relation(fields: [hostAgentId], references: [id], onDelete: Cascade)
+  action    AgentAction? @relation(fields: [actionId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([hostAgentId])
+  @@index([actionId])
+  @@index([createdAt])
+  @@map("agent_logs")
+}
+
+model VersionCatalog {
+  id                  String   @id @default(uuid())
+  workspaceId         String   @map("workspace_id")
+  component           String // OPENCLAW, GATEWAY, DOCKER_IMAGE, RUNNER, CUSTOM
+  version             String
+  releaseChannel      String   @map("release_channel") // STABLE, BETA, PINNED, CUSTOM
+  source              String // MANUAL, GITHUB, DOCKER_REGISTRY, LOCAL_MANIFEST
+  metadataJson        String   @default("{}") @map("metadata_json")
+  releaseNotesSummary String   @default("") @map("release_notes_summary")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, component, version, releaseChannel])
+  @@index([workspaceId])
+  @@index([component])
+  @@index([releaseChannel])
+  @@map("version_catalog")
+}
+
+model InstalledVersion {
+  id               String   @id @default(uuid())
+  workspaceId      String   @map("workspace_id")
+  targetId         String   @map("target_id")
+  component        String // OPENCLAW, GATEWAY, DOCKER_IMAGE, RUNNER, CUSTOM
+  installedVersion String   @map("installed_version")
+  detectedAt       DateTime @default(now()) @map("detected_at")
+  source           String // SSH, LOCAL, DOCKER, OPENCLAW_API
+  detailsJson      String   @default("{}") @map("details_json")
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  target    DeploymentTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([targetId, component])
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([component])
+  @@index([detectedAt])
+  @@map("installed_versions")
+}
+
+model UpgradePolicy {
+  id                       String   @id @default(uuid())
+  workspaceId              String   @map("workspace_id")
+  name                     String
+  enabled                  Boolean  @default(true)
+  targetScopeJson          String   @default("{}") @map("target_scope_json")
+  releaseChannelScopeJson  String   @default("{}") @map("release_channel_scope_json")
+  autoDetectUpdates        Boolean  @default(true) @map("auto_detect_updates")
+  requireBackup            Boolean  @default(true) @map("require_backup")
+  requireApproval          Boolean  @default(true) @map("require_approval")
+  requireMaintenanceWindow Boolean  @default(false) @map("require_maintenance_window")
+  allowAutoRollback        Boolean  @default(true) @map("allow_auto_rollback")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plans     UpgradePlan[]
+
+  @@index([workspaceId])
+  @@index([enabled])
+  @@map("upgrade_policies")
+}
+
+model MaintenanceWindow {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  enabled     Boolean  @default(true)
+  timezone    String   @default("Asia/Shanghai")
+  cronOrRule  String   @map("cron_or_rule")
+  notes       String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([enabled])
+  @@map("maintenance_windows")
+}
+
+model UpgradePlan {
+  id               String   @id @default(uuid())
+  workspaceId      String   @map("workspace_id")
+  targetId         String   @map("target_id")
+  policyId         String?  @map("policy_id")
+  component        String // OPENCLAW, GATEWAY, DOCKER_IMAGE, RUNNER, CUSTOM
+  currentVersion   String   @map("current_version")
+  targetVersion    String   @map("target_version")
+  releaseChannel   String   @map("release_channel")
+  planJson         String   @map("plan_json")
+  riskLevel        String   @map("risk_level") // LOW, MEDIUM, HIGH, CRITICAL
+  dryRunResultJson String?  @map("dry_run_result_json")
+  status           String // DRAFT, READY, PENDING_APPROVAL, APPROVED, RUNNING, SUCCEEDED, FAILED, ROLLED_BACK, CANCELED
+  approvalId       String?  @map("approval_id")
+  operationId      String?  @map("operation_id")
+  traceId          String   @map("trace_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  target    DeploymentTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  policy    UpgradePolicy?   @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  runs      UpgradeRun[]
+
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([policyId])
+  @@index([status])
+  @@index([traceId])
+  @@map("upgrade_plans")
+}
+
+model UpgradeRun {
+  id                 String    @id @default(uuid())
+  workspaceId        String    @map("workspace_id")
+  targetId           String    @map("target_id")
+  upgradePlanId      String    @map("upgrade_plan_id")
+  status             String // RUNNING, SUCCEEDED, FAILED, ROLLED_BACK
+  startedAt          DateTime  @default(now()) @map("started_at")
+  endedAt            DateTime? @map("ended_at")
+  resultJson         String    @default("{}") @map("result_json")
+  rollbackResultJson String?   @map("rollback_result_json")
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  target    DeploymentTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  plan      UpgradePlan      @relation(fields: [upgradePlanId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([upgradePlanId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("upgrade_runs")
+}
+
+model DeploymentJob {
+  id          String    @id @default(uuid())
+  workspaceId String    @default("00000000-0000-0000-0000-000000000001") @map("workspace_id")
+  targetId    String    @map("target_id")
+  type        String // PRECHECK, BOOTSTRAP, INSTALL_OPENCLAW, INIT_CONFIG, WRITE_COMPOSE, START_GATEWAY, STOP_GATEWAY, RESTART_GATEWAY, UPGRADE_OPENCLAW, BACKUP, RESTORE, VERIFY_HEALTH, DOCTOR_FIX
+  status      String    @default("PENDING") // PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED
+  traceId     String    @map("trace_id")
+  requestJson String    @map("request_json") // JSON
+  resultJson  String?   @map("result_json") // JSON
+  logs        String? // Markdown/Text
+  attempts    Int       @default(0)
+  nextRetryAt DateTime? @map("next_retry_at")
+  lastError   String?   @map("last_error")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  target    DeploymentTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([traceId])
+  @@index([status])
+  @@index([type])
+  @@map("deployment_jobs")
+}
+
+model EventRecord {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  targetId    String?  @map("target_id")
+  sourceType  String   @map("source_type") // CONFIG, CHANGE_REQUEST, DEPLOYMENT_JOB, DOCTOR, BACKUP, SYSTEM, COMMUNICATION
+  sourceId    String   @map("source_id")
+  eventType   String   @map("event_type")
+  severity    String // INFO, WARN, ERROR, CRITICAL
+  title       String
+  summary     String
+  payloadJson String   @map("payload_json")
+  traceId     String?  @map("trace_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([sourceType])
+  @@index([eventType])
+  @@index([severity])
+  @@index([traceId])
+  @@index([createdAt])
+  @@map("event_records")
+}
+
+model Operation {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  targetId    String?  @map("target_id")
+  type        String // DEPLOY, UPGRADE, RESTORE, DOCTOR_FIX, SYNC, CUSTOM
+  status      String // PENDING, RUNNING, WAITING_APPROVAL, SUCCEEDED, FAILED, CANCELED
+  traceId     String   @map("trace_id")
+  title       String   @default("")
+  summary     String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  phases    OperationPhase[]
+
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([traceId])
+  @@index([status])
+  @@index([type])
+  @@map("operations")
+}
+
+model OperationPhase {
+  id          String    @id @default(uuid())
+  operationId String    @map("operation_id")
+  name        String
+  orderNo     Int       @map("order_no")
+  status      String // PENDING, RUNNING, SUCCEEDED, FAILED, SKIPPED
+  startedAt   DateTime? @map("started_at")
+  endedAt     DateTime? @map("ended_at")
+
+  operation Operation       @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  steps     OperationStep[]
+
+  @@unique([operationId, orderNo])
+  @@index([operationId])
+  @@index([status])
+  @@map("operation_phases")
+}
+
+model OperationStep {
+  id              String    @id @default(uuid())
+  phaseId         String    @map("phase_id")
+  name            String
+  stepType        String    @map("step_type") // PRECHECK, BACKUP, WRITE_CONFIG, START, STOP, RESTART, VERIFY, CLEANUP, CUSTOM
+  status          String // PENDING, RUNNING, SUCCEEDED, FAILED, SKIPPED
+  requestJson     String    @default("{}") @map("request_json")
+  resultJson      String?   @map("result_json")
+  logs            String?
+  startedAt       DateTime? @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+  deploymentJobId String?   @map("deployment_job_id")
+  changeRequestId String?   @map("change_request_id")
+  alertId         String?   @map("alert_id")
+
+  phase OperationPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+
+  @@index([phaseId])
+  @@index([status])
+  @@index([stepType])
+  @@index([deploymentJobId])
+  @@index([changeRequestId])
+  @@index([alertId])
+  @@map("operation_steps")
+}
+
+model DoctorCheck {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  targetId    String?  @map("target_id")
+  checkType   String   @map("check_type")
+  status      String // OK, WARN, ERROR, CRITICAL
+  resultJson  String   @map("result_json")
+  score       Int?
+  traceId     String?  @map("trace_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([checkType])
+  @@index([status])
+  @@index([traceId])
+  @@index([createdAt])
+  @@map("doctor_checks")
+}
+
+model Alert {
+  id            String   @id @default(uuid())
+  workspaceId   String   @map("workspace_id")
+  targetId      String?  @map("target_id")
+  sourceCheckId String?  @map("source_check_id")
+  severity      String // INFO, WARN, ERROR, CRITICAL
+  status        String // OPEN, ACKED, RESOLVED
+  title         String
+  summary       String
+  dedupeKey     String   @map("dedupe_key")
+  traceId       String?  @map("trace_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([sourceCheckId])
+  @@index([severity])
+  @@index([status])
+  @@index([dedupeKey])
+  @@index([traceId])
+  @@map("alerts")
+}
+
+model DoctorSchedule {
+  id              String    @id @default(uuid())
+  workspaceId     String    @map("workspace_id")
+  targetId        String?   @map("target_id")
+  enabled         Boolean   @default(true)
+  intervalMinutes Int       @default(30) @map("interval_minutes")
+  checkTypesJson  String    @default("[]") @map("check_types_json")
+  lastRunAt       DateTime? @map("last_run_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([targetId])
+  @@index([enabled])
+  @@map("doctor_schedules")
+}
+
+model NotificationPolicy {
+  id                  String   @id @default(uuid())
+  workspaceId         String   @map("workspace_id")
+  name                String
+  enabled             Boolean  @default(true)
+  eventFilters        String   @map("event_filters") // JSON
+  targetFilters       String   @map("target_filters") // JSON
+  deliveryTargets     String   @map("delivery_targets") // JSON
+  templateId          String?  @map("template_id")
+  cooldownSeconds     Int      @default(300) @map("cooldown_seconds")
+  dedupeWindowSeconds Int      @default(900) @map("dedupe_window_seconds")
+  quietHoursJson      String?  @map("quiet_hours_json") // JSON
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([enabled])
+  @@index([templateId])
+  @@map("notification_policies")
+}

@@ -1,0 +1,89 @@
+{
+  "name": "soloforge",
+  "version": "0.1.0",
+  "description": "SoloForge - AI Team OS Desktop Application",
+  "main": "dist-electron/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && electron-builder",
+    "preview": "vite preview",
+    "postinstall": "prisma generate",
+    "db:seed": "tsx prisma/seed.ts",
+    "test:e2e": "playwright test tests/e2e/app-launch.spec.ts tests/e2e/dashboard-overview.spec.ts tests/e2e/dashboard-navigation.spec.ts tests/e2e/workspace-switch.spec.ts tests/e2e/theme-toggle.spec.ts tests/e2e/dashboard-empty-state.spec.ts",
+    "test:e2e:headed": "playwright test tests/e2e/app-launch.spec.ts tests/e2e/dashboard-overview.spec.ts tests/e2e/dashboard-navigation.spec.ts tests/e2e/workspace-switch.spec.ts tests/e2e/theme-toggle.spec.ts tests/e2e/dashboard-empty-state.spec.ts --headed",
+    "test:e2e:debug": "playwright test tests/e2e/app-launch.spec.ts tests/e2e/dashboard-overview.spec.ts tests/e2e/dashboard-navigation.spec.ts tests/e2e/workspace-switch.spec.ts tests/e2e/theme-toggle.spec.ts tests/e2e/dashboard-empty-state.spec.ts --debug",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report test-results/html"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@fastify/cors": "^9.0.1",
+    "@prisma/client": "^5.8.1",
+    "@types/dockerode": "^4.0.1",
+    "@types/js-yaml": "^4.0.9",
+    "@types/ssh2": "^1.15.5",
+    "dockerode": "^4.0.9",
+    "fastify": "^4.29.1",
+    "js-yaml": "^4.1.1",
+    "jsondiffpatch": "^0.7.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.13.1",
+    "ssh2": "^1.17.0",
+    "uuid": "^9.0.1",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^20.11.5",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@types/uuid": "^9.0.7",
+    "@types/ws": "^8.5.10",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "electron": "^28.1.4",
+    "electron-builder": "^24.9.1",
+    "playwright": "^1.58.2",
+    "postcss": "^8.4.33",
+    "prisma": "^5.8.1",
+    "tailwindcss": "^3.4.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11",
+    "vite-plugin-electron": "^0.28.2",
+    "vite-plugin-electron-renderer": "^0.14.5"
+  },
+  "build": {
+    "appId": "com.soloforge.app",
+    "productName": "SoloForge",
+    "directories": {
+      "output": "release/${version}"
+    },
+    "files": [
+      "dist",
+      "dist-electron"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}
