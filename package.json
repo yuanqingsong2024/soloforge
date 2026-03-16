@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:oneclick": "powershell -ExecutionPolicy Bypass -File scripts/one-click-dev.ps1",
     "build": "tsc && vite build && electron-builder",
     "preview": "vite preview",
     "postinstall": "prisma generate",

@@ -634,65 +634,71 @@ async function main() {
   // 创建默认 Pipeline（Support→PM→Dev→QA→Ops→Delivery）
   // ============================================
   console.log('创建默认 Pipeline...')
-  const defaultPipeline = await prisma.pipeline.create({
-    data: {
-      name: '标准交付流程',
-      enabled: true,
-      steps: {
-        create: [
-          {
-            order: 1,
-            roleName: 'Support',
-            inputArtifacts: JSON.stringify([]),
-            outputArtifacts: JSON.stringify(['CLIENT_MSG']),
-            requireApprovalActions: JSON.stringify([]),
-            allowRework: false
-          },
-          {
-            order: 2,
-            roleName: 'PM&Writer',
-            inputArtifacts: JSON.stringify(['CLIENT_MSG']),
-            outputArtifacts: JSON.stringify(['PRD', 'PLAN']),
-            requireApprovalActions: JSON.stringify([]),
-            allowRework: true
-          },
-          {
-            order: 3,
-            roleName: 'Dev',
-            inputArtifacts: JSON.stringify(['PRD', 'PLAN']),
-            outputArtifacts: JSON.stringify(['CODE_CHANGE']),
-            requireApprovalActions: JSON.stringify(['MERGE_MAIN']),
-            allowRework: true
-          },
-          {
-            order: 4,
-            roleName: 'QA',
-            inputArtifacts: JSON.stringify(['CODE_CHANGE']),
-            outputArtifacts: JSON.stringify(['TEST_CASES']),
-            requireApprovalActions: JSON.stringify([]),
-            allowRework: true
-          },
-          {
-            order: 5,
-            roleName: 'Ops',
-            inputArtifacts: JSON.stringify(['CODE_CHANGE', 'TEST_CASES']),
-            outputArtifacts: JSON.stringify(['DEPLOY']),
-            requireApprovalActions: JSON.stringify(['DEPLOY_PROD']),
-            allowRework: false
-          },
-          {
-            order: 6,
-            roleName: 'Support',
-            inputArtifacts: JSON.stringify(['DEPLOY']),
-            outputArtifacts: JSON.stringify(['DELIVERY_LIST', 'CLIENT_MSG']),
-            requireApprovalActions: JSON.stringify(['SEND_EXTERNAL']),
-            allowRework: false
-          }
-        ]
+  const pipelineName = '标准交付流程'
+  const existingPipeline = await prisma.pipeline.findUnique({ where: { name: pipelineName } })
+  if (existingPipeline) {
+    console.log(`✓ 默认 Pipeline 已存在: ${existingPipeline.name}`)
+  } else {
+    const defaultPipeline = await prisma.pipeline.create({
+      data: {
+        name: pipelineName,
+        enabled: true,
+        steps: {
+          create: [
+            {
+              order: 1,
+              roleName: 'Support',
+              inputArtifacts: JSON.stringify([]),
+              outputArtifacts: JSON.stringify(['CLIENT_MSG']),
+              requireApprovalActions: JSON.stringify([]),
+              allowRework: false
+            },
+            {
+              order: 2,
+              roleName: 'PM&Writer',
+              inputArtifacts: JSON.stringify(['CLIENT_MSG']),
+              outputArtifacts: JSON.stringify(['PRD', 'PLAN']),
+              requireApprovalActions: JSON.stringify([]),
+              allowRework: true
+            },
+            {
+              order: 3,
+              roleName: 'Dev',
+              inputArtifacts: JSON.stringify(['PRD', 'PLAN']),
+              outputArtifacts: JSON.stringify(['CODE_CHANGE']),
+              requireApprovalActions: JSON.stringify(['MERGE_MAIN']),
+              allowRework: true
+            },
+            {
+              order: 4,
+              roleName: 'QA',
+              inputArtifacts: JSON.stringify(['CODE_CHANGE']),
+              outputArtifacts: JSON.stringify(['TEST_CASES']),
+              requireApprovalActions: JSON.stringify([]),
+              allowRework: true
+            },
+            {
+              order: 5,
+              roleName: 'Ops',
+              inputArtifacts: JSON.stringify(['CODE_CHANGE', 'TEST_CASES']),
+              outputArtifacts: JSON.stringify(['DEPLOY']),
+              requireApprovalActions: JSON.stringify(['DEPLOY_PROD']),
+              allowRework: false
+            },
+            {
+              order: 6,
+              roleName: 'Support',
+              inputArtifacts: JSON.stringify(['DEPLOY']),
+              outputArtifacts: JSON.stringify(['DELIVERY_LIST', 'CLIENT_MSG']),
+              requireApprovalActions: JSON.stringify(['SEND_EXTERNAL']),
+              allowRework: false
+            }
+          ]
+        }
       }
-    }
-  })
-  console.log(`✓ 创建默认 Pipeline: ${defaultPipeline.name}`)
+    })
+    console.log(`✓ 创建默认 Pipeline: ${defaultPipeline.name}`)
+  }
 
   console.log('✅ 种子数据填充完成！')
 }
