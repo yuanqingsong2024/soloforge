@@ -289,9 +289,9 @@ export function DoctorSchedulerPage() {
                       type="checkbox"
                       checked={formData.checkTypes.includes(checkType)}
                       onChange={() => handleCheckTypeToggle(checkType)}
-                      className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-700">{checkType}</span>
+                className="h-4 w-4 rounded border-[hsl(var(--border))] text-[hsl(var(--google-blue))]"
+                      />
+                     <span className="text-sm text-[hsl(var(--foreground))]">{checkType}</span>
                   </label>
                 ))}
               </div>
@@ -302,27 +302,27 @@ export function DoctorSchedulerPage() {
                 type="checkbox"
                 checked={formData.enabled}
                 onChange={e => setFormData({ ...formData, enabled: e.target.checked })}
-                className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-              />
-              <label className="text-sm font-medium text-slate-700">启用计划</label>
+                className="h-4 w-4 rounded border-[hsl(var(--border))] text-[hsl(var(--google-blue))]"
+               />
+               <label className="text-sm font-medium text-[hsl(var(--foreground))]">启用计划</label>
             </div>
 
             <div className="flex gap-3 pt-4">
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                {editingSchedule ? '保存' : '创建'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false)
+                className="rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
+               >
+                 {editingSchedule ? '保存' : '创建'}
+               </button>
+               <button
+                 type="button"
+                 onClick={() => {
+                   setShowForm(false)
                   setEditingSchedule(null)
                 }}
-                className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors"
-              >
-                取消
+               className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors"
+             >
+               取消
               </button>
             </div>
           </form>
@@ -331,30 +331,30 @@ export function DoctorSchedulerPage() {
 
       <SectionCard title="计划列表" className="mt-6">
         {schedules.length === 0 ? (
-          <div className="text-center py-8 text-slate-500">
+          <div className="py-8 text-center text-[hsl(var(--muted-foreground))]">
             暂无计划，点击"新建计划"创建第一个巡检计划
           </div>
         ) : (
           <div className="space-y-4">
             {schedules.map(schedule => (
-              <div key={schedule.id} className="border border-slate-200 rounded-lg p-4">
+              <div key={schedule.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
-                      <h3 className="font-semibold text-slate-900">{schedule.name}</h3>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
+                      <h3 className="font-semibold text-[hsl(var(--foreground))]">{schedule.name}</h3>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                         schedule.enabled
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-slate-100 text-slate-600'
+                          ? 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
+                          : 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
                       }`}>
                         {schedule.enabled ? '已启用' : '已禁用'}
                       </span>
                     </div>
                     {schedule.description && (
-                      <p className="text-sm text-slate-600 mt-1">{schedule.description}</p>
+                       <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">{schedule.description}</p>
                     )}
-                    <div className="mt-2 text-xs text-slate-500 space-y-1">
-                      <div>Cron: <code className="px-1 py-0.5 bg-slate-100 rounded font-mono">{schedule.cronExpression}</code></div>
+                    <div className="mt-2 space-y-1 text-xs text-[hsl(var(--muted-foreground))]">
+                      <div>Cron: <code className="rounded border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.7)] px-1 py-0.5 font-mono">{schedule.cronExpression}</code></div>
                       <div>检查类型: {schedule.checkTypes.join(', ')}</div>
                       {schedule.lastRunAt && (
                         <div>上次执行: {new Date(schedule.lastRunAt).toLocaleString('zh-CN')}</div>
@@ -369,19 +369,19 @@ export function DoctorSchedulerPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleRunNow(schedule.id)}
-                      className="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors"
-                    >
-                      立即执行
-                    </button>
-                    <button
-                      onClick={() => handleToggleEnabled(schedule)}
-                      className="px-3 py-1 text-sm bg-amber-100 text-amber-700 rounded hover:bg-amber-200 transition-colors"
-                    >
-                      {schedule.enabled ? '禁用' : '启用'}
-                    </button>
-                    <button
-                      onClick={() => handleEdit(schedule)}
-                      className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                      className="rounded-full border border-[hsl(268_65%_70%_/_0.18)] bg-[hsl(268_65%_70%_/_0.12)] px-3 py-1.5 text-xs font-medium text-[hsl(268_45%_45%)] hover:bg-[hsl(268_65%_70%_/_0.18)] transition-colors"
+                     >
+                       立即执行
+                     </button>
+                     <button
+                       onClick={() => handleToggleEnabled(schedule)}
+                       className="rounded-full border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--google-yellow)_/_0.28)] transition-colors"
+                     >
+                       {schedule.enabled ? '禁用' : '启用'}
+                     </button>
+                     <button
+                       onClick={() => handleEdit(schedule)}
+                       className="rounded-full border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--google-blue))] hover:bg-[hsl(var(--google-blue)_/_0.18)] transition-colors"
                     >
                       编辑
                     </button>

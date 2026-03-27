@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { useEventDrivenRefresh } from '../hooks/useEventDrivenRefresh'
 
 interface AlertItem {
   id: string
@@ -38,34 +39,57 @@ type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 function badgeClass(status: string): string {
   switch (status) {
     case 'OPEN':
-      return 'bg-red-100 text-red-800 border-red-200'
+      return 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
     case 'ACKED':
-      return 'bg-amber-100 text-amber-800 border-amber-200'
+      return 'border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]'
     case 'RESOLVED':
-      return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+      return 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
     default:
-      return 'bg-slate-100 text-slate-800 border-slate-200'
+      return 'border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
   }
 }
 
 export function AlertsPage() {
+  const location = useLocation()
   const navigate = useNavigate()
+  const initialFilters = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return {
+      workspaceId: params.get('workspaceId') || localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
+      status: params.get('status') || '',
+      severity: params.get('severity') || ''
+    }
+  }, [location.search])
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [alerts, setAlerts] = useState<AlertItem[]>([])
-  const [filters, setFilters] = useState({
-    workspaceId: localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
-    status: '',
-    severity: ''
-  })
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [filters, setFilters] = useState(initialFilters)
+
+  useEffect(() => {
+    setFilters(initialFilters)
+  }, [initialFilters])
 
   useEffect(() => {
     getApiPort().then(async port => {
       setApiPort(port)
-      await fetchAlerts(port)
+      await fetchAlerts(port, initialFilters)
       setLoading(false)
     })
-  }, [])
+  }, [initialFilters])
+
+  const { lastEventPollAt } = useEventDrivenRefresh({
+    apiPort,
+    workspaceId: filters.workspaceId,
+    targetId: undefined,
+    enabled: Boolean(autoRefresh && apiPort),
+    hasActiveWork: alerts.some(alert => alert.status === 'OPEN' || alert.status === 'ACKED'),
+    sourceTypes: ['SYSTEM', 'DOCTOR', 'HOST_AGENT', 'DEPLOYMENT_JOB'],
+    onRelevantEvent: async () => {
+      if (!apiPort) return
+      await fetchAlerts(apiPort, filters)
+    }
+  })
 
   const fetchAlerts = async (port: number, nextFilters = filters) => {
     const params = new URLSearchParams()
@@ -116,9 +140,20 @@ export function AlertsPage() {
         title="Alerts"
         description="集中处理巡检发现的未解决问题，支持确认、解决与一键生成修复 Operation"
         actions={
-          <button onClick={() => apiPort && fetchAlerts(apiPort)} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
-            刷新 Alerts
-          </button>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.52)] px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={e => setAutoRefresh(e.target.checked)}
+                className="rounded border-[hsl(var(--border))]"
+              />
+              <span>事件驱动自动刷新</span>
+            </label>
+            <button onClick={() => apiPort && fetchAlerts(apiPort)} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
+              刷新 Alerts
+            </button>
+          </div>
         }
       />
 
@@ -152,6 +187,9 @@ export function AlertsPage() {
         <div className="mt-3">
           <button onClick={() => apiPort && fetchAlerts(apiPort)} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">应用筛选</button>
         </div>
+        <div className="mt-3 text-xs text-[hsl(var(--muted-foreground))]">
+          {lastEventPollAt ? `最近事件检查：${new Date(lastEventPollAt).toLocaleTimeString('zh-CN')}` : '尚未进行事件检查'}
+        </div>
       </SectionCard>
 
       <SectionCard title={`Alert 列表 (${alerts.length})`} description="同一问题按 dedupeKey 去重，避免刷屏">
@@ -175,12 +213,12 @@ export function AlertsPage() {
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">
                   {alertItem.status === 'OPEN' && (
-                    <button onClick={() => updateStatus(alertItem.id, 'ACKED')} className="px-3 py-1 text-xs rounded-workshop-md bg-amber-500 text-white hover:opacity-90">
+                    <button onClick={() => updateStatus(alertItem.id, 'ACKED')} className="rounded-full border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--google-yellow)_/_0.28)] transition-colors">
                       ACK
                     </button>
                   )}
                   {alertItem.status !== 'RESOLVED' && (
-                    <button onClick={() => updateStatus(alertItem.id, 'RESOLVED')} className="px-3 py-1 text-xs rounded-workshop-md bg-emerald-600 text-white hover:opacity-90">
+                    <button onClick={() => updateStatus(alertItem.id, 'RESOLVED')} className="rounded-full border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--success))] hover:bg-[hsl(var(--google-green)_/_0.18)] transition-colors">
                       标记已解决
                     </button>
                   )}

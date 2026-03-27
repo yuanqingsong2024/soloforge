@@ -75,9 +75,9 @@ export function ApprovalCenter() {
   // 审批状态徽章样式
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, string> = {
-      APPROVED: 'bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]',
-      REJECTED: 'bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]',
-      PENDING: 'bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))]'
+      APPROVED: 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]',
+      REJECTED: 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]',
+      PENDING: 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]'
     }
     return statusMap[status] || statusMap.PENDING
   }
@@ -104,8 +104,8 @@ export function ApprovalCenter() {
         description="管理高危动作审批请求"
       />
       {/* 筛选标签 */}
-      <div className="border-b border-[hsl(var(--border))] mb-6">
-        <nav className="-mb-px flex space-x-8">
+      <div className="mb-6 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-2 shadow-workshop-sm">
+        <nav className="flex flex-wrap gap-2">
           {(['PENDING', 'APPROVED', 'REJECTED', 'all'] as const).map(status => {
             const count = status === 'all' ? approvals.length : approvals.filter(a => a.status === status).length
             const label = status === 'all' ? '全部' : getStatusLabel(status)
@@ -113,10 +113,10 @@ export function ApprovalCenter() {
               <button
                 key={status}
                 onClick={() => setFilter(status)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                className={`rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
                   filter === status
-                    ? 'border-[hsl(var(--primary))] text-[hsl(var(--primary))]'
-                    : 'border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:border-[hsl(var(--border))]'
+                    ? 'bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))] shadow-workshop-sm'
+                    : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
                 }`}
               >
                 {label}
@@ -137,13 +137,13 @@ export function ApprovalCenter() {
         ) : (
           approvals.map(approval => (
             <SectionCard key={approval.id}>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">
                       {approval.actionType}
                     </h3>
-                    <span className={`px-3 py-1 text-xs rounded-full font-medium ${getStatusBadge(approval.status)}`}>
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusBadge(approval.status)}`}>
                       {getStatusLabel(approval.status)}
                     </span>
                   </div>
@@ -152,7 +152,7 @@ export function ApprovalCenter() {
                       关联工单: {approval.ticket.title}
                     </p>
                   )}
-                  <div className="mt-4 bg-[hsl(var(--muted))] rounded-workshop-md p-4">
+                  <div className="mt-4 rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4">
                     <p className="text-sm font-medium text-[hsl(var(--foreground))] mb-2">请求内容:</p>
                     <pre className="text-xs text-[hsl(var(--muted-foreground))] whitespace-pre-wrap font-mono">
                       {JSON.stringify(JSON.parse(approval.payload), null, 2)}
@@ -174,16 +174,16 @@ export function ApprovalCenter() {
                   <div className="ml-4 flex gap-2">
                     <button
                       onClick={() => handleApprove(approval.id)}
-                      className="px-4 py-2 bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]
-                               rounded-workshop-md hover:opacity-90 transition-opacity
+                      className="rounded-full border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] px-4 py-2 text-sm font-medium text-[hsl(var(--success))]
+                               transition-colors duration-200 hover:bg-[hsl(var(--google-green)_/_0.18)]
                                text-sm font-medium"
                     >
                       批准
                     </button>
                     <button
                       onClick={() => handleReject(approval.id)}
-                      className="px-4 py-2 bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]
-                               rounded-workshop-md hover:opacity-90 transition-opacity
+                      className="rounded-full border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] px-4 py-2 text-sm font-medium text-[hsl(var(--destructive))]
+                               transition-colors duration-200 hover:bg-[hsl(var(--google-red)_/_0.18)]
                                text-sm font-medium"
                     >
                       拒绝

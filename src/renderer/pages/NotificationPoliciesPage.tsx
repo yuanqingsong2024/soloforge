@@ -219,7 +219,7 @@ export function NotificationPoliciesPage() {
     return (
       <div className="p-8">
         <PageHeader title="通知策略" description="管理事件驱动的通知规则" />
-        <div className="mt-6 text-center text-slate-500">加载中...</div>
+        <div className="mt-6 text-center text-[hsl(var(--muted-foreground))]">加载中...</div>
       </div>
     )
   }
@@ -276,7 +276,7 @@ export function NotificationPoliciesPage() {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 事件过滤器 (JSON)
-                <span className="text-xs text-slate-500 ml-2">例: {`{"sourceType": "DEPLOYMENT", "severity": "CRITICAL"}`}</span>
+                <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">例: {`{"sourceType": "DEPLOYMENT", "severity": "CRITICAL"}`}</span>
               </label>
               <textarea
                 value={formData.eventFilters}
@@ -290,7 +290,7 @@ export function NotificationPoliciesPage() {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 目标过滤器 (JSON)
-                <span className="text-xs text-slate-500 ml-2">例: {`{"targetId": "prod-*"}`}</span>
+                <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">例: {`{"targetId": "prod-*"}`}</span>
               </label>
               <textarea
                 value={formData.targetFilters}
@@ -304,7 +304,7 @@ export function NotificationPoliciesPage() {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 投递目标 (JSON)
-                <span className="text-xs text-slate-500 ml-2">例: {`{"channels": ["email"], "recipients": ["admin@example.com"]}`}</span>
+                <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">例: {`{"channels": ["email"], "recipients": ["admin@example.com"]}`}</span>
               </label>
               <textarea
                 value={formData.deliveryTargets}
@@ -318,7 +318,7 @@ export function NotificationPoliciesPage() {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 静默时段 (JSON, 可选)
-                <span className="text-xs text-slate-500 ml-2">例: {`{"start": "22:00", "end": "08:00", "timezone": "Asia/Shanghai"}`}</span>
+                <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">例: {`{"start": "22:00", "end": "08:00", "timezone": "Asia/Shanghai"}`}</span>
               </label>
               <textarea
                 value={formData.quietHours}
@@ -357,7 +357,7 @@ export function NotificationPoliciesPage() {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 消息模板
-                <span className="text-xs text-slate-500 ml-2">支持变量: {`{{title}}, {{summary}}, {{severity}}`}</span>
+                <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">支持变量: {`{{title}}, {{summary}}, {{severity}}`}</span>
               </label>
               <textarea
                 value={formData.messageTemplate}
@@ -390,7 +390,7 @@ export function NotificationPoliciesPage() {
           </form>
 
           {testResult && (
-            <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+            <div className="mt-4 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.5)] p-4">
               <pre className="text-sm whitespace-pre-wrap">{testResult}</pre>
             </div>
           )}
@@ -399,29 +399,29 @@ export function NotificationPoliciesPage() {
 
       <SectionCard title="策略列表" className="mt-6">
         {policies.length === 0 ? (
-          <div className="text-center py-8 text-slate-500">
+          <div className="py-8 text-center text-[hsl(var(--muted-foreground))]">
             暂无策略，点击"新建策略"创建第一个通知策略
           </div>
         ) : (
           <div className="space-y-4">
             {policies.map(policy => (
-              <div key={policy.id} className="border border-slate-200 rounded-lg p-4">
+              <div key={policy.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
-                      <h3 className="font-semibold text-slate-900">{policy.name}</h3>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
+                      <h3 className="font-semibold text-[hsl(var(--foreground))]">{policy.name}</h3>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                         policy.enabled
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-slate-100 text-slate-600'
+                          ? 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
+                          : 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
                       }`}>
                         {policy.enabled ? '已启用' : '已禁用'}
                       </span>
                     </div>
                     {policy.description && (
-                      <p className="text-sm text-slate-600 mt-1">{policy.description}</p>
+                       <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">{policy.description}</p>
                     )}
-                    <div className="mt-2 text-xs text-slate-500 space-y-1">
+                    <div className="mt-2 space-y-1 text-xs text-[hsl(var(--muted-foreground))]">
                       <div>冷却: {policy.cooldownSeconds}s | 去重窗口: {policy.dedupeWindowSeconds}s</div>
                       <div>创建于: {new Date(policy.createdAt).toLocaleString('zh-CN')}</div>
                     </div>
@@ -430,19 +430,19 @@ export function NotificationPoliciesPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleTest(policy.id)}
-                      className="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors"
-                    >
-                      测试
-                    </button>
-                    <button
-                      onClick={() => handleToggleEnabled(policy)}
-                      className="px-3 py-1 text-sm bg-amber-100 text-amber-700 rounded hover:bg-amber-200 transition-colors"
-                    >
-                      {policy.enabled ? '禁用' : '启用'}
-                    </button>
-                    <button
-                      onClick={() => handleEdit(policy)}
-                      className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                      className="rounded-full border border-[hsl(268_65%_70%_/_0.18)] bg-[hsl(268_65%_70%_/_0.12)] px-3 py-1.5 text-xs font-medium text-[hsl(268_45%_45%)] hover:bg-[hsl(268_65%_70%_/_0.18)] transition-colors"
+                     >
+                       测试
+                     </button>
+                     <button
+                       onClick={() => handleToggleEnabled(policy)}
+                       className="rounded-full border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--google-yellow)_/_0.28)] transition-colors"
+                     >
+                       {policy.enabled ? '禁用' : '启用'}
+                     </button>
+                     <button
+                       onClick={() => handleEdit(policy)}
+                       className="rounded-full border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--google-blue))] hover:bg-[hsl(var(--google-blue)_/_0.18)] transition-colors"
                     >
                       编辑
                     </button>
@@ -450,39 +450,39 @@ export function NotificationPoliciesPage() {
                 </div>
 
                 <details className="mt-3">
-                  <summary className="text-sm text-slate-600 cursor-pointer hover:text-slate-900">
+                  <summary className="cursor-pointer text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">
                     查看配置详情
                   </summary>
                   <div className="mt-2 space-y-2 text-xs">
                     <div>
-                      <div className="font-medium text-slate-700">事件过滤器:</div>
-                      <pre className="mt-1 p-2 bg-slate-50 rounded overflow-x-auto">
+            <div className="font-medium text-[hsl(var(--foreground))]">事件过滤器:</div>
+                       <pre className="mt-1 overflow-x-auto rounded-workshop-md border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.5)] p-2">
                         {JSON.stringify(policy.eventFilters, null, 2)}
                       </pre>
                     </div>
                     <div>
-                      <div className="font-medium text-slate-700">目标过滤器:</div>
-                      <pre className="mt-1 p-2 bg-slate-50 rounded overflow-x-auto">
+            <div className="font-medium text-[hsl(var(--foreground))]">目标过滤器:</div>
+                       <pre className="mt-1 overflow-x-auto rounded-workshop-md border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.5)] p-2">
                         {JSON.stringify(policy.targetFilters, null, 2)}
                       </pre>
                     </div>
                     <div>
-                      <div className="font-medium text-slate-700">投递目标:</div>
-                      <pre className="mt-1 p-2 bg-slate-50 rounded overflow-x-auto">
+            <div className="font-medium text-[hsl(var(--foreground))]">投递目标:</div>
+                       <pre className="mt-1 overflow-x-auto rounded-workshop-md border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.5)] p-2">
                         {JSON.stringify(policy.deliveryTargets, null, 2)}
                       </pre>
                     </div>
                     {policy.quietHours && (
                       <div>
-                        <div className="font-medium text-slate-700">静默时段:</div>
-                        <pre className="mt-1 p-2 bg-slate-50 rounded overflow-x-auto">
+                         <div className="font-medium text-[hsl(var(--foreground))]">静默时段:</div>
+                         <pre className="mt-1 overflow-x-auto rounded-workshop-md border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.5)] p-2">
                           {JSON.stringify(policy.quietHours, null, 2)}
                         </pre>
                       </div>
                     )}
                     <div>
-                      <div className="font-medium text-slate-700">消息模板:</div>
-                      <pre className="mt-1 p-2 bg-slate-50 rounded overflow-x-auto whitespace-pre-wrap">
+                     <div className="font-medium text-[hsl(var(--foreground))]">消息模板:</div>
+                       <pre className="mt-1 overflow-x-auto rounded-workshop-md border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.5)] p-2 whitespace-pre-wrap">
                         {policy.messageTemplate}
                       </pre>
                     </div>

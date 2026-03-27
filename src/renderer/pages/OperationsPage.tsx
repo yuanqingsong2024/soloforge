@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { useEventDrivenRefresh } from '../hooks/useEventDrivenRefresh'
 
 interface OperationStep {
   id: string
@@ -57,46 +59,61 @@ type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 function statusClass(status: string): string {
   switch (status) {
     case 'SUCCEEDED':
-      return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+      return 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
     case 'FAILED':
-      return 'bg-red-100 text-red-800 border-red-200'
+      return 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
     case 'RUNNING':
-      return 'bg-blue-100 text-blue-800 border-blue-200'
+      return 'border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]'
     case 'WAITING_APPROVAL':
-      return 'bg-amber-100 text-amber-800 border-amber-200'
+      return 'border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]'
     default:
-      return 'bg-slate-100 text-slate-800 border-slate-200'
-  }
-}
-
-function parseJsonText(text?: string | null): string {
-  if (!text) return '—'
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2)
-  } catch {
-    return text
+      return 'border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
   }
 }
 
 export function OperationsPage() {
+  const location = useLocation()
+  const initialFilters = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return {
+      workspaceId: params.get('workspaceId') || localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
+      targetId: params.get('targetId') || '',
+      status: params.get('status') || '',
+      type: params.get('type') || ''
+    }
+  }, [location.search])
+
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [autoRefresh, setAutoRefresh] = useState(true)
   const [operations, setOperations] = useState<Operation[]>([])
   const [selectedOperationId, setSelectedOperationId] = useState<string>('')
-  const [filters, setFilters] = useState({
-    workspaceId: localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
-    targetId: '',
-    status: '',
-    type: ''
-  })
+  const [filters, setFilters] = useState(initialFilters)
+
+  useEffect(() => {
+    setFilters(initialFilters)
+  }, [initialFilters])
 
   useEffect(() => {
     getApiPort().then(async port => {
       setApiPort(port)
-      await fetchOperations(port)
+      await fetchOperations(port, initialFilters)
       setLoading(false)
     })
-  }, [])
+  }, [initialFilters])
+
+  const { lastEventPollAt } = useEventDrivenRefresh({
+    apiPort,
+    workspaceId: filters.workspaceId,
+    targetId: filters.targetId || undefined,
+    enabled: Boolean(autoRefresh && apiPort),
+    hasActiveWork: operations.some(operation => operation.status === 'RUNNING' || operation.status === 'PENDING' || operation.status === 'WAITING_APPROVAL'),
+    sourceTypes: ['DEPLOYMENT_JOB', 'HOST_AGENT', 'SYSTEM'],
+    onRelevantEvent: async () => {
+      if (!apiPort) return
+      await fetchOperations(apiPort, filters)
+    }
+  })
 
   const fetchOperations = async (port: number, nextFilters = filters) => {
     const params = new URLSearchParams()
@@ -138,12 +155,23 @@ export function OperationsPage() {
         title="Jobs / Operations"
         description="以 Phase / Step 展示部署、升级、恢复、巡检修复等分层操作结构"
         actions={
-          <button
-            onClick={() => apiPort && fetchOperations(apiPort)}
-            className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90"
-          >
-            刷新 Operations
-          </button>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.52)] px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={e => setAutoRefresh(e.target.checked)}
+                className="rounded border-[hsl(var(--border))]"
+              />
+              <span>事件驱动自动刷新</span>
+            </label>
+            <button
+              onClick={() => apiPort && fetchOperations(apiPort)}
+              className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90"
+            >
+              刷新 Operations
+            </button>
+          </div>
         }
       />
 
@@ -158,6 +186,9 @@ export function OperationsPage() {
           <button onClick={() => apiPort && fetchOperations(apiPort)} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
             应用筛选
           </button>
+        </div>
+        <div className="mt-3 text-xs text-[hsl(var(--muted-foreground))]">
+          {lastEventPollAt ? `最近事件检查：${new Date(lastEventPollAt).toLocaleTimeString('zh-CN')}` : '尚未进行事件检查'}
         </div>
       </SectionCard>
 
@@ -183,6 +214,15 @@ export function OperationsPage() {
                   {operation.targetId && <span>Target: {operation.targetId}</span>}
                   <span>{new Date(operation.updatedAt).toLocaleString('zh-CN')}</span>
                 </div>
+                <div className="mt-3 flex justify-end">
+                  <Link
+                    to={`/operations/${operation.id}`}
+                    className="rounded-full px-3 py-1 text-[11px] font-medium text-[hsl(var(--google-blue))] transition-colors hover:bg-[hsl(var(--accent))]"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    查看详情
+                  </Link>
+                </div>
               </button>
             ))}
             {operations.length === 0 && <div className="text-sm text-[hsl(var(--muted-foreground))]">当前没有 Operations 记录。后续 Alerts / Deployments / Restore 会逐步汇入这里。</div>}
@@ -191,11 +231,18 @@ export function OperationsPage() {
 
         <SectionCard
           title={selectedOperation ? selectedOperation.title || selectedOperation.type : 'Operation 详情'}
-          description={selectedOperation ? `${selectedOperation.type} · ${selectedOperation.status}` : '请选择左侧 Operation 查看详情'}
-          actions={selectedOperation && selectedOperation.status === 'PENDING' ? (
-            <button onClick={() => startOperation(selectedOperation.id)} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
-              启动 Operation
-            </button>
+          description={selectedOperation ? `${selectedOperation.type} · ${selectedOperation.status}` : '请选择左侧 Operation 查看概览'}
+          actions={selectedOperation ? (
+            <div className="flex items-center gap-2">
+              {selectedOperation.status === 'PENDING' && (
+                <button onClick={() => startOperation(selectedOperation.id)} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
+                  启动 Operation
+                </button>
+              )}
+              <Link to={`/operations/${selectedOperation.id}`} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
+                查看完整详情
+              </Link>
+            </div>
           ) : undefined}
         >
           {!selectedOperation ? (
@@ -213,7 +260,30 @@ export function OperationsPage() {
                 </div>
               </div>
 
-              {selectedOperation.phases.map(phase => (
+              <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
+                <div className="text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))] mb-3">执行摘要</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="rounded-workshop-md bg-[hsl(var(--muted))] px-3 py-3">
+                    <div className="text-[11px] uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">Phase 数量</div>
+                    <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{selectedOperation.phases.length}</div>
+                  </div>
+                  <div className="rounded-workshop-md bg-[hsl(var(--muted))] px-3 py-3">
+                    <div className="text-[11px] uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">Step 数量</div>
+                    <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{selectedOperation.phases.reduce((total, phase) => total + phase.steps.length, 0)}</div>
+                  </div>
+                  <div className="rounded-workshop-md bg-[hsl(var(--muted))] px-3 py-3">
+                    <div className="text-[11px] uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">最近更新时间</div>
+                    <div className="mt-2 text-sm font-medium text-[hsl(var(--foreground))]">{new Date(selectedOperation.updatedAt).toLocaleString('zh-CN')}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {selectedOperation.phases.map(phase => {
+                  const totalSteps = phase.steps.length
+                  const completedSteps = phase.steps.filter(step => step.status === 'SUCCEEDED').length
+                  const waitingSteps = phase.steps.filter(step => step.status === 'PENDING' || step.status === 'WAITING_APPROVAL').length
+                  return (
                 <div key={phase.id} className="border border-[hsl(var(--border))] rounded-workshop-md overflow-hidden">
                   <div className="px-4 py-3 bg-[hsl(var(--muted))] flex items-center justify-between gap-3">
                     <div>
@@ -225,44 +295,23 @@ export function OperationsPage() {
                     </div>
                     <span className={`px-2 py-0.5 text-xs rounded-full border ${statusClass(phase.status)}`}>{phase.status}</span>
                   </div>
-                  <div className="divide-y divide-[hsl(var(--border))]">
-                    {phase.steps.map(step => (
-                      <details key={step.id} className="group">
-                        <summary className="list-none cursor-pointer px-4 py-3 flex items-start justify-between gap-3 hover:bg-[hsl(var(--accent))]">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium text-[hsl(var(--foreground))]">{step.name}</div>
-                            <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1 flex gap-3 flex-wrap">
-                              <span>{step.stepType}</span>
-                              {step.deploymentJobId && <span>DeploymentJob: {step.deploymentJobId}</span>}
-                              {step.changeRequestId && <span>ChangeRequest: {step.changeRequestId}</span>}
-                              {step.alertId && <span>Alert: {step.alertId}</span>}
-                            </div>
-                          </div>
-                          <span className={`px-2 py-0.5 text-xs rounded-full border ${statusClass(step.status)}`}>{step.status}</span>
-                        </summary>
-                        <div className="px-4 pb-4 space-y-3 bg-[hsl(var(--background))]">
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <div>
-                              <div className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">请求</div>
-                              <pre className="text-xs font-mono p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto max-h-56">{parseJsonText(step.requestJson)}</pre>
-                            </div>
-                            <div>
-                              <div className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">结果</div>
-                              <pre className="text-xs font-mono p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto max-h-56">{parseJsonText(step.resultJson)}</pre>
-                            </div>
-                          </div>
-                          {step.logs && (
-                            <div>
-                              <div className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">日志</div>
-                              <pre className="text-xs font-mono p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto max-h-56 whitespace-pre-wrap">{step.logs}</pre>
-                            </div>
-                          )}
-                        </div>
-                      </details>
-                    ))}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 px-4 py-4 bg-[hsl(var(--background))] text-sm">
+                    <div>
+                      <div className="text-[hsl(var(--muted-foreground))]">步骤总数</div>
+                      <div className="font-semibold text-[hsl(var(--foreground))]">{totalSteps}</div>
+                    </div>
+                    <div>
+                      <div className="text-[hsl(var(--muted-foreground))]">已完成</div>
+                      <div className="font-semibold text-[hsl(var(--foreground))]">{completedSteps}</div>
+                    </div>
+                    <div>
+                      <div className="text-[hsl(var(--muted-foreground))]">待处理</div>
+                      <div className="font-semibold text-[hsl(var(--foreground))]">{waitingSteps}</div>
+                    </div>
                   </div>
                 </div>
-              ))}
+                  )})}
+              </div>
             </div>
           )}
         </SectionCard>

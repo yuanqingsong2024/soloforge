@@ -104,11 +104,11 @@ export function OutboxManagement() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'PENDING': return 'bg-gray-100 text-gray-800'
-      case 'SENDING': return 'bg-blue-100 text-blue-800'
-      case 'SUCCEEDED': return 'bg-green-100 text-green-800'
-      case 'FAILED': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'PENDING': return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
+      case 'SENDING': return 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]'
+      case 'SUCCEEDED': return 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
+      case 'FAILED': return 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
+      default: return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
     }
   }
 
@@ -165,13 +165,13 @@ export function OutboxManagement() {
                     </p>
                   )}
                 </div>
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${getStatusBadge(event.status)}`}>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusBadge(event.status)}`}>
                   {event.status}
                 </span>
               </div>
 
               {event.lastError && (
-                <div className="mt-2 p-2 bg-[hsl(var(--muted))] rounded text-xs">
+                <div className="mt-2 rounded-workshop-md bg-[hsl(var(--muted))] p-2 text-xs border border-[hsl(var(--border))]">
                   <p className="font-medium text-[hsl(var(--destructive))]">错误信息：</p>
                   <p className="text-[hsl(var(--muted-foreground))] mt-1">{event.lastError}</p>
                 </div>

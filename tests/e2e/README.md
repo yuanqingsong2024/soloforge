@@ -47,6 +47,12 @@ tests/
     workspace-switch.spec.ts
     theme-toggle.spec.ts
     dashboard-empty-state.spec.ts
+    change-and-backup-flows.spec.ts
+    legacy-module-smoke.spec.ts
+    contact-binding.spec.ts
+    template-rendering.spec.ts
+    approval-flow.spec.ts
+    outbound-live-openclaw.spec.ts
   fixtures/
     dashboard-scenarios.ts
 ```
@@ -82,6 +88,26 @@ tests/
 - 主题切换不导致页面崩溃
 - 空状态场景显示局部 empty state，不是整页报错
 
+### E. 新增闭环回归
+
+- Topbar 全局搜索提交后可稳定显示结果面板
+- 备份页生成备份包后可在“备份历史”中看到最新记录
+- 变更单详情页已纳入基线，但当本地种子数据没有变更单时会稳定跳过，不制造假失败
+
+### F. 旧业务模块稳定冒烟
+
+- 审批中心可打开并展示筛选标签或空状态
+- 联系人页可打开并展示新增表单与联系人列表区块
+- 外发消息中心可打开并展示状态分组
+
+### G. 旧链路稳定化子路径
+
+- 联系人管理：创建联系人后可立即在列表中看到新数据
+- 联系人绑定：通过 API 绑定联系人与主目标后，工单详情自动选中对应联系人/目标
+- 模板渲染：创建模板 + 工单后可生成草稿预览
+- 审批与外发中心：筛选标签/状态切换保持稳定；审批链路通过 API 拒绝验证状态变更
+- 工单外发：通过 UI 触发外发发送，验证 SEND_EXTERNAL 审批被创建
+
 ## 运行方式
 
 ### 前置条件
@@ -93,6 +119,7 @@ npm run build
 ```
 
 > 说明：当前基线使用 **build 后的 Electron 主进程产物** 启动测试，因此在执行 E2E 前需要先 `npm run build`。
+> 若刚修改了 Renderer/Main 代码但未重建，E2E 可能仍会运行旧的 `dist` / `dist-electron` 产物。
 
 ### 运行命令
 
@@ -113,6 +140,44 @@ npm run test:e2e:headed
 ```bash
 npm run test:e2e:debug
 ```
+
+#### 真实 OpenClaw 集成测试（可选）
+
+```bash
+SOLOFORGE_LIVE_OPENCLAW_BASE_URL=http://127.0.0.1:18789 \
+SOLOFORGE_LIVE_OPENCLAW_WS_URL=ws://127.0.0.1:18789 \
+SOLOFORGE_LIVE_OPENCLAW_AUTH_MODE=token \
+SOLOFORGE_LIVE_OPENCLAW_TOKEN=*** \
+SOLOFORGE_LIVE_CHANNEL=slack \
+SOLOFORGE_LIVE_TARGET=your-channel-or-user \
+npm run test:e2e:live-openclaw
+```
+
+说明：这条命令**不属于默认基线**。只有在你提供可用的 OpenClaw 环境、鉴权和真实目标时才会执行；否则 spec 会自动跳过。
+
+可选调试命令：
+
+```bash
+npm run test:e2e:live-openclaw:headed
+npm run test:e2e:live-openclaw:debug
+```
+
+环境变量说明：
+
+- `SOLOFORGE_LIVE_OPENCLAW_BASE_URL`：真实 OpenClaw HTTP 地址，例如 `http://127.0.0.1:18789`
+- `SOLOFORGE_LIVE_OPENCLAW_WS_URL`：真实 OpenClaw WebSocket 地址，例如 `ws://127.0.0.1:18789`
+- `SOLOFORGE_LIVE_OPENCLAW_AUTH_MODE`：`token | password | trusted-proxy`
+- `SOLOFORGE_LIVE_OPENCLAW_TOKEN`：当 `AUTH_MODE=token` 时使用
+- `SOLOFORGE_LIVE_OPENCLAW_PASSWORD`：当 `AUTH_MODE=password` 时使用
+- `SOLOFORGE_LIVE_OPENCLAW_EDGE_TOKEN`：如网关需要第二道门禁则填写
+- `SOLOFORGE_LIVE_CHANNEL`：发送渠道，默认 `slack`
+- `SOLOFORGE_LIVE_TARGET`：真实目标地址或频道 ID，必填
+
+建议：
+
+- 先单独运行 `npm run test:e2e:live-openclaw`，不要和默认 `npm run test:e2e` 混跑
+- 优先使用测试专用频道 / 机器人目标，避免误发到真实业务群组
+- 若只想看 UI 过程，使用 `:headed`；若要逐步排查，使用 `:debug`
 
 #### 查看报告
 
@@ -164,9 +229,11 @@ npm run test:e2e:report
 
 ### 当前未覆盖
 
-- 旧的通讯/审批/联系人链路 E2E 尚未纳入本轮稳定基线
 - build 后完整打包安装包链路未纳入 E2E
 - 主进程更细粒度日志抓取仍可继续增强
+- 变更单详情是否真正跳转，当前取决于本地数据里是否已有变更单记录
+- 真实 OpenClaw provider 投递成功仍未纳入默认基线；当前默认基线覆盖到审批创建、审批通过/拒绝与相关状态变更，但不覆盖真实外部投递成功
+- 若需要验证真实外部投递成功，请使用 `npm run test:e2e:live-openclaw`，不要把它并入默认 `test:e2e`
 
 ### 当前策略取舍
 

@@ -184,26 +184,26 @@ function formatDateTime(value: string): string {
 function getSeverityBadgeClass(severity: string): string {
   switch (severity) {
     case 'CRITICAL':
-      return 'bg-rose-100 text-rose-800 border-rose-300'
+      return 'border-[hsl(var(--google-red)_/_0.24)] bg-[hsl(var(--google-red)_/_0.16)] text-[hsl(var(--destructive))]'
     case 'HIGH':
-      return 'bg-orange-100 text-orange-800 border-orange-200'
+      return 'border-[hsl(var(--google-yellow)_/_0.28)] bg-[hsl(var(--google-yellow)_/_0.22)] text-[hsl(var(--foreground))]'
     case 'FAILED':
-      return 'bg-red-100 text-red-800 border-red-200'
+      return 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
     case 'OFFLINE':
-      return 'bg-red-100 text-red-800 border-red-200'
+      return 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
     default:
-      return 'bg-slate-100 text-slate-800 border-slate-200'
+      return 'border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
   }
 }
 
 function getHealthScoreClass(label: DashboardHealthScore['label']): string {
   switch (label) {
     case 'GOOD':
-      return 'text-emerald-600'
+      return 'text-[hsl(var(--success))]'
     case 'WARNING':
-      return 'text-amber-600'
+      return 'text-[hsl(var(--google-yellow))]'
     case 'CRITICAL':
-      return 'text-rose-600'
+      return 'text-[hsl(var(--destructive))]'
   }
 }
 
@@ -552,12 +552,12 @@ export function Dashboard() {
             <button
               data-testid="dashboard-refresh-button"
               onClick={() => void refreshAll()}
-              className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
+              className="rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
               type="button"
             >
               {refreshing ? '刷新中…' : '手动刷新'}
             </button>
-            <label className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
+            <label className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] shadow-workshop-sm">
               <input
                 data-testid="dashboard-auto-refresh-toggle"
                 type="checkbox"
@@ -573,12 +573,12 @@ export function Dashboard() {
       {(error || statusMessage) && (
         <div className="space-y-2">
           {error && (
-            <div data-testid="dashboard-error-banner" className="p-3 rounded-workshop-md border border-red-200 bg-red-50 text-sm text-red-800">
+            <div data-testid="dashboard-error-banner" className="rounded-workshop-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.1)] p-3 text-sm text-[hsl(var(--destructive))]">
               Dashboard 加载失败：{error}
             </div>
           )}
           {statusMessage && (
-            <div data-testid="dashboard-status-banner" className="p-3 rounded-workshop-md border border-blue-200 bg-blue-50 text-sm text-blue-800">
+            <div data-testid="dashboard-status-banner" className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.1)] p-3 text-sm text-[hsl(var(--google-blue))]">
               {statusMessage}
             </div>
           )}
@@ -588,12 +588,12 @@ export function Dashboard() {
       <SectionCard title="Global Overview" description="总控首页支持全局模式与当前 Workspace 模式，切换后所有板块同步过滤。">
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2.2fr)_minmax(320px,1fr)] gap-6">
           <div data-testid="dashboard-global-overview" className="space-y-4">
-            <div data-testid="dashboard-workspace-controls" className="flex flex-wrap items-center gap-3">
+            <div data-testid="dashboard-workspace-controls" className="flex flex-wrap items-center gap-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
               <button
                 data-testid="dashboard-workspace-mode-global"
                 type="button"
                 onClick={() => void switchWorkspace('global')}
-                className={`px-3 py-2 rounded-workshop-md text-sm border ${workspaceMode === 'global' ? 'border-[hsl(var(--primary))] bg-[hsl(var(--accent))]' : 'border-[hsl(var(--border))]'}`}
+                className={`rounded-full px-4 py-2.5 text-sm font-medium border transition-colors ${workspaceMode === 'global' ? 'border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]'}`}
               >
                 全局模式
               </button>
@@ -601,7 +601,7 @@ export function Dashboard() {
                 data-testid="dashboard-workspace-mode-current"
                 type="button"
                 onClick={() => void switchWorkspace('workspace')}
-                className={`px-3 py-2 rounded-workshop-md text-sm border ${workspaceMode === 'workspace' ? 'border-[hsl(var(--primary))] bg-[hsl(var(--accent))]' : 'border-[hsl(var(--border))]'}`}
+                className={`rounded-full px-4 py-2.5 text-sm font-medium border transition-colors ${workspaceMode === 'workspace' ? 'border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]'}`}
               >
                 当前 Workspace
               </button>
@@ -609,7 +609,7 @@ export function Dashboard() {
                 data-testid="dashboard-workspace-switcher"
                 value={selectedWorkspaceId}
                 onChange={(event) => void switchWorkspace('workspace', event.target.value)}
-                className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm"
+                className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
               >
                 {workspaces.map(workspace => (
                   <option key={workspace.id} value={workspace.id}>
@@ -622,7 +622,7 @@ export function Dashboard() {
             <div data-testid="dashboard-overview-cards" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               {overviewCards.map(card => (
                 <Link key={card.key} to={card.route} data-testid={`dashboard-overview-card-${card.key}`} className="block">
-                  <SectionCard className="!p-0 hover:border-[hsl(var(--primary))] transition-colors h-full">
+                  <SectionCard className="!p-0 h-full transition-colors hover:border-[hsl(var(--google-blue)_/_0.18)] hover:shadow-workshop-md">
                     <div className="px-5 py-4 space-y-2">
                       <div className="text-sm text-[hsl(var(--muted-foreground))]">{card.title}</div>
                       <div className="text-3xl font-bold text-[hsl(var(--foreground))]">{card.value}</div>
@@ -634,7 +634,7 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div data-testid="dashboard-health-score" className="border border-[hsl(var(--border))] rounded-workshop-md p-4 bg-[hsl(var(--background))] space-y-4">
+          <div data-testid="dashboard-health-score" className="space-y-4 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-workshop-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-sm text-[hsl(var(--muted-foreground))]">Dashboard Health Score</div>
@@ -651,7 +651,7 @@ export function Dashboard() {
             </div>
             <div className="space-y-2">
               {dashboard?.healthScore.factors.map(factor => (
-                <div key={factor.key} className="text-xs text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] rounded-workshop-sm p-2">
+                  <div key={factor.key} className="rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.52)] p-2.5 text-xs text-[hsl(var(--muted-foreground))]">
                   <div className="font-medium text-[hsl(var(--foreground))]">{factor.label}</div>
                   <div>权重 {factor.weight} · 扣分 {factor.penalty}</div>
                   <div className="mt-1">{factor.description}</div>
@@ -666,11 +666,11 @@ export function Dashboard() {
         <SectionCard title="Critical Issues" description="按优先级收敛最重要的风险项，默认仅展示前 10 条。">
           <div data-testid="dashboard-critical-issues" className="space-y-3">
             {dashboard?.criticalIssues.length ? dashboard.criticalIssues.map(issue => (
-              <button key={issue.id} data-testid={`dashboard-critical-issue-${issue.id}`} type="button" onClick={() => setSelectedIssueId(issue.id)} className="w-full text-left border border-[hsl(var(--border))] rounded-workshop-md p-4 bg-[hsl(var(--background))] hover:bg-[hsl(var(--accent))] transition-colors">
+              <button key={issue.id} data-testid={`dashboard-critical-issue-${issue.id}`} type="button" onClick={() => setSelectedIssueId(issue.id)} className="w-full rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 text-left shadow-workshop-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-2 py-0.5 text-xs rounded-full border ${getSeverityBadgeClass(issue.severity)}`}>{issue.issueType}</span>
+                        <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(issue.severity)}`}>{issue.issueType}</span>
                       <span className="text-xs text-[hsl(var(--muted-foreground))]">{issue.workspaceName}</span>
                       {issue.targetName && <span className="text-xs text-[hsl(var(--muted-foreground))]">{issue.targetName}</span>}
                     </div>
@@ -684,8 +684,8 @@ export function Dashboard() {
                         data-testid={`dashboard-critical-action-${issue.id}`}
                         type="button"
                         onClick={() => navigate(action.route)}
-                        className="px-3 py-1 text-xs rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90"
-                      >
+                         className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.7)] px-3 py-1.5 text-xs text-[hsl(var(--foreground))] transition-colors duration-200 hover:bg-[hsl(var(--accent))]"
+                       >
                         {action.label}
                       </button>
                     ))}
@@ -705,7 +705,7 @@ export function Dashboard() {
                 type="button"
                 onClick={action.onClick}
                 disabled={action.disabled}
-                className="text-left border border-[hsl(var(--border))] rounded-workshop-md p-4 hover:bg-[hsl(var(--accent))] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="text-left rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{action.label}</div>
                 <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{action.description}</div>
@@ -718,7 +718,7 @@ export function Dashboard() {
       <SectionCard title="Runtime Status" description="统一展示 Operations、Host Agents、Deployment、Auto-Remediation 与整体趋势。">
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div className="space-y-4">
-            <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4 space-y-3">
+            <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-[hsl(var(--foreground))]">Operations Snapshot</div>
@@ -734,18 +734,18 @@ export function Dashboard() {
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.operations.recent.map(operation => (
-                  <div key={operation.id} className="flex items-center justify-between gap-3 text-sm border border-[hsl(var(--border))] rounded-workshop-sm px-3 py-2">
+                  <div key={operation.id} className="flex items-center justify-between gap-3 rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
                     <div>
                       <div className="font-medium text-[hsl(var(--foreground))]">{operation.title}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{operation.type} · {formatDateTime(operation.updatedAt)}</div>
                     </div>
-                    <span className={`px-2 py-0.5 text-xs rounded-full border ${getSeverityBadgeClass(operation.status === 'FAILED' ? 'FAILED' : operation.status)}`}>{operation.status}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(operation.status === 'FAILED' ? 'FAILED' : operation.status)}`}>{operation.status}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4 space-y-3">
+            <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-[hsl(var(--foreground))]">Host Agent Health</div>
@@ -761,12 +761,12 @@ export function Dashboard() {
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.hostAgents.recentAnomalies.length ? dashboard.runtime.hostAgents.recentAnomalies.map(agent => (
-                  <div key={agent.id} className="flex items-center justify-between gap-3 text-sm border border-[hsl(var(--border))] rounded-workshop-sm px-3 py-2">
+                  <div key={agent.id} className="flex items-center justify-between gap-3 rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
                     <div>
                       <div className="font-medium text-[hsl(var(--foreground))]">{agent.name}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{agent.lastHeartbeatAt ? formatDateTime(agent.lastHeartbeatAt) : '从未心跳'}</div>
                     </div>
-                    <span className={`px-2 py-0.5 text-xs rounded-full border ${getSeverityBadgeClass(agent.status)}`}>{agent.status}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(agent.status)}`}>{agent.status}</span>
                   </div>
                 )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">没有心跳异常 Agent。</div>}
               </div>
@@ -774,7 +774,7 @@ export function Dashboard() {
           </div>
 
           <div className="space-y-4">
-            <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4 space-y-3">
+            <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-[hsl(var(--foreground))]">Deployment Status</div>
@@ -789,18 +789,18 @@ export function Dashboard() {
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.deployments.recentJobs.map(job => (
-                  <div key={job.id} className="flex items-center justify-between gap-3 text-sm border border-[hsl(var(--border))] rounded-workshop-sm px-3 py-2">
+                  <div key={job.id} className="flex items-center justify-between gap-3 rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
                     <div>
                       <div className="font-medium text-[hsl(var(--foreground))]">{job.targetName}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{job.type} · {formatDateTime(job.createdAt)}</div>
                     </div>
-                    <span className={`px-2 py-0.5 text-xs rounded-full border ${getSeverityBadgeClass(job.status === 'FAILED' ? 'FAILED' : job.status)}`}>{job.status}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(job.status === 'FAILED' ? 'FAILED' : job.status)}`}>{job.status}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4 space-y-3">
+            <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-[hsl(var(--foreground))]">Auto-Remediation Snapshot</div>
@@ -816,12 +816,12 @@ export function Dashboard() {
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.remediation.recent.length ? dashboard.runtime.remediation.recent.map(item => (
-                  <div key={item.id} className="flex items-center justify-between gap-3 text-sm border border-[hsl(var(--border))] rounded-workshop-sm px-3 py-2">
+                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
                     <div>
                       <div className="font-medium text-[hsl(var(--foreground))]">{item.title}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{formatDateTime(item.updatedAt)}</div>
                     </div>
-                    <span className={`px-2 py-0.5 text-xs rounded-full border ${getSeverityBadgeClass(item.status === 'FAILED' ? 'FAILED' : item.status)}`}>{item.status}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(item.status === 'FAILED' ? 'FAILED' : item.status)}`}>{item.status}</span>
                   </div>
                 )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">当前没有自动修复链路记录。</div>}
               </div>
@@ -842,12 +842,12 @@ export function Dashboard() {
                 data-testid={`dashboard-pending-action-${item.id}`}
                 type="button"
                 onClick={() => setSelectedActionId(item.id)}
-                className="w-full text-left border border-[hsl(var(--border))] rounded-workshop-md p-4 hover:bg-[hsl(var(--accent))] transition-colors"
+                className="w-full rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 text-left shadow-workshop-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2 py-0.5 text-xs rounded-full border bg-[hsl(var(--muted))]">{item.actionType}</span>
+                      <span className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-2.5 py-1 text-xs">{item.actionType}</span>
                       <span className="text-xs text-[hsl(var(--muted-foreground))]">{item.workspaceName}</span>
                     </div>
                     <div className="mt-2 text-sm font-semibold text-[hsl(var(--foreground))]">{item.title}</div>
@@ -865,12 +865,12 @@ export function Dashboard() {
 
         <SectionCard title="Activity Feed Preview" description="最近事件按时间倒序展示，可按当前 Workspace / severity / source_type 过滤。">
           <div data-testid="dashboard-activity-feed-preview" className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm sm:grid-cols-3">
               <select
                 data-testid="dashboard-activity-severity-filter"
                 value={activitySeverity}
                 onChange={(event) => setActivitySeverity(event.target.value)}
-                className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm"
+                className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
               >
                 <option value="">全部严重级别</option>
                 <option value="INFO">INFO</option>
@@ -883,13 +883,13 @@ export function Dashboard() {
                 value={activitySourceType}
                 onChange={(event) => setActivitySourceType(event.target.value)}
                 placeholder="source_type"
-                className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm"
+                className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
               />
               <button
                 data-testid="dashboard-activity-apply-filter"
                 type="button"
                 onClick={() => void refreshAll()}
-                className="px-3 py-2 rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90 text-sm"
+                className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.7)] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] transition-colors duration-200 hover:bg-[hsl(var(--accent))]"
               >
                 应用过滤
               </button>
@@ -902,12 +902,12 @@ export function Dashboard() {
                   data-testid={`dashboard-activity-item-${item.id}`}
                   type="button"
                   onClick={() => setSelectedActivityId(item.id)}
-                  className="w-full text-left border border-[hsl(var(--border))] rounded-workshop-md p-4 hover:bg-[hsl(var(--accent))] transition-colors"
+                  className="w-full rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 text-left shadow-workshop-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`px-2 py-0.5 text-xs rounded-full border ${getSeverityBadgeClass(item.severity)}`}>{item.severity}</span>
+                        <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(item.severity)}`}>{item.severity}</span>
                         <span className="text-xs text-[hsl(var(--muted-foreground))]">{item.sourceType}</span>
                         <span className="text-xs text-[hsl(var(--muted-foreground))]">{item.workspaceName}</span>
                       </div>
@@ -917,7 +917,7 @@ export function Dashboard() {
                         {item.targetName ? `${item.targetName} · ` : ''}{formatDateTime(item.createdAt)}
                       </div>
                     </div>
-                    <div className="text-xs text-[hsl(var(--primary))] shrink-0">查看完整流</div>
+                    <div className="shrink-0 rounded-full border border-[hsl(var(--google-blue)_/_0.14)] bg-[hsl(var(--google-blue)_/_0.08)] px-3 py-1 text-xs font-medium text-[hsl(var(--google-blue))]">查看完整流</div>
                   </div>
                 </button>
               )) : <div data-testid="dashboard-activity-empty" className="text-sm text-[hsl(var(--muted-foreground))]">当前筛选条件下暂无事件。</div>}
@@ -941,24 +941,24 @@ export function Dashboard() {
           if (!issue) return <div className="text-sm text-[hsl(var(--muted-foreground))]">未找到该问题详情。</div>
           return (
             <div className="space-y-4">
-              <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4 bg-[hsl(var(--muted))]" data-testid="drawer-issue-summary">
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-2">问题摘要</div>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-workshop-sm" data-testid="drawer-issue-summary">
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">问题摘要</div>
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{issue.summary}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="border border-[hsl(var(--border))] rounded-workshop-md p-3">
+                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">问题类型</div>
                   <div className="text-sm font-medium text-[hsl(var(--foreground))]">{issue.issueType}</div>
                 </div>
-                <div className="border border-[hsl(var(--border))] rounded-workshop-md p-3">
+                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">严重程度</div>
-                  <span className={`px-2 py-0.5 text-xs rounded-full border ${getSeverityBadgeClass(issue.severity)}`}>{issue.severity}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(issue.severity)}`}>{issue.severity}</span>
                 </div>
               </div>
 
-              <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-3">关联信息</div>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">关联信息</div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-[hsl(var(--muted-foreground))]">Workspace:</span>
@@ -977,8 +977,8 @@ export function Dashboard() {
                 </div>
               </div>
 
-              <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4 bg-[hsl(var(--accent))]">
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-3">下一步操作</div>
+              <div className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-workshop-sm">
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">下一步操作</div>
                 <div className="space-y-2">
                   {issue.actions.map(action => (
                     <button
@@ -988,7 +988,7 @@ export function Dashboard() {
                         setSelectedIssueId(null)
                         navigate(action.route)
                       }}
-                      className="w-full px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
+                      className="w-full rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
                       data-testid={`drawer-issue-action-${action.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
                     >
                       {action.label}
@@ -1014,29 +1014,29 @@ export function Dashboard() {
           if (!action) return <div className="text-sm text-[hsl(var(--muted-foreground))]">未找到该待办事项详情。</div>
           return (
             <div className="space-y-4">
-              <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4 bg-[hsl(var(--muted))]" data-testid="drawer-action-summary">
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-2">待办标题</div>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-workshop-sm" data-testid="drawer-action-summary">
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">待办标题</div>
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{action.title}</div>
               </div>
 
-              <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-2">详细说明</div>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">详细说明</div>
                 <div className="text-sm text-[hsl(var(--foreground))]">{action.summary}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="border border-[hsl(var(--border))] rounded-workshop-md p-3">
+                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">动作类型</div>
                   <div className="text-sm font-medium text-[hsl(var(--foreground))]">{action.actionType}</div>
                 </div>
-                <div className="border border-[hsl(var(--border))] rounded-workshop-md p-3">
+                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">当前状态</div>
                   <div className="text-sm font-medium text-[hsl(var(--foreground))]">{action.status}</div>
                 </div>
               </div>
 
-              <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-3">关联信息</div>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">关联信息</div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-[hsl(var(--muted-foreground))]">Workspace:</span>
@@ -1049,15 +1049,15 @@ export function Dashboard() {
                 </div>
               </div>
 
-              <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4 bg-[hsl(var(--accent))]">
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-3">跳转到原模块</div>
+              <div className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-workshop-sm">
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">跳转到原模块</div>
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedActionId(null)
                     navigate(action.route)
                   }}
-                  className="w-full px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
+                  className="w-full rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
                   data-testid="drawer-action-navigate"
                 >
                   前往处理
@@ -1081,29 +1081,29 @@ export function Dashboard() {
           if (!activity) return <div className="text-sm text-[hsl(var(--muted-foreground))]">未找到该事件详情。</div>
           return (
             <div className="space-y-4">
-              <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4 bg-[hsl(var(--muted))]" data-testid="drawer-activity-summary">
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-2">事件标题</div>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-workshop-sm" data-testid="drawer-activity-summary">
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">事件标题</div>
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{activity.title}</div>
               </div>
 
-              <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-2">事件摘要</div>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">事件摘要</div>
                 <div className="text-sm text-[hsl(var(--foreground))]">{activity.summary}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="border border-[hsl(var(--border))] rounded-workshop-md p-3">
+                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">严重程度</div>
-                  <span className={`px-2 py-0.5 text-xs rounded-full border ${getSeverityBadgeClass(activity.severity)}`}>{activity.severity}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(activity.severity)}`}>{activity.severity}</span>
                 </div>
-                <div className="border border-[hsl(var(--border))] rounded-workshop-md p-3">
+                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">事件类型</div>
                   <div className="text-sm font-medium text-[hsl(var(--foreground))]">{activity.eventType}</div>
                 </div>
               </div>
 
-              <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-3">关联信息</div>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">关联信息</div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-[hsl(var(--muted-foreground))]">来源类型:</span>
@@ -1132,15 +1132,15 @@ export function Dashboard() {
                 </div>
               </div>
 
-              <div className="border border-[hsl(var(--border))] rounded-workshop-md p-4 bg-[hsl(var(--accent))]">
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-3">查看完整事件流</div>
+              <div className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-workshop-sm">
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">查看完整事件流</div>
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedActivityId(null)
                     navigate('/activity-feed')
                   }}
-                  className="w-full px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
+                  className="w-full rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
                   data-testid="drawer-activity-navigate"
                 >
                   前往 Activity Feed

@@ -338,45 +338,73 @@ export function Sidebar() {
     return location.pathname.startsWith(path)
   }
 
+  const primaryItems = navItems.slice(0, 8)
+  const secondaryItems = navItems.slice(8)
+
+  const renderNavGroup = (items: NavItem[], title: string) => (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 px-3">
+        <div className="h-px flex-1 bg-[linear-gradient(90deg,hsl(var(--border)_/_0.2),transparent)]" />
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">{title}</div>
+      </div>
+      <ul className="space-y-1.5 rounded-workshop-lg border border-[hsl(var(--border)_/_0.42)] bg-[linear-gradient(180deg,hsl(var(--background)_/_0.22),hsl(var(--background)_/_0.12))] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]">
+        {items.map((item) => {
+          const active = isActive(item.path)
+          return (
+            <li key={item.path}>
+              <Link
+                to={item.path}
+                data-testid={`sidebar-link-${item.path === '/' ? 'dashboard' : item.path.slice(1).replace(/\//g, '-')}`}
+                className={`
+                  group relative flex items-center gap-3 px-3.5 py-2.5 rounded-workshop-md
+                  text-sm font-medium transition-all duration-200 cursor-pointer
+                  ${
+                    active
+                      ? 'border border-[hsl(var(--google-blue)_/_0.18)] bg-[linear-gradient(135deg,hsl(var(--google-blue)_/_0.14),hsl(var(--google-green)_/_0.1))] text-[hsl(var(--foreground))] shadow-workshop-sm'
+                      : 'border border-transparent text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--border)_/_0.78)] hover:bg-[hsl(var(--accent)_/_0.72)] hover:text-[hsl(var(--accent-foreground))]'
+                  }
+                `}
+              >
+                {active && <span className="absolute left-1.5 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-[hsl(var(--google-blue))]" />}
+                <span className={`shrink-0 ${active ? 'text-[hsl(var(--google-blue))]' : 'text-[hsl(var(--muted-foreground))] group-hover:text-[hsl(var(--foreground))]'}`}>{item.icon}</span>
+                <span className="truncate leading-5">{item.label}</span>
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+
   return (
-    <aside data-testid="app-sidebar" className="w-64 h-screen bg-[hsl(var(--card))] border-r border-[hsl(var(--border))] flex flex-col">
+    <aside data-testid="app-sidebar" className="flex h-[calc(100vh-1.5rem)] w-72 flex-col rounded-[28px] border border-[hsl(var(--border)_/_0.82)] bg-[linear-gradient(180deg,hsl(var(--card)_/_0.94),hsl(var(--card)_/_0.82))] shadow-workshop-md backdrop-blur supports-[backdrop-filter]:bg-[linear-gradient(180deg,hsl(var(--card)_/_0.9),hsl(var(--card)_/_0.78))]">
       {/* Logo 区域 */}
-      <div className="h-16 flex items-center px-6 border-b border-[hsl(var(--border))]">
-        <h1 className="text-xl font-bold text-[hsl(var(--foreground))]">SoloForge</h1>
+      <div className="flex h-16 items-center border-b border-[hsl(var(--border)_/_0.7)] px-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-workshop-lg border border-[hsl(var(--border))] bg-[linear-gradient(135deg,hsl(var(--google-blue)_/_0.16),hsl(var(--google-green)_/_0.14))] shadow-workshop-sm">
+            <span className="text-base font-semibold tracking-tight text-[hsl(var(--foreground))]">SF</span>
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight text-[hsl(var(--foreground))]">SoloForge</h1>
+            <p className="text-[11px] tracking-[0.12em] text-[hsl(var(--muted-foreground))] uppercase">Workshop OS</p>
+          </div>
+        </div>
       </div>
 
       {/* 导航区域 */}
-      <nav className="flex-1 overflow-y-auto py-4">
-        <ul className="space-y-1 px-3">
-          {navItems.map((item) => {
-            const active = isActive(item.path)
-            return (
-              <li key={item.path}>
-                <Link
-                  to={item.path}
-                  data-testid={`sidebar-link-${item.path === '/' ? 'dashboard' : item.path.slice(1).replace(/\//g, '-')}`}
-                  className={`
-                    flex items-center gap-3 px-3 py-2 rounded-workshop-md
-                    text-sm font-medium transition-colors duration-200
-                    ${
-                      active
-                        ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                        : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]'
-                    }
-                  `}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
+      <nav className="flex-1 overflow-y-auto px-3 py-4 [scrollbar-gutter:stable]">
+        <div className="space-y-5">
+          {renderNavGroup(primaryItems, '核心工作台')}
+          <div className="mx-3 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--border)),transparent)]" />
+          {renderNavGroup(secondaryItems, '运营与系统')}
+        </div>
       </nav>
 
       {/* 底部信息 */}
-      <div className="p-4 border-t border-[hsl(var(--border))]">
-        <p className="text-xs text-[hsl(var(--muted-foreground))] text-center">SoloForge v1.0.0</p>
+      <div className="border-t border-[hsl(var(--border)_/_0.7)] p-4">
+        <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.78)] bg-[hsl(var(--background)_/_0.52)] px-3 py-2.5 text-center shadow-workshop-sm">
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">SoloForge v1.0.0</p>
+        </div>
       </div>
     </aside>
   )

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
+import { useEventDrivenRefresh } from '../hooks/useEventDrivenRefresh'
 
 interface DeploymentTarget {
   id: string
@@ -26,13 +27,17 @@ interface DeploymentTarget {
 interface DeploymentJob {
   id: string
   targetId: string
-  jobType: string
+  type: string
   status: string
-  startedAt?: string
-  completedAt?: string
-  errorMessage?: string
-  metadata: string
+  traceId: string
+  requestJson: string
+  resultJson?: string | null
+  logs?: string | null
+  attempts?: number
+  nextRetryAt?: string | null
+  lastError?: string | null
   createdAt: string
+  updatedAt: string
 }
 
 interface HealthCheckResult {
@@ -42,6 +47,36 @@ interface HealthCheckResult {
 }
 
 type TabType = 'overview' | 'service' | 'logs' | 'jobs'
+
+interface ParsedDeploymentJobResult {
+  actionId?: string
+  hostAgentId?: string
+  dispatch?: string
+  reason?: string
+  status?: string
+  errorSummary?: string
+}
+
+function parseJobResult(raw?: string | null): string {
+  if (!raw) return '-'
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    if (typeof parsed.errorSummary === 'string' && parsed.errorSummary) return parsed.errorSummary
+    if (typeof parsed.status === 'string') return `状态：${parsed.status}`
+    return JSON.stringify(parsed)
+  } catch {
+    return raw
+  }
+}
+
+function parseDeploymentJobResult(raw?: string | null): ParsedDeploymentJobResult | null {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as ParsedDeploymentJobResult
+  } catch {
+    return null
+  }
+}
 
 export function DeploymentDetail() {
   const { id } = useParams<{ id: string }>()
@@ -55,6 +90,8 @@ export function DeploymentDetail() {
   const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [autoRefreshLogs, setAutoRefreshLogs] = useState(false)
+  const [autoRefreshJobs, setAutoRefreshJobs] = useState(true)
+  const [lastJobsRefreshAt, setLastJobsRefreshAt] = useState<string | null>(null)
 
   useEffect(() => {
     getApiPort().then(port => {
@@ -74,6 +111,19 @@ export function DeploymentDetail() {
       return () => clearInterval(interval)
     }
   }, [autoRefreshLogs, apiPort, id, activeTab])
+
+  const hasActiveInstallJob = jobs.some(job => job.type === 'OPENCLAW_BOOTSTRAP_INSTALL' && job.status === 'RUNNING')
+
+  const { lastEventPollAt } = useEventDrivenRefresh({
+    apiPort,
+    targetId: id,
+    enabled: Boolean(autoRefreshJobs && activeTab === 'jobs' && hasActiveInstallJob),
+    hasActiveWork: hasActiveInstallJob,
+    onRelevantEvent: async () => {
+      if (!apiPort || !id) return
+      await Promise.all([fetchJobs(apiPort, id), fetchTarget(apiPort, id)])
+    }
+  })
 
   const fetchTarget = async (port: number, targetId: string) => {
     try {
@@ -99,6 +149,7 @@ export function DeploymentDetail() {
       }
       const data = await response.json()
       setJobs(data)
+      setLastJobsRefreshAt(new Date().toISOString())
     } catch (err) {
       console.error('Failed to fetch jobs:', err)
     }
@@ -207,11 +258,47 @@ export function DeploymentDetail() {
       <div className="space-y-6">
         <PageHeader title="部署详情" description="加载失败" />
         <div className="flex items-center justify-center h-64">
-          <p className="text-red-500">{error || '部署目标不存在'}</p>
+          <p className="text-[hsl(var(--destructive))]">{error || '部署目标不存在'}</p>
         </div>
       </div>
     )
   }
+
+  const relatedActionIds = Array.from(new Set(jobs.map(job => parseDeploymentJobResult(job.resultJson)?.actionId).filter(Boolean) as string[]))
+  const relatedHostAgentIds = Array.from(new Set(jobs.map(job => parseDeploymentJobResult(job.resultJson)?.hostAgentId).filter(Boolean) as string[]))
+
+  const lifecycleItems = [
+    {
+      id: 'target-created',
+      title: '部署目标已创建',
+      subtitle: `${target.targetType} · ${target.envType}`,
+      timestamp: target.createdAt,
+      tone: 'bg-[hsl(var(--google-blue))]'
+    },
+    ...jobs.map(job => ({
+      id: job.id,
+      title: job.type,
+      subtitle: job.status,
+      timestamp: job.updatedAt || job.createdAt,
+      tone:
+        job.status === 'SUCCEEDED'
+          ? 'bg-[hsl(var(--success))]'
+          : job.status === 'FAILED'
+            ? 'bg-[hsl(var(--destructive))]'
+            : job.status === 'RUNNING'
+              ? 'bg-[hsl(var(--google-blue))]'
+              : 'bg-[hsl(var(--muted-foreground))]'
+    })),
+    ...(target.lastCheckAt
+      ? [{
+          id: 'last-health-check',
+          title: '最近健康检查',
+          subtitle: target.status,
+          timestamp: target.lastCheckAt,
+          tone: target.status === 'HEALTHY' ? 'bg-[hsl(var(--success))]' : 'bg-[hsl(var(--google-yellow))]'
+        }]
+      : [])
+  ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
   return (
     <div className="space-y-6">
@@ -221,17 +308,83 @@ export function DeploymentDetail() {
         actions={
           <button
             onClick={() => navigate('/deployments')}
-            className="px-4 py-2 bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] rounded-workshop-md hover:bg-[hsl(var(--muted)/0.8)] transition-colors"
+            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
           >
             返回列表
           </button>
         }
       />
 
+      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-workshop-sm">
+        <div className="mb-4">
+          <div className="text-sm font-semibold text-[hsl(var(--foreground))]">关联对象概览</div>
+          <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">快速查看当前部署关联到的作业、动作和宿主机对象。</div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
+            <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">Deployment Jobs</div>
+            <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{jobs.length}</div>
+            <div className="mt-3 space-y-2">
+              {jobs.length > 0 ? jobs.slice(0, 5).map(job => (
+                <Link key={job.id} to={`/deployment-jobs/${job.id}`} className="block text-sm text-[hsl(var(--google-blue))] hover:underline">
+                  {job.type} <span className="text-[hsl(var(--muted-foreground))]">· {job.status}</span>
+                </Link>
+              )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">暂无关联作业</div>}
+            </div>
+          </div>
+
+          <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
+            <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">Agent Actions</div>
+            <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{relatedActionIds.length}</div>
+            <div className="mt-3 space-y-2">
+              {relatedActionIds.length > 0 ? relatedActionIds.map(actionId => (
+                <Link key={actionId} to={`/agent-actions/${actionId}`} className="block text-sm text-[hsl(var(--google-blue))] hover:underline">
+                  {actionId}
+                </Link>
+              )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">暂无关联动作</div>}
+            </div>
+          </div>
+
+          <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
+            <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">Host Agents</div>
+            <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{relatedHostAgentIds.length}</div>
+            <div className="mt-3 space-y-2">
+              {relatedHostAgentIds.length > 0 ? relatedHostAgentIds.map(agentId => (
+                <Link key={agentId} to={`/host-agents/${agentId}`} className="block text-sm text-[hsl(var(--google-blue))] hover:underline">
+                  {agentId}
+                </Link>
+              )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">暂无关联宿主机动作</div>}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-workshop-sm">
+        <div className="mb-4">
+          <div className="text-sm font-semibold text-[hsl(var(--foreground))]">部署生命周期时间线</div>
+          <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">按时间顺序概览部署目标创建、作业推进和健康检查。</div>
+        </div>
+        <div className="relative pl-4 space-y-5 before:absolute before:inset-y-2 before:left-[11px] before:w-px before:bg-[hsl(var(--border))]">
+          {lifecycleItems.map(item => (
+            <div key={item.id} className="relative pl-6">
+              <span className={`absolute left-[-5px] top-1.5 h-2 w-2 rounded-full ring-4 ring-[hsl(var(--background))] ${item.tone}`} />
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <div className="text-sm font-medium text-[hsl(var(--foreground))]">{item.title}</div>
+                  <div className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">{item.subtitle}</div>
+                </div>
+                <div className="text-xs text-[hsl(var(--muted-foreground))]">{new Date(item.timestamp).toLocaleString('zh-CN')}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Tabs */}
-      <div className="bg-[hsl(var(--card))] rounded-workshop-lg border border-[hsl(var(--border))] overflow-hidden">
+      <div className="overflow-hidden rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm">
         <div className="border-b border-[hsl(var(--border))]">
-          <nav className="flex space-x-8 px-6" aria-label="Tabs">
+          <nav className="flex flex-wrap gap-2 px-4 py-3" aria-label="Tabs">
             {[
               { id: 'overview', label: '概览' },
               { id: 'service', label: '服务管理' },
@@ -247,10 +400,10 @@ export function DeploymentDetail() {
                   }
                 }}
                 className={`
-                  py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                  rounded-full px-4 py-2.5 text-sm font-medium transition-colors
                   ${activeTab === tab.id
-                    ? 'border-[hsl(var(--primary))] text-[hsl(var(--primary))]'
-                    : 'border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:border-[hsl(var(--border))]'
+                    ? 'bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))] shadow-workshop-sm'
+                    : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
                   }
                 `}
               >
@@ -366,43 +519,43 @@ export function DeploymentDetail() {
                 <button
                   onClick={() => handleServiceAction('start')}
                   disabled={actionLoading !== null}
-                  className="px-4 py-3 bg-green-600 text-white rounded-workshop-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="rounded-full border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] px-4 py-3 text-sm font-medium text-[hsl(var(--success))] transition-colors hover:bg-[hsl(var(--google-green)_/_0.18)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {actionLoading === 'start' ? '启动中...' : '启动服务'}
                 </button>
                 <button
                   onClick={() => handleServiceAction('stop')}
                   disabled={actionLoading !== null}
-                  className="px-4 py-3 bg-red-600 text-white rounded-workshop-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="rounded-full border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] px-4 py-3 text-sm font-medium text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--google-red)_/_0.18)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {actionLoading === 'stop' ? '停止中...' : '停止服务'}
                 </button>
                 <button
                   onClick={() => handleServiceAction('restart')}
                   disabled={actionLoading !== null}
-                  className="px-4 py-3 bg-yellow-600 text-white rounded-workshop-md hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="rounded-full border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] px-4 py-3 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--google-yellow)_/_0.28)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {actionLoading === 'restart' ? '重启中...' : '重启服务'}
                 </button>
                 <button
                   onClick={() => handleServiceAction('upgrade')}
                   disabled={actionLoading !== null}
-                  className="px-4 py-3 bg-blue-600 text-white rounded-workshop-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="rounded-full border border-[hsl(var(--google-blue)_/_0.18)] bg-[hsl(var(--google-blue)_/_0.12)] px-4 py-3 text-sm font-medium text-[hsl(var(--google-blue))] transition-colors hover:bg-[hsl(var(--google-blue)_/_0.18)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {actionLoading === 'upgrade' ? '升级中...' : '升级服务'}
                 </button>
                 <button
                   onClick={handleHealthCheck}
                   disabled={actionLoading !== null}
-                  className="col-span-2 px-4 py-3 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                  className="col-span-2 rounded-full bg-[hsl(var(--primary))] px-4 py-3 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 transition-opacity"
                 >
                   {actionLoading === 'health' ? '检查中...' : '健康检查'}
                 </button>
               </div>
 
               {target.envType === 'PROD' && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-workshop-md p-4">
-                  <p className="text-sm text-yellow-800">
+                <div className="rounded-workshop-lg border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.16)] p-4 shadow-workshop-sm">
+                  <p className="text-sm text-[hsl(var(--foreground))]">
                     <strong>注意：</strong>此部署目标为生产环境，服务管理操作需要审批。
                   </p>
                 </div>
@@ -413,14 +566,14 @@ export function DeploymentDetail() {
           {/* Logs Tab */}
           {activeTab === 'logs' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
                 <div className="flex items-center space-x-4">
-                  <label className="flex items-center space-x-2">
+                  <label className="flex items-center space-x-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.52)] px-3 py-2">
                     <input
                       type="checkbox"
                       checked={autoRefreshLogs}
                       onChange={(e) => setAutoRefreshLogs(e.target.checked)}
-                      className="rounded"
+                      className="rounded border-[hsl(var(--border))]"
                     />
                     <span className="text-sm text-[hsl(var(--muted-foreground))]">自动刷新（5秒）</span>
                   </label>
@@ -428,19 +581,19 @@ export function DeploymentDetail() {
                 <div className="flex space-x-2">
                   <button
                     onClick={() => apiPort && id && fetchLogs(apiPort, id)}
-                    className="px-3 py-1 text-sm bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] rounded-workshop-md hover:bg-[hsl(var(--muted)/0.8)] transition-colors"
+                    className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-3 py-1.5 text-sm text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
                   >
                     刷新
                   </button>
                   <button
                     onClick={downloadLogs}
-                    className="px-3 py-1 text-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 transition-opacity"
+                    className="rounded-full bg-[hsl(var(--primary))] px-3 py-1.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
                   >
                     下载日志
                   </button>
                 </div>
               </div>
-              <pre className="bg-black text-green-400 p-4 rounded-workshop-md overflow-x-auto text-xs font-mono h-96 overflow-y-auto">
+              <pre className="h-96 overflow-x-auto overflow-y-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(224_24%_10%)] p-4 font-mono text-xs text-[hsl(var(--google-green))] shadow-workshop-sm">
                 {logs}
               </pre>
             </div>
@@ -449,57 +602,109 @@ export function DeploymentDetail() {
           {/* Jobs History Tab */}
           {activeTab === 'jobs' && (
             <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium text-[hsl(var(--foreground))]">安装作业监控</div>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))]">
+                    {lastJobsRefreshAt ? `最近刷新：${new Date(lastJobsRefreshAt).toLocaleTimeString('zh-CN')}` : '尚未刷新'}
+                    {lastEventPollAt ? ` · 最近事件检查：${new Date(lastEventPollAt).toLocaleTimeString('zh-CN')}` : ''}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.52)] px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={autoRefreshJobs}
+                      onChange={(e) => setAutoRefreshJobs(e.target.checked)}
+                      className="rounded border-[hsl(var(--border))]"
+                    />
+                    <span className="text-sm text-[hsl(var(--muted-foreground))]">运行中自动刷新</span>
+                  </label>
+                  <button
+                    onClick={() => apiPort && id && fetchJobs(apiPort, id)}
+                    className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-3 py-1.5 text-sm text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
+                  >
+                    刷新作业
+                  </button>
+                </div>
+              </div>
+
               {jobs.length === 0 ? (
                 <p className="text-center text-[hsl(var(--muted-foreground))] py-8">暂无作业历史</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-[hsl(var(--muted))] border-b border-[hsl(var(--border))]">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase">
-                          作业类型
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase">
+                 <div className="overflow-x-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm">
+                   <table className="w-full">
+                     <thead className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.56)]">
+                       <tr>
+                         <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
+                           作业类型
+                         </th>
+                         <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
                           状态
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase">
+                         <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
                           开始时间
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase">
+                         <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
                           完成时间
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase">
-                          错误信息
-                        </th>
-                      </tr>
+                         <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
+                           错误信息
+                         </th>
+                         <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
+                           执行摘要
+                         </th>
+                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[hsl(var(--border))]">
-                      {jobs.map(job => (
-                        <tr key={job.id} className="hover:bg-[hsl(var(--muted)/0.5)]">
-                          <td className="px-4 py-3 text-sm text-[hsl(var(--foreground))]">
-                            {job.jobType}
-                          </td>
+                      {jobs.map(job => {
+                        const parsedResult = parseDeploymentJobResult(job.resultJson)
+                        return (
+                          <tr key={job.id} className="transition-colors hover:bg-[hsl(var(--accent)_/_0.5)]">
+                           <td className="px-4 py-3 text-sm text-[hsl(var(--foreground))]">
+                             <div className="space-y-1">
+                               <Link to={`/deployment-jobs/${job.id}`} className="text-[hsl(var(--google-blue))] hover:underline">{job.type}</Link>
+                               {job.type === 'OPENCLAW_BOOTSTRAP_INSTALL' && (
+                                 <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border border-[hsl(var(--google-blue)_/_0.18)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]">
+                                  OpenClaw 安装引导
+                                </span>
+                              )}
+                            </div>
+                           </td>
                           <td className="px-4 py-3 text-sm">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              job.status === 'SUCCEEDED' ? 'bg-green-100 text-green-800' :
-                              job.status === 'FAILED' ? 'bg-red-100 text-red-800' :
-                              job.status === 'RUNNING' ? 'bg-blue-100 text-blue-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
+                             <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                               job.status === 'SUCCEEDED' ? 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]' :
+                               job.status === 'FAILED' ? 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]' :
+                               job.status === 'RUNNING' ? 'border border-[hsl(var(--google-blue)_/_0.18)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]' :
+                               'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
+                             }`}>
                               {job.status}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-sm text-[hsl(var(--muted-foreground))]">
-                            {job.startedAt ? new Date(job.startedAt).toLocaleString('zh-CN') : '-'}
+                            {job.updatedAt ? new Date(job.updatedAt).toLocaleString('zh-CN') : '-'}
                           </td>
                           <td className="px-4 py-3 text-sm text-[hsl(var(--muted-foreground))]">
-                            {job.completedAt ? new Date(job.completedAt).toLocaleString('zh-CN') : '-'}
+                            {job.status === 'SUCCEEDED' || job.status === 'FAILED' || job.status === 'CANCELED' ? new Date(job.updatedAt).toLocaleString('zh-CN') : '-'}
                           </td>
-                          <td className="px-4 py-3 text-sm text-red-600">
-                            {job.errorMessage || '-'}
-                          </td>
-                        </tr>
-                      ))}
+                           <td className="px-4 py-3 text-sm text-[hsl(var(--destructive))]">
+                            {job.lastError || parseJobResult(job.resultJson)}
+                           </td>
+                           <td className="px-4 py-3 text-sm text-[hsl(var(--muted-foreground))] align-top">
+                            {parsedResult ? (
+                              <div className="space-y-1">
+                                {parsedResult.dispatch && <div>分派方式：{parsedResult.dispatch}</div>}
+                                 {parsedResult.actionId && <div className="font-mono text-xs break-all">Action: <Link to={`/agent-actions/${parsedResult.actionId}`} className="text-[hsl(var(--google-blue))] hover:underline">{parsedResult.actionId}</Link></div>}
+                                 {parsedResult.hostAgentId && <div className="font-mono text-xs break-all">Agent: <Link to={`/host-agents/${parsedResult.hostAgentId}`} className="text-[hsl(var(--google-blue))] hover:underline">{parsedResult.hostAgentId}</Link></div>}
+                                {parsedResult.reason && <div>{parsedResult.reason}</div>}
+                                {parsedResult.errorSummary && <div className="text-[hsl(var(--destructive))]">{parsedResult.errorSummary}</div>}
+                              </div>
+                            ) : (
+                              <span>-</span>
+                            )}
+                           </td>
+                         </tr>
+                        )})}
                     </tbody>
                   </table>
                 </div>

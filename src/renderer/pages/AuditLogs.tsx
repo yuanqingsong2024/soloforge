@@ -74,13 +74,13 @@ export function AuditLogs() {
       />
       {/* 筛选器 */}
       <SectionCard className="mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <input
             type="text"
             placeholder="Trace ID"
             value={filters.traceId}
             onChange={e => setFilters({ ...filters, traceId: e.target.value })}
-            className="px-3 py-2 text-sm rounded-workshop-md
+            className="rounded-full px-4 py-2.5 text-sm
                      bg-[hsl(var(--background))] text-[hsl(var(--foreground))]
                      border border-[hsl(var(--border))]
                      placeholder:text-[hsl(var(--muted-foreground))]
@@ -91,7 +91,7 @@ export function AuditLogs() {
             placeholder="操作人"
             value={filters.actor}
             onChange={e => setFilters({ ...filters, actor: e.target.value })}
-            className="px-3 py-2 text-sm rounded-workshop-md
+            className="rounded-full px-4 py-2.5 text-sm
                      bg-[hsl(var(--background))] text-[hsl(var(--foreground))]
                      border border-[hsl(var(--border))]
                      placeholder:text-[hsl(var(--muted-foreground))]
@@ -102,7 +102,7 @@ export function AuditLogs() {
             placeholder="工单 ID"
             value={filters.ticketId}
             onChange={e => setFilters({ ...filters, ticketId: e.target.value })}
-            className="px-3 py-2 text-sm rounded-workshop-md
+            className="rounded-full px-4 py-2.5 text-sm
                      bg-[hsl(var(--background))] text-[hsl(var(--foreground))]
                      border border-[hsl(var(--border))]
                      placeholder:text-[hsl(var(--muted-foreground))]
@@ -110,8 +110,8 @@ export function AuditLogs() {
           />
           <button
             onClick={handleSearch}
-            className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]
-                     rounded-workshop-md hover:opacity-90 transition-opacity
+            className="rounded-full px-4 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]
+                     hover:opacity-90 transition-opacity
                      text-sm font-medium"
           >
             搜索
@@ -130,7 +130,7 @@ export function AuditLogs() {
           logs.map(log => (
             <SectionCard key={log.id} className="!p-0">
               <div
-                className="p-4 cursor-pointer hover:bg-[hsl(var(--accent))] transition-colors"
+                className="cursor-pointer p-4 transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]"
                 onClick={() => toggleExpand(log.id)}
               >
                 <div className="flex items-center justify-between">
@@ -180,17 +180,17 @@ export function AuditLogs() {
                 </div>
               </div>
               {expandedLog === log.id && (
-                <div className="border-t border-[hsl(var(--border))] p-4 bg-[hsl(var(--muted))]">
+                <div className="border-t border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
                       <h4 className="font-medium text-sm text-[hsl(var(--foreground))] mb-2">请求:</h4>
-                      <pre className="text-xs bg-[hsl(var(--background))] text-[hsl(var(--foreground))] p-3 rounded-workshop-md border border-[hsl(var(--border))] overflow-auto max-h-64 font-mono">
+                      <pre className="max-h-64 overflow-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--background))] p-3 text-xs font-mono text-[hsl(var(--foreground))]">
                         {JSON.stringify(JSON.parse(log.request), null, 2)}
                       </pre>
                     </div>
                     <div>
                       <h4 className="font-medium text-sm text-[hsl(var(--foreground))] mb-2">响应:</h4>
-                      <pre className="text-xs bg-[hsl(var(--background))] text-[hsl(var(--foreground))] p-3 rounded-workshop-md border border-[hsl(var(--border))] overflow-auto max-h-64 font-mono">
+                      <pre className="max-h-64 overflow-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--background))] p-3 text-xs font-mono text-[hsl(var(--foreground))]">
                         {JSON.stringify(JSON.parse(log.response), null, 2)}
                       </pre>
                     </div>

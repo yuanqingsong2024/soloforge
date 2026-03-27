@@ -1,131 +1,269 @@
 import { test, expect } from '@playwright/test'
+import { closeElectronApp, launchElectronApp, waitForDashboardReady } from './helpers/electron'
 
-/**
- * E2E 测试：审批发送完整流程
- * 
- * 验证点：
- * 1. 点击发送后创建 SEND_EXTERNAL 审批
- * 2. 消息状态变为 PENDING_APPROVAL
- * 3. 在审批中心通过审批
- * 4. 消息状态变为 APPROVED/SENDING/SENT
- * 5. 审计日志记录完整链路
- */
-test.describe('审批发送完整流程', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
-  })
+test.describe('审批与外发中心稳定回归', () => {
+  test('通过工单页面发起外发审批', async ({}, testInfo) => {
+    const context = await launchElectronApp(testInfo)
+    const outboundTo = `e2e-${Date.now()}-channel`
+    const ticketTitle = `E2E工单-${Date.now()}`
+    const maskedTo = maskTarget(outboundTo)
 
-  test('应该能创建外发消息并进入审批流程', async ({ page }) => {
-    // 1. 导航到工单详情
-    await page.click('text=工单看板')
-    const firstTicket = page.locator('[data-testid="ticket-card"]').first()
-    if (await firstTicket.count() === 0) test.skip()
-    await firstTicket.click()
+    try {
+      await waitForDashboardReady(context.page)
 
-    // 2. 滚动到 Compose & Send
-    await page.locator('text=Compose & Send').scrollIntoViewIfNeeded()
+      const ticketId = await context.page.evaluate(async ({ ticketTitle }) => {
+        const params = new URLSearchParams(window.location.search)
+        const portValue = params.get('apiPort')
+        if (!portValue) throw new Error('无法获取 apiPort')
+        const port = Number(portValue)
+        if (!Number.isFinite(port)) throw new Error('apiPort 无效')
 
-    // 3. 填写外发内容（不使用模板，直接填写）
-    await page.locator('select').filter({ has: page.locator('option[value="slack"]') }).first().selectOption('slack')
-    await page.locator('input[placeholder*="收件人"]').fill('test-channel')
-    await page.locator('input[placeholder*="主题"]').fill('E2E测试主题')
-    await page.locator('textarea[placeholder*="外发正文"]').fill('这是E2E自动化测试消息，请勿实际发送。')
+        const ticketResponse = await fetch(`http://127.0.0.1:${port}/api/tickets`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: ticketTitle,
+            source: 'e2e',
+            status: 'INBOX',
+            priority: 'MEDIUM',
+            customerMeta: '{}'
+          })
+        })
+        const ticket = await ticketResponse.json() as { id: string }
+        return ticket.id
+      }, { ticketTitle })
 
-    // 4. 点击发送按钮
-    await page.click('button:has-text("发送（创建审批）")')
+      context.page.on('dialog', async dialog => {
+        await dialog.accept()
+      })
 
-    // 5. 等待响应并验证提示
-    await page.waitForTimeout(2000)
-    
-    // 验证是否出现审批提示（可能是 alert 或页面提示）
-    const hasAlert = await page.locator('text=审批').count() > 0
-    const hasApprovalMessage = await page.locator('text=PENDING_APPROVAL').count() > 0 || 
-                                await page.locator('text=pending_approval').count() > 0
-    
-    expect(hasAlert || hasApprovalMessage).toBeTruthy()
-  })
+      await context.page.evaluate((id) => {
+        window.location.hash = `#/tickets/${id}`
+      }, ticketId)
+      await expect(context.page).toHaveURL(new RegExp(`#\\/tickets\\/${ticketId}`))
 
-  test('应该能在审批中心查看待审批消息', async ({ page }) => {
-    // 1. 导航到审批中心
-    await page.click('text=审批中心')
-    await page.waitForSelector('text=审批中心')
+      await context.page.getByText('Compose & Send').scrollIntoViewIfNeeded()
+      await context.page.getByPlaceholder('收件人 / 频道 ID').fill(outboundTo)
+      await context.page.getByPlaceholder('外发正文（支持 Markdown）').fill('E2E UI 触发审批测试')
+      await context.page.getByRole('button', { name: '发送（创建审批）' }).click()
 
-    // 2. 切换到待审批 tab
-    await page.click('button:has-text("待审批")')
-    await page.waitForTimeout(500)
-
-    // 3. 验证是否有待审批项（可能没有，取决于之前测试）
-    const pendingApprovals = await page.locator('[data-testid="approval-item"]').count()
-    
-    // 如果有待审批项，验证可以看到详情
-    if (pendingApprovals > 0) {
-      const firstApproval = page.locator('[data-testid="approval-item"]').first()
-      await expect(firstApproval).toBeVisible()
-      
-      // 验证包含 SEND_EXTERNAL 类型
-      const hasSendExternal = await page.locator('text=SEND_EXTERNAL').count() > 0
-      expect(hasSendExternal).toBeTruthy()
+      await expect.poll(async () => {
+        return await context.page.evaluate(async ({ maskedTo }) => {
+          const params = new URLSearchParams(window.location.search)
+          const portValue = params.get('apiPort')
+          if (!portValue) return false
+          const port = Number(portValue)
+          if (!Number.isFinite(port)) return false
+          const response = await fetch(`http://127.0.0.1:${port}/api/approvals?status=PENDING`)
+          const approvals = await response.json() as Array<{ actionType: string; payload: string }>
+          return approvals.some(item => item.actionType === 'SEND_EXTERNAL' && item.payload.includes(maskedTo))
+        }, { maskedTo })
+      }, { timeout: 10000 }).toBe(true)
+    } finally {
+      await closeElectronApp(context)
     }
   })
 
-  test('应该能通过审批并触发发送', async ({ page }) => {
-    // 1. 导航到审批中心
-    await page.click('text=审批中心')
-    await page.click('button:has-text("待审批")')
-    await page.waitForTimeout(500)
+  test('创建外发审批后可在审批中心拒绝处理', async ({}, testInfo) => {
+    const context = await launchElectronApp(testInfo)
+    const outboundTo = `e2e-${Date.now()}-channel`
 
-    // 2. 查找待审批项
-    const pendingApprovals = await page.locator('[data-testid="approval-item"]').count()
-    if (pendingApprovals === 0) {
-      test.skip() // 没有待审批项，跳过
-    }
+    try {
+      await waitForDashboardReady(context.page)
 
-    // 3. 点击第一个待审批项的"通过"按钮
-    const approveButton = page.locator('button:has-text("通过")').first()
-    if (await approveButton.count() > 0) {
-      await approveButton.click()
-      await page.waitForTimeout(1000)
+      const approval = await context.page.evaluate(async ({ outboundTo }) => {
+        const params = new URLSearchParams(window.location.search)
+        const portValue = params.get('apiPort')
+        if (!portValue) throw new Error('无法获取 apiPort')
+        const port = Number(portValue)
+        if (!Number.isFinite(port)) throw new Error('apiPort 无效')
 
-      // 4. 验证审批状态更新
-      await expect(page.locator('text=APPROVED').or(page.locator('text=已通过'))).toBeVisible({ timeout: 5000 })
+        const draftResponse = await fetch(`http://127.0.0.1:${port}/api/outbound-messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channel: 'slack',
+            to: outboundTo,
+            subject: 'E2E审批测试',
+            body: 'E2E 外发消息测试',
+            status: 'DRAFT'
+          })
+        })
+        const draft = await draftResponse.json() as { id: string }
+
+        const sendResponse = await fetch(`http://127.0.0.1:${port}/api/outbound-messages/${draft.id}/send`, {
+          method: 'POST'
+        })
+        const sendResult = await sendResponse.json() as { status: string; approvalId?: string }
+        if (sendResult.status !== 'pending_approval' || !sendResult.approvalId) {
+          throw new Error('未生成审批')
+        }
+
+        return { approvalId: sendResult.approvalId, outboundMessageId: draft.id }
+      }, { outboundTo })
+
+      await context.page.getByTestId('sidebar-link-approvals').click()
+      await expect(context.page).toHaveURL(/#\/approvals/)
+
+      await expect(context.page.locator(`pre:has-text("${approval.outboundMessageId}")`).first()).toBeVisible({ timeout: 10000 })
+
+      await context.page.evaluate(async (approvalId) => {
+        const params = new URLSearchParams(window.location.search)
+        const portValue = params.get('apiPort')
+        if (!portValue) throw new Error('无法获取 apiPort')
+        const port = Number(portValue)
+        if (!Number.isFinite(port)) throw new Error('apiPort 无效')
+        await fetch(`http://127.0.0.1:${port}/api/approvals/${approvalId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'REJECTED', approvedBy: 'e2e' })
+        })
+      }, approval.approvalId)
+
+      await expect.poll(async () => {
+        return await context.page.evaluate(async (approvalId) => {
+          const params = new URLSearchParams(window.location.search)
+          const portValue = params.get('apiPort')
+          if (!portValue) return false
+          const port = Number(portValue)
+          if (!Number.isFinite(port)) return false
+          const response = await fetch(`http://127.0.0.1:${port}/api/approvals?status=REJECTED`)
+          const approvals = await response.json() as Array<{ id: string }>
+          return approvals.some(item => item.id === approvalId)
+        }, approval.approvalId)
+      }, { timeout: 10000 }).toBe(true)
+    } finally {
+      await closeElectronApp(context)
     }
   })
 
-  test('应该能在审计日志中查看发送记录', async ({ page }) => {
-    // 1. 导航到审计日志
-    await page.click('text=审计日志')
-    await page.waitForSelector('text=审计日志')
+  test('创建外发审批后可在审批中心通过处理', async ({}, testInfo) => {
+    const context = await launchElectronApp(testInfo)
+    const outboundTo = `e2e-${Date.now()}-approve`
 
-    // 2. 查找 OUTBOUND_SENT 或 OUTBOUND_FAILED 记录
-    const hasOutboundLog = await page.locator('text=OUTBOUND_SENT').or(page.locator('text=OUTBOUND_FAILED')).count() > 0
-    
-    if (hasOutboundLog) {
-      // 3. 验证日志包含 trace_id
-      const logItem = page.locator('[data-testid="audit-log-item"]').first()
-      if (await logItem.count() > 0) {
-        await expect(logItem).toBeVisible()
+    try {
+      await waitForDashboardReady(context.page)
+      context.page.on('dialog', async dialog => {
+        await dialog.accept()
+      })
+
+      const approval = await context.page.evaluate(async ({ outboundTo }) => {
+        const params = new URLSearchParams(window.location.search)
+        const portValue = params.get('apiPort')
+        if (!portValue) throw new Error('无法获取 apiPort')
+        const port = Number(portValue)
+        if (!Number.isFinite(port)) throw new Error('apiPort 无效')
+
+        const draftResponse = await fetch(`http://127.0.0.1:${port}/api/outbound-messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channel: 'slack',
+            to: outboundTo,
+            subject: 'E2E审批通过测试',
+            body: 'E2E 审批通过测试消息',
+            status: 'DRAFT'
+          })
+        })
+        const draft = await draftResponse.json() as { id: string }
+
+        const sendResponse = await fetch(`http://127.0.0.1:${port}/api/outbound-messages/${draft.id}/send`, {
+          method: 'POST'
+        })
+        const sendResult = await sendResponse.json() as { status: string; approvalId?: string }
+        if (sendResult.status !== 'pending_approval' || !sendResult.approvalId) {
+          throw new Error('未生成审批')
+        }
+
+        return { approvalId: sendResult.approvalId, outboundMessageId: draft.id }
+      }, { outboundTo })
+
+      await context.page.getByTestId('sidebar-link-approvals').click()
+      await expect(context.page).toHaveURL(/#\/approvals/)
+
+      const approvalRow = context.page
+        .locator(`pre:has-text("${approval.outboundMessageId}")`)
+        .first()
+        .locator('..')
+        .locator('..')
+        .locator('..')
+
+      await expect(approvalRow).toBeVisible({ timeout: 10000 })
+      await approvalRow.getByRole('button', { name: '批准', exact: true }).first().click()
+
+      await expect.poll(async () => {
+        return await context.page.evaluate(async ({ approvalId }) => {
+          const params = new URLSearchParams(window.location.search)
+          const portValue = params.get('apiPort')
+          if (!portValue) return false
+          const port = Number(portValue)
+          if (!Number.isFinite(port)) return false
+
+          const approvalResponse = await fetch(`http://127.0.0.1:${port}/api/approvals?status=APPROVED`)
+          const approvals = await approvalResponse.json() as Array<{ id: string }>
+          return approvals.some(item => item.id === approvalId)
+        }, { approvalId: approval.approvalId })
+      }, { timeout: 10000 }).toBe(true)
+    } finally {
+      await closeElectronApp(context)
+    }
+  })
+
+  test('审批中心可切换筛选标签并保持页面稳定', async ({}, testInfo) => {
+    const context = await launchElectronApp(testInfo)
+
+    try {
+      await waitForDashboardReady(context.page)
+      await context.page.getByTestId('sidebar-link-approvals').click()
+      await expect(context.page).toHaveURL(/#\/approvals/)
+      await expect(context.page.getByRole('heading', { name: '审批中心' })).toBeVisible()
+
+      await context.page.getByRole('button', { name: /待审批/ }).click()
+      await expect(context.page.getByRole('heading', { name: '审批中心' })).toBeVisible()
+
+      await context.page.getByRole('button', { name: /已批准/ }).click()
+      await expect(context.page.getByRole('heading', { name: '审批中心' })).toBeVisible()
+
+      await context.page.getByRole('button', { name: /已拒绝/ }).click()
+      await expect(context.page.getByRole('heading', { name: '审批中心' })).toBeVisible()
+
+      await context.page.getByRole('button', { name: /全部/ }).click()
+      const emptyState = context.page.getByText('暂无审批记录')
+      if (await emptyState.count() > 0) {
+        await expect(emptyState.first()).toBeVisible()
+      } else {
+        await expect(context.page.getByText('请求内容:').first()).toBeVisible()
       }
+    } finally {
+      await closeElectronApp(context)
     }
   })
 
-  test('应该能在消息中心查看发送状态', async ({ page }) => {
-    // 1. 导航到消息中心
-    await page.click('text=消息中心')
-    await page.waitForSelector('text=消息中心')
+  test('外发消息中心可切换状态筛选', async ({}, testInfo) => {
+    const context = await launchElectronApp(testInfo)
 
-    // 2. 验证各状态 tab 存在
-    await expect(page.locator('button:has-text("草稿")')).toBeVisible()
-    await expect(page.locator('button:has-text("待审批")')).toBeVisible()
-    await expect(page.locator('button:has-text("已发送")')).toBeVisible()
-    await expect(page.locator('button:has-text("失败")')).toBeVisible()
+    try {
+      await waitForDashboardReady(context.page)
+      await context.page.getByTestId('sidebar-link-outbound-messages').click()
+      await expect(context.page).toHaveURL(/#\/outbound-messages/)
+      await expect(context.page.getByRole('heading', { name: 'Outbound Message Center' })).toBeVisible()
 
-    // 3. 切换到待审批 tab
-    await page.click('button:has-text("待审批")')
-    await page.waitForTimeout(500)
+      await context.page.getByRole('button', { name: 'DRAFT' }).click()
+      await expect(context.page.getByText(/草稿 \(/)).toBeVisible()
 
-    // 4. 验证消息列表（可能为空）
-    const messageCount = await page.locator('[data-testid="message-card"]').count()
-    expect(messageCount).toBeGreaterThanOrEqual(0)
+      await context.page.getByRole('button', { name: 'PENDING_APPROVAL' }).click()
+      await expect(context.page.getByText(/待审批 \(/)).toBeVisible()
+
+      await context.page.getByRole('button', { name: 'SENT' }).click()
+      await expect(context.page.getByText(/已发送 \(/)).toBeVisible()
+    } finally {
+      await closeElectronApp(context)
+    }
   })
 })
+
+function maskTarget(raw: string): string {
+  if (!raw) return '***'
+  if (raw.length <= 4) return `${raw[0]}***`
+  return `${raw.slice(0, 2)}****${raw.slice(-2)}`
+}

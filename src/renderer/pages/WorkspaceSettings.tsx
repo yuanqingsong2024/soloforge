@@ -131,12 +131,12 @@ export function WorkspaceSettings() {
 
   const getEnvTypeBadge = (type: string) => {
     const config = {
-      DEV: { label: '开发', className: 'bg-blue-100 text-blue-800' },
-      STAGING: { label: '预发布', className: 'bg-yellow-100 text-yellow-800' },
-      PROD: { label: '生产', className: 'bg-red-100 text-red-800' }
-    }[type] || { label: type, className: 'bg-gray-100 text-gray-800' }
+      DEV: { label: '开发', className: 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]' },
+      STAGING: { label: '预发布', className: 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]' },
+      PROD: { label: '生产', className: 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]' }
+    }[type] || { label: type, className: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' }
     return (
-      <span className={`px-2 py-1 rounded-workshop-sm text-xs font-medium ${config.className}`}>
+      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${config.className}`}>
         {config.label}
       </span>
     )
@@ -163,42 +163,42 @@ export function WorkspaceSettings() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[hsl(var(--foreground))]">Workspace 设置</h1>
-        <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
+    <div className="space-y-6 p-6">
+      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card)_/_0.76)] px-6 py-5 shadow-workshop-sm backdrop-blur">
+        <h1 className="text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">Workspace 设置</h1>
+        <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
           管理 Workspace 环境类型、只读模式和临时解锁
         </p>
       </div>
 
       {message && (
-        <div className={`mb-6 p-4 rounded-workshop-md ${message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+        <div className={`rounded-workshop-lg border px-4 py-3 shadow-workshop-sm ${message.type === 'success' ? 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]' : 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'}`}>
           {message.text}
         </div>
       )}
 
       {/* Workspace 信息 */}
-      <div className="mb-6 bg-[hsl(var(--card))] rounded-workshop-md shadow-workshop-sm border border-[hsl(var(--border))] p-6">
-        <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">基本信息</h2>
+      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+        <h2 className="mb-4 text-lg font-semibold text-[hsl(var(--foreground))]">基本信息</h2>
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-4 py-3">
             <span className="text-sm text-[hsl(var(--muted-foreground))]">名称</span>
             <span className="text-sm font-medium text-[hsl(var(--foreground))]">{workspace.name}</span>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-4 py-3">
             <span className="text-sm text-[hsl(var(--muted-foreground))]">环境类型</span>
             {getEnvTypeBadge(workspace.envType)}
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-4 py-3">
             <span className="text-sm text-[hsl(var(--muted-foreground))]">只读模式</span>
             <span className="text-sm font-medium text-[hsl(var(--foreground))]">
               {workspace.isReadOnlyDefault ? '已启用' : '已禁用'}
             </span>
           </div>
           {isUnlocked && (
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] px-4 py-3">
               <span className="text-sm text-[hsl(var(--muted-foreground))]">解锁状态</span>
-              <span className="text-sm font-medium text-green-600">
+              <span className="text-sm font-medium text-[hsl(var(--success))]">
                 已解锁至 {new Date(workspace.unlockUntil!).toLocaleString('zh-CN')}
               </span>
             </div>
@@ -207,16 +207,16 @@ export function WorkspaceSettings() {
       </div>
 
       {/* 环境类型设置 */}
-      <div className="mb-6 bg-[hsl(var(--card))] rounded-workshop-md shadow-workshop-sm border border-[hsl(var(--border))] p-6">
-        <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">环境类型</h2>
-        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
+      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+        <h2 className="mb-4 text-lg font-semibold text-[hsl(var(--foreground))]">环境类型</h2>
+        <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
           选择 Workspace 的环境类型。PROD 环境默认启用只读模式，需要审批才能变更。
         </p>
         <div className="flex items-center gap-4">
           <select
             value={envType}
             onChange={(e) => setEnvType(e.target.value as 'DEV' | 'STAGING' | 'PROD')}
-            className="px-3 py-2 border border-[hsl(var(--border))] rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
           >
             <option value="DEV">开发环境（DEV）</option>
             <option value="STAGING">预发布环境（STAGING）</option>
@@ -225,7 +225,7 @@ export function WorkspaceSettings() {
           <button
             onClick={handleUpdateEnvType}
             disabled={saving || envType === workspace.envType}
-            className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? '保存中...' : '保存'}
           </button>
@@ -233,25 +233,25 @@ export function WorkspaceSettings() {
       </div>
 
       {/* 只读模式设置 */}
-      <div className="mb-6 bg-[hsl(var(--card))] rounded-workshop-md shadow-workshop-sm border border-[hsl(var(--border))] p-6">
-        <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">只读模式</h2>
-        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
+      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+        <h2 className="mb-4 text-lg font-semibold text-[hsl(var(--foreground))]">只读模式</h2>
+        <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
           启用只读模式后，禁止执行任何配置变更、策略变更等高危操作。
         </p>
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="flex cursor-pointer items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.52)] px-3 py-2">
             <input
               type="checkbox"
               checked={isReadOnly}
               onChange={(e) => setIsReadOnly(e.target.checked)}
-              className="w-4 h-4"
+              className="h-4 w-4 rounded border-[hsl(var(--border))]"
             />
             <span className="text-sm text-[hsl(var(--foreground))]">启用只读模式</span>
           </label>
           <button
             onClick={handleUpdateReadOnly}
             disabled={saving || isReadOnly === workspace.isReadOnlyDefault}
-            className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? '保存中...' : '保存'}
           </button>
@@ -260,16 +260,16 @@ export function WorkspaceSettings() {
 
       {/* 临时解锁 */}
       {workspace.isReadOnlyDefault && (
-        <div className="bg-[hsl(var(--card))] rounded-workshop-md shadow-workshop-sm border border-[hsl(var(--border))] p-6">
-          <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">临时解锁</h2>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
+        <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+          <h2 className="mb-4 text-lg font-semibold text-[hsl(var(--foreground))]">临时解锁</h2>
+          <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
             临时解锁只读模式，允许在指定时间内执行变更操作。解锁需要审批。
           </p>
           <div className="flex items-center gap-4">
             <select
               value={unlockDuration}
               onChange={(e) => setUnlockDuration(Number(e.target.value) as 15 | 30 | 60)}
-              className="px-3 py-2 border border-[hsl(var(--border))] rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+              className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
             >
               <option value={15}>15 分钟</option>
               <option value={30}>30 分钟</option>
@@ -278,13 +278,13 @@ export function WorkspaceSettings() {
             <button
               onClick={handleUnlock}
               disabled={unlocking || !!isUnlocked}
-              className="px-4 py-2 bg-orange-500 text-white rounded-workshop-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-full bg-[hsl(var(--warning))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--warning-foreground))] hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
             >
               {unlocking ? '申请中...' : isUnlocked ? '已解锁' : '申请解锁'}
             </button>
           </div>
           {isUnlocked && (
-            <p className="text-sm text-green-600 mt-2">
+            <p className="mt-2 text-sm text-[hsl(var(--success))]">
               当前已解锁，将于 {new Date(workspace.unlockUntil!).toLocaleString('zh-CN')} 自动恢复只读
             </p>
           )}

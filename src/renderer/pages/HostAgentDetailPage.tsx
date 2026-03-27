@@ -110,7 +110,16 @@ export function HostAgentDetailPage() {
                   <div className="font-medium">{action.actionType}</div>
                   <div className="text-xs text-[hsl(var(--muted-foreground))]">{new Date(action.createdAt).toLocaleString('zh-CN')} · {action.traceId}</div>
                 </div>
-                <span className="text-sm">{action.status}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm">{action.status}</span>
+                  <Link
+                    to={`/agent-actions/${action.id}`}
+                    className="rounded-full px-2.5 py-1 text-[11px] font-medium text-[hsl(var(--google-blue))] transition-colors hover:bg-[hsl(var(--accent))]"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    查看详情
+                  </Link>
+                </div>
               </summary>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
                 <pre className="text-xs font-mono whitespace-pre-wrap p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto">{prettyJson(action.requestJson)}</pre>

@@ -211,6 +211,38 @@ export class OpenClawClient {
   }
 
   /**
+   * 调用 OpenAI 兼容的 Chat Completions 接口
+   */
+  async createChatCompletion(payload: {
+    model: string
+    messages: Array<{ role: string; content: string }>
+    maxTokens?: number
+    traceId?: string
+  }): Promise<unknown> {
+    const traceId = payload.traceId || uuidv4()
+    const response = await fetch(`${this.profile.baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        ...this.getHeaders(),
+        'Content-Type': 'application/json',
+        'X-Trace-ID': traceId
+      },
+      body: JSON.stringify({
+        model: payload.model,
+        messages: payload.messages,
+        ...(payload.maxTokens ? { max_tokens: payload.maxTokens } : {})
+      }),
+      signal: AbortSignal.timeout(15000)
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to create chat completion: ${response.status} ${response.statusText}`)
+    }
+
+    return await response.json()
+  }
+
+  /**
    * 获取配置快照（用于 Desired State 管理）
    * 返回脱敏后的配置快照
    */

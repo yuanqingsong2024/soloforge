@@ -235,55 +235,57 @@ export function ConnectionSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-[hsl(var(--google-blue))]"></div>
       </div>
     )
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">连接管理</h1>
+    <div className="space-y-6 p-6">
+      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card)_/_0.76)] px-6 py-5 shadow-workshop-sm backdrop-blur">
+        <h1 className="text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">连接管理</h1>
+      </div>
 
       <div className="flex gap-6">
         {/* Left Panel — Profile List */}
         <div className="w-1/3">
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <ul className="divide-y divide-gray-200">
+          <div className="overflow-hidden rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm">
+            <ul className="divide-y divide-[hsl(var(--border)_/_0.8)]">
               {profiles.map(profile => (
                 <li
                   key={profile.id}
                   onClick={() => selectProfile(profile)}
-                  className={`px-4 py-3 cursor-pointer transition hover:bg-gray-50 ${
-                    selectedId === profile.id ? 'bg-blue-50 border-l-4 border-blue-600' : ''
+                  className={`cursor-pointer px-4 py-3 transition-colors hover:bg-[hsl(var(--accent)_/_0.56)] ${
+                    selectedId === profile.id ? 'border-l-4 border-[hsl(var(--google-blue))] bg-[hsl(var(--google-blue)_/_0.08)]' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{profile.name}</p>
-                      <p className="text-xs text-gray-500 mt-1">{profile.baseUrl}</p>
+                      <p className="text-sm font-medium text-[hsl(var(--foreground))]">{profile.name}</p>
+                      <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{profile.baseUrl}</p>
                     </div>
                     <span
                       className={`w-3 h-3 rounded-full ${
                         profile.lastHealthStatus === 'healthy'
-                          ? 'bg-green-500'
+                          ? 'bg-[hsl(var(--google-green))]'
                           : profile.lastHealthStatus === 'unhealthy'
-                          ? 'bg-red-500'
-                          : 'bg-gray-300'
+                          ? 'bg-[hsl(var(--google-red))]'
+                          : 'bg-[hsl(var(--border))]'
                       }`}
                     />
                   </div>
                 </li>
               ))}
               {profiles.length === 0 && (
-                <li className="px-4 py-8 text-center text-gray-500 text-sm">
+                <li className="px-4 py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
                   暂无连接配置
                 </li>
               )}
             </ul>
-            <div className="p-3 border-t">
+            <div className="border-t border-[hsl(var(--border)_/_0.8)] p-3">
               <button
                 onClick={handleNewProfile}
-                className="w-full px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="w-full rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90"
               >
                 + 新建连接
               </button>
@@ -294,40 +296,40 @@ export function ConnectionSettings() {
         {/* Right Panel — Profile Details */}
         <div className="w-2/3">
           {!selectedId && !isCreating ? (
-            <div className="bg-white shadow rounded-lg p-12 text-center text-gray-500">
+            <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-12 text-center text-[hsl(var(--muted-foreground))] shadow-workshop-sm">
               请选择或新建一个连接配置
             </div>
           ) : (
             <div className="space-y-6">
               {/* Form */}
-              <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+                <h2 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">
                   {isCreating ? '新建连接' : '编辑连接'}
                 </h2>
 
                 {error && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                  <div className="mb-4 rounded-workshop-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-3 text-sm text-[hsl(var(--destructive))] shadow-workshop-sm">
                     {error}
                   </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">名称</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">名称</label>
                     <input
                       type="text"
                       value={formData.name}
                       onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-full border border-[hsl(var(--border))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       placeholder="例如: 本地开发"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">认证模式</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">认证模式</label>
                     <select
                       value={formData.authMode}
                       onChange={e => setFormData(f => ({ ...f, authMode: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                     >
                       <option value="token">Token</option>
                       <option value="password">Password</option>
@@ -336,22 +338,22 @@ export function ConnectionSettings() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">Base URL</label>
                     <input
                       type="text"
                       value={formData.baseUrl}
                       onChange={e => setFormData(f => ({ ...f, baseUrl: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-full border border-[hsl(var(--border))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       placeholder="http://127.0.0.1:18789"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">WebSocket URL</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">WebSocket URL</label>
                     <input
                       type="text"
                       value={formData.wsUrl}
                       onChange={e => setFormData(f => ({ ...f, wsUrl: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-full border border-[hsl(var(--border))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       placeholder="ws://127.0.0.1:18789"
                     />
                   </div>
@@ -359,51 +361,51 @@ export function ConnectionSettings() {
                   {/* Conditional credential fields */}
                   {formData.authMode === 'token' && (
                     <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Token
-                        {credentials?.hasToken && (
-                          <span className="ml-2 text-xs text-gray-400">已存储: {credentials.token}</span>
-                        )}
-                      </label>
+                        <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">
+                          Token
+                          {credentials?.hasToken && (
+                            <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">已存储: {credentials.token}</span>
+                          )}
+                        </label>
                       <input
                         type="password"
                         value={formData.token}
                         onChange={e => setFormData(f => ({ ...f, token: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full rounded-full border border-[hsl(var(--border))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                         placeholder={credentials?.hasToken ? '留空保持不变' : '输入 Token'}
                       />
                     </div>
                   )}
                   {formData.authMode === 'password' && (
                     <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        密码
-                        {credentials?.hasPassword && (
-                          <span className="ml-2 text-xs text-gray-400">已存储: {credentials.password}</span>
-                        )}
-                      </label>
+                        <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">
+                          密码
+                          {credentials?.hasPassword && (
+                            <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">已存储: {credentials.password}</span>
+                          )}
+                        </label>
                       <input
                         type="password"
                         value={formData.password}
                         onChange={e => setFormData(f => ({ ...f, password: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full rounded-full border border-[hsl(var(--border))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                         placeholder={credentials?.hasPassword ? '留空保持不变' : '输入密码'}
                       />
                     </div>
                   )}
                   {formData.authMode === 'trusted-proxy' && (
                     <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Edge Token
-                        {credentials?.hasEdgeToken && (
-                          <span className="ml-2 text-xs text-gray-400">已存储: {credentials.edgeToken}</span>
-                        )}
-                      </label>
+                        <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">
+                          Edge Token
+                          {credentials?.hasEdgeToken && (
+                            <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">已存储: {credentials.edgeToken}</span>
+                          )}
+                        </label>
                       <input
                         type="password"
                         value={formData.edgeToken}
                         onChange={e => setFormData(f => ({ ...f, edgeToken: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full rounded-full border border-[hsl(var(--border))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                         placeholder={credentials?.hasEdgeToken ? '留空保持不变' : '输入 Edge Token'}
                       />
                     </div>
@@ -415,7 +417,7 @@ export function ConnectionSettings() {
                     <button
                       onClick={handleSave}
                       disabled={saving || !formData.name}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      className="rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
                     >
                       {saving ? '保存中...' : '保存'}
                     </button>
@@ -423,7 +425,7 @@ export function ConnectionSettings() {
                   {selectedId && !isCreating && (
                     <button
                       onClick={handleDelete}
-                      className="px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50"
+                      className="rounded-full border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.08)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--destructive))] hover:bg-[hsl(var(--google-red)_/_0.14)]"
                     >
                       删除
                     </button>
@@ -433,16 +435,16 @@ export function ConnectionSettings() {
 
               {/* Diagnostics — only for existing profiles */}
               {selectedId && !isCreating && (
-                <div className="bg-white shadow rounded-lg p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">连接诊断</h2>
+                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+                  <h2 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">连接诊断</h2>
 
                   <div className="flex items-center gap-3 mb-4">
-                    <span className="text-sm text-gray-600">WebSocket 状态:</span>
+                    <span className="text-sm text-[hsl(var(--muted-foreground))]">WebSocket 状态:</span>
                     <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
                         wsStatus.connected
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
+                          ? 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
+                          : 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
                       }`}
                     >
                       {wsStatus.connected ? '已连接' : '未连接'}
@@ -453,7 +455,7 @@ export function ConnectionSettings() {
                     <button
                       onClick={handlePing}
                       disabled={pinging}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                      className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] disabled:opacity-50"
                     >
                       {pinging ? '测试中...' : 'Ping 测试'}
                     </button>
@@ -462,14 +464,14 @@ export function ConnectionSettings() {
                       <button
                         onClick={handleConnect}
                         disabled={connecting}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                        className="rounded-full border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--success))] hover:bg-[hsl(var(--google-green)_/_0.18)] disabled:opacity-50"
                       >
                         {connecting ? '连接中...' : '连接 WebSocket'}
                       </button>
                     ) : (
                       <button
                         onClick={handleDisconnect}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                        className="rounded-full border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--destructive))] hover:bg-[hsl(var(--google-red)_/_0.18)]"
                       >
                         断开
                       </button>
@@ -478,10 +480,10 @@ export function ConnectionSettings() {
 
                   {pingResult && (
                     <div
-                      className={`mt-4 p-3 rounded border ${
+                      className={`mt-4 rounded-workshop-lg border p-3 shadow-workshop-sm ${
                         pingResult.success
-                          ? 'bg-green-50 border-green-200 text-green-700'
-                          : 'bg-red-50 border-red-200 text-red-700'
+                          ? 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
+                          : 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
                       }`}
                     >
                       <p className="text-sm font-medium">
@@ -495,27 +497,27 @@ export function ConnectionSettings() {
 
                   {/* Credentials Display */}
                   {credentials && (
-                    <div className="mt-6 border-t pt-4">
-                      <h3 className="text-sm font-medium text-gray-700 mb-3">已存储凭据</h3>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="text-center">
-                          <p className="text-xs text-gray-500">Token</p>
-                          <p className={`text-sm font-medium ${credentials.hasToken ? 'text-green-600' : 'text-gray-400'}`}>
-                            {credentials.hasToken ? credentials.token : '未设置'}
-                          </p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-500">Password</p>
-                          <p className={`text-sm font-medium ${credentials.hasPassword ? 'text-green-600' : 'text-gray-400'}`}>
-                            {credentials.hasPassword ? credentials.password : '未设置'}
-                          </p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-500">Edge Token</p>
-                          <p className={`text-sm font-medium ${credentials.hasEdgeToken ? 'text-green-600' : 'text-gray-400'}`}>
-                            {credentials.hasEdgeToken ? credentials.edgeToken : '未设置'}
-                          </p>
-                        </div>
+                      <div className="mt-6 border-t border-[hsl(var(--border)_/_0.8)] pt-4">
+                        <h3 className="mb-3 text-sm font-medium text-[hsl(var(--foreground))]">已存储凭据</h3>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-3 py-4 text-center">
+                            <p className="text-xs text-[hsl(var(--muted-foreground))]">Token</p>
+                            <p className={`text-sm font-medium ${credentials.hasToken ? 'text-[hsl(var(--success))]' : 'text-[hsl(var(--muted-foreground))]'}`}>
+                              {credentials.hasToken ? credentials.token : '未设置'}
+                            </p>
+                          </div>
+                          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-3 py-4 text-center">
+                            <p className="text-xs text-[hsl(var(--muted-foreground))]">Password</p>
+                            <p className={`text-sm font-medium ${credentials.hasPassword ? 'text-[hsl(var(--success))]' : 'text-[hsl(var(--muted-foreground))]'}`}>
+                              {credentials.hasPassword ? credentials.password : '未设置'}
+                            </p>
+                          </div>
+                          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-3 py-4 text-center">
+                            <p className="text-xs text-[hsl(var(--muted-foreground))]">Edge Token</p>
+                            <p className={`text-sm font-medium ${credentials.hasEdgeToken ? 'text-[hsl(var(--success))]' : 'text-[hsl(var(--muted-foreground))]'}`}>
+                              {credentials.hasEdgeToken ? credentials.edgeToken : '未设置'}
+                            </p>
+                          </div>
                       </div>
                     </div>
                   )}

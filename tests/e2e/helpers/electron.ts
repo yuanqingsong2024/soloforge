@@ -42,6 +42,12 @@ export async function launchElectronApp(testInfo: TestInfo, scenario: string = '
   })
 
   await page.waitForLoadState('domcontentloaded')
+  await page.evaluate(() => {
+    localStorage.setItem('soloforge-current-workspace', '00000000-0000-0000-0000-000000000001')
+    localStorage.setItem('soloforge-dashboard-mode', 'global')
+    window.location.hash = '#/'
+  })
+  await page.waitForLoadState('domcontentloaded')
   await expect(page.getByTestId('dashboard-page')).toBeVisible()
 
   return { app, page }

@@ -8,6 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { KeychainService } from './keychain'
 import { OpenClawClient } from './openclaw-client'
+import { resolveWorkspaceOpenClawClient } from './workspace-openclaw'
 import { ConfigManager } from './config-manager'
 import { ApprovalGuard } from './approval-guard'
 // PolicyGuard 已导入但在当前端点中未直接使用（保留以备将来扩展）
@@ -323,6 +324,79 @@ interface UpsertMaintenanceWindowBody {
   timezone?: string
   cronOrRule: string
   notes?: string
+}
+
+interface TeamHireTemplateMember {
+  roleName: string
+  description: string
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH'
+  agentName: string
+  model: string
+  runtime: string
+  toolScopes: string[]
+}
+
+interface TeamHireBody {
+  profileId: string
+  template: 'core-team' | 'support-pod'
+}
+
+interface BootstrapOpenClawBody {
+  workspaceId: string
+  name: string
+  targetType: 'REMOTE_HOST' | 'REMOTE_DOCKER'
+  host: string
+  sshUser: string
+  sshPort?: number
+  gatewayPort?: number
+  envType?: 'DEV' | 'STAGING' | 'PROD'
+  authMode?: 'token' | 'password' | 'trusted-proxy'
+  autoHireTemplate?: 'core-team' | 'support-pod' | null
+}
+
+interface BootstrapInstallJobBody {
+  targetId: string
+  profileId: string
+  registrationId: string
+}
+
+interface TeamHireResultItem {
+  roleId: string
+  roleName: string
+  agentId: string
+  agentName: string
+  grantedToolCount: number
+}
+
+interface GlobalSearchTicketResult {
+  id: string
+  title: string
+  source: string
+  status: string
+  priority: string
+}
+
+interface GlobalSearchApprovalResult {
+  id: string
+  actionType: string
+  status: string
+  requestedBy: string
+  ticketId: string | null
+}
+
+interface GlobalSearchAuditResult {
+  id: string
+  traceId: string
+  actor: string
+  action: string
+  ts: string
+}
+
+interface GlobalSearchResponse {
+  query: string
+  tickets: GlobalSearchTicketResult[]
+  approvals: GlobalSearchApprovalResult[]
+  auditLogs: GlobalSearchAuditResult[]
 }
 
 function parseApprovalPayload(payload: string): SendExternalApprovalPayload | null {
@@ -1217,6 +1291,162 @@ async function recomputeOperationState(operationId: string): Promise<void> {
   })
 }
 
+const TEAM_HIRE_TEMPLATES: Record<'core-team' | 'support-pod', TeamHireTemplateMember[]> = {
+  'core-team': [
+    {
+      roleName: 'Support',
+      description: '处理一线客户问题与外发沟通',
+      riskLevel: 'LOW',
+      agentName: 'Support Agent',
+      model: 'gpt-4o-mini',
+      runtime: 'cloud',
+      toolScopes: ['ticket', 'approval', 'artifact', 'communication']
+    },
+    {
+      roleName: 'PM',
+      description: '负责需求整理、计划与交付协调',
+      riskLevel: 'MEDIUM',
+      agentName: 'PM Agent',
+      model: 'gpt-4.1',
+      runtime: 'cloud',
+      toolScopes: ['ticket', 'artifact', 'approval', 'workspace']
+    },
+    {
+      roleName: 'Dev',
+      description: '负责开发实现与技术修复',
+      riskLevel: 'MEDIUM',
+      agentName: 'Dev Agent',
+      model: 'gpt-4.1',
+      runtime: 'cloud',
+      toolScopes: ['ticket', 'artifact', 'workspace', 'config']
+    },
+    {
+      roleName: 'QA',
+      description: '负责验证、回归与质量门禁',
+      riskLevel: 'LOW',
+      agentName: 'QA Agent',
+      model: 'gpt-4o-mini',
+      runtime: 'cloud',
+      toolScopes: ['ticket', 'artifact', 'approval']
+    },
+    {
+      roleName: 'Ops',
+      description: '负责环境、发布与运维响应',
+      riskLevel: 'HIGH',
+      agentName: 'Ops Agent',
+      model: 'gpt-4.1',
+      runtime: 'cloud',
+      toolScopes: ['workspace', 'config', 'approval']
+    }
+  ],
+  'support-pod': [
+    {
+      roleName: 'Support',
+      description: '处理一线支持请求与消息回执',
+      riskLevel: 'LOW',
+      agentName: 'Support Agent',
+      model: 'gpt-4o-mini',
+      runtime: 'cloud',
+      toolScopes: ['ticket', 'approval', 'communication']
+    },
+    {
+      roleName: 'QA',
+      description: '负责答复校验与交付检查',
+      riskLevel: 'LOW',
+      agentName: 'QA Agent',
+      model: 'gpt-4o-mini',
+      runtime: 'cloud',
+      toolScopes: ['ticket', 'artifact']
+    }
+  ]
+}
+
+function buildRolePrompt(profileName: string, roleName: string): string {
+  return `你是 ${profileName} 环境中的 ${roleName} 员工，请遵循既有审批、审计与最小权限规则执行任务。`
+}
+
+async function executeTeamHire(profileId: string, template: 'core-team' | 'support-pod') {
+  const profile = await prisma.connectionProfile.findUnique({ where: { id: profileId } })
+  if (!profile) {
+    throw new Error('Connection Profile 不存在')
+  }
+
+  const toolPool = await prisma.tool.findMany()
+  const hired: TeamHireResultItem[] = []
+
+  await prisma.$transaction(async tx => {
+    for (const member of TEAM_HIRE_TEMPLATES[template]) {
+      const role = await tx.role.upsert({
+        where: { name: member.roleName },
+        update: {
+          description: member.description,
+          defaultPrompt: buildRolePrompt(profile.name, member.roleName),
+          outputSchema: JSON.stringify({ profileId: profile.id, profileName: profile.name, role: member.roleName }),
+          riskLevel: member.riskLevel
+        },
+        create: {
+          name: member.roleName,
+          description: member.description,
+          defaultPrompt: buildRolePrompt(profile.name, member.roleName),
+          outputSchema: JSON.stringify({ profileId: profile.id, profileName: profile.name, role: member.roleName }),
+          riskLevel: member.riskLevel
+        }
+      })
+
+      const agentName = `${profile.name} · ${member.agentName}`
+      const agent = await tx.agent.upsert({
+        where: { name: agentName },
+        update: {
+          roleId: role.id,
+          model: member.model,
+          runtime: member.runtime,
+          enabled: true
+        },
+        create: {
+          name: agentName,
+          roleId: role.id,
+          model: member.model,
+          runtime: member.runtime,
+          enabled: true
+        }
+      })
+
+      const grantedTools = toolPool.filter(tool =>
+        member.toolScopes.includes(tool.scope) && tool.riskClass !== 'CRITICAL'
+      )
+
+      for (const tool of grantedTools) {
+        await tx.agentTool.upsert({
+          where: {
+            agentId_toolId: {
+              agentId: agent.id,
+              toolId: tool.id
+            }
+          },
+          update: {
+            permissionJson: JSON.stringify({ level: 'template-default', profileId: profile.id })
+          },
+          create: {
+            agentId: agent.id,
+            toolId: tool.id,
+            permissionJson: JSON.stringify({ level: 'template-default', profileId: profile.id })
+          }
+        })
+      }
+
+      hired.push({
+        roleId: role.id,
+        roleName: role.name,
+        agentId: agent.id,
+        agentName: agent.name,
+        grantedToolCount: grantedTools.length
+      })
+    }
+  })
+
+  return { profile, hired }
+}
+
 function diagnosticSeverityToEventSeverity(severity: string): 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL' {
   switch (severity) {
     case 'CRITICAL':
@@ -1599,6 +1829,28 @@ fastify.get('/api/tickets', async () => {
       tags: { include: { tag: true } }
     }
   })
+})
+
+fastify.get('/api/tickets/:id', async (request, reply) => {
+  const { id } = request.params as { id: string }
+  const ticket = await prisma.ticket.findUnique({
+    where: { id },
+    include: {
+      assignee: true,
+      contact: true,
+      primaryTarget: true,
+      artifacts: true,
+      approvals: true,
+      tags: { include: { tag: true } }
+    }
+  })
+
+  if (!ticket) {
+    reply.code(404)
+    return fail('工单不存在')
+  }
+
+  return ok(ticket)
 })
 
 fastify.post('/api/tickets', async (request) => {
@@ -3129,6 +3381,326 @@ fastify.delete('/api/agent-tools/:id', async (request) => {
   return await prisma.agentTool.delete({ where: { id } })
 })
 
+fastify.post('/api/team/hire', async (request, reply) => {
+  const traceId = uuidv4()
+  const actor = 'admin'
+  const body = request.body as TeamHireBody
+
+  try {
+    if (!body.profileId) {
+      reply.code(400)
+      return fail('profileId 不能为空')
+    }
+    if (!body.template || !(body.template in TEAM_HIRE_TEMPLATES)) {
+      reply.code(400)
+      return fail('template 无效')
+    }
+
+    const { profile, hired } = await executeTeamHire(body.profileId, body.template)
+
+    await writeApiAuditLog({
+      traceId,
+      actor,
+      action: 'TEAM_HIRE_TEMPLATE',
+      tool: 'team-management',
+      request: {
+        profileId: profile.id,
+        profileName: profile.name,
+        template: body.template
+      },
+      response: {
+        hiredCount: hired.length,
+        hiredAgents: hired.map(item => item.agentName)
+      }
+    })
+
+    return ok({
+      profileId: profile.id,
+      profileName: profile.name,
+      template: body.template,
+      hired
+    })
+  } catch (error) {
+    const errMsg = toErrorMessage(error)
+    await writeApiAuditLog({
+      traceId,
+      actor,
+      action: 'TEAM_HIRE_TEMPLATE',
+      tool: 'team-management',
+      request: body,
+      response: fail(errMsg)
+    })
+    reply.code(500)
+    return fail(`一键招聘失败：${errMsg}`)
+  }
+})
+
+fastify.post('/api/openclaw/bootstrap', async (request, reply) => {
+  const traceId = uuidv4()
+  const actor = 'admin'
+  const body = request.body as BootstrapOpenClawBody
+
+  try {
+    if (!body.workspaceId || !body.name || !body.targetType || !body.host || !body.sshUser) {
+      reply.code(400)
+      return fail('workspaceId/name/targetType/host/sshUser 不能为空')
+    }
+
+    const gatewayPort = body.gatewayPort ?? 18789
+    const sshPort = body.sshPort ?? 22
+    const envType = body.envType ?? 'DEV'
+    const authMode = body.authMode ?? 'token'
+    const target = await prisma.deploymentTarget.create({
+      data: {
+        workspaceId: body.workspaceId,
+        name: body.name,
+        targetType: body.targetType,
+        connectionMode: 'SSH',
+        host: body.host,
+        port: gatewayPort,
+        sshUser: body.sshUser,
+        sshPort,
+        gatewayUrl: `http://${body.host}:${gatewayPort}`,
+        dockerEnabled: body.targetType === 'REMOTE_DOCKER',
+        tailscaleEnabled: false,
+        envType,
+        status: 'UNKNOWN',
+        metadata: JSON.stringify({ installMode: body.targetType === 'REMOTE_DOCKER' ? 'docker' : 'native' })
+      }
+    })
+
+    const bootstrapResult = await HostAgentService.createBootstrapRegistration({
+      workspaceId: body.workspaceId,
+      targetId: target.id,
+      expiresInMinutes: 15
+    })
+
+    const profile = await prisma.connectionProfile.create({
+      data: {
+        name: `${body.name} OpenClaw`,
+        baseUrl: `http://${body.host}:${gatewayPort}`,
+        wsUrl: `ws://${body.host}:${gatewayPort}`,
+        authMode
+      }
+    })
+
+    let hired: TeamHireResultItem[] = []
+    if (body.autoHireTemplate) {
+      const hireResult = await executeTeamHire(profile.id, body.autoHireTemplate)
+      hired = hireResult.hired
+    }
+
+    const installCommand = [
+      '$env:SOLOFORGE_SERVER_URL="http://<soloForge-host>:13789"',
+      `$env:SOLOFORGE_BOOTSTRAP_TOKEN=\"${bootstrapResult.bootstrapToken}\"`,
+      '$env:SOLOFORGE_AGENT_NAME="soloforge-host-agent"',
+      'npx tsx src/host-agent/index.ts'
+    ].join('; ')
+
+    await writeApiAuditLog({
+      traceId,
+      actor,
+      action: 'OPENCLAW_BOOTSTRAP_CREATE',
+      tool: 'deployment',
+      request: {
+        workspaceId: body.workspaceId,
+        name: body.name,
+        targetType: body.targetType,
+        host: body.host,
+        envType,
+        autoHireTemplate: body.autoHireTemplate || null
+      },
+      response: {
+        targetId: target.id,
+        profileId: profile.id,
+        registrationId: bootstrapResult.registration.id,
+        hiredCount: hired.length
+      }
+    })
+
+    return ok({
+      target: {
+        id: target.id,
+        name: target.name,
+        host: target.host,
+        gatewayUrl: target.gatewayUrl,
+        envType: target.envType,
+        targetType: target.targetType
+      },
+      profile: {
+        id: profile.id,
+        name: profile.name,
+        baseUrl: profile.baseUrl,
+        wsUrl: profile.wsUrl,
+        authMode: profile.authMode
+      },
+      bootstrap: {
+        registrationId: bootstrapResult.registration.id,
+        bootstrapToken: bootstrapResult.bootstrapToken,
+        expiresAt: bootstrapResult.expiresAt,
+        installCommand
+      },
+      hired
+    })
+  } catch (error) {
+    const errMsg = toErrorMessage(error)
+    await writeApiAuditLog({
+      traceId,
+      actor,
+      action: 'OPENCLAW_BOOTSTRAP_CREATE',
+      tool: 'deployment',
+      request: body,
+      response: fail(errMsg)
+    })
+    reply.code(500)
+    return fail(`一键部署 OpenClaw 失败：${errMsg}`)
+  }
+})
+
+fastify.post('/api/openclaw/bootstrap/install-job', async (request, reply) => {
+  const traceId = uuidv4()
+  const actor = 'admin'
+  const body = request.body as BootstrapInstallJobBody
+
+  try {
+    if (!body.targetId || !body.profileId || !body.registrationId) {
+      reply.code(400)
+      return fail('targetId/profileId/registrationId 不能为空')
+    }
+
+    const [target, profile] = await Promise.all([
+      prisma.deploymentTarget.findUnique({ where: { id: body.targetId } }),
+      prisma.connectionProfile.findUnique({ where: { id: body.profileId } })
+    ])
+
+    if (!target) {
+      reply.code(404)
+      return fail('部署目标不存在')
+    }
+    if (!profile) {
+      reply.code(404)
+      return fail('连接配置不存在')
+    }
+
+    const installMode = target.targetType === 'REMOTE_DOCKER' ? 'docker' : 'native'
+    const jobRequest = {
+      targetId: target.id,
+      targetName: target.name,
+      profileId: profile.id,
+      profileName: profile.name,
+      registrationId: body.registrationId,
+      suggestedGatewayUrl: target.gatewayUrl,
+      installMode,
+      projectName: 'openclaw-gateway',
+      remotePath: '/opt/openclaw'
+    }
+
+    const job = await prisma.deploymentJob.create({
+      data: {
+        workspaceId: target.workspaceId,
+        targetId: target.id,
+        type: 'OPENCLAW_BOOTSTRAP_INSTALL',
+        traceId,
+        requestJson: JSON.stringify(jobRequest),
+        status: 'PENDING'
+      }
+    })
+
+    let dispatchMessage = '安装作业已入队，等待后续处理'
+    let dispatchedActionId: string | null = null
+
+    const onlineAgent = await prisma.hostAgent.findFirst({
+      where: {
+        workspaceId: target.workspaceId,
+        targetId: target.id,
+        status: 'ONLINE'
+      },
+      orderBy: { updatedAt: 'desc' }
+    })
+
+    if (onlineAgent && target.targetType === 'REMOTE_DOCKER') {
+      const action = await HostAgentService.createAction({
+        workspaceId: target.workspaceId,
+        targetId: target.id,
+        hostAgentId: onlineAgent.id,
+        actionType: 'DOCKER_COMPOSE_UP',
+        request: {
+          projectName: 'openclaw-gateway',
+          remotePath: '/opt/openclaw',
+          gatewayUrl: target.gatewayUrl,
+          deploymentJobId: job.id,
+          registrationId: body.registrationId
+        },
+        actor,
+        traceId
+      })
+
+      if ('status' in action && action.status === 'BLOCKED') {
+        dispatchMessage = action.errorSummary || 'Host Agent 已在线，但当前动作被策略阻止'
+        await prisma.deploymentJob.update({
+          where: { id: job.id },
+          data: {
+            resultJson: JSON.stringify({ dispatch: 'blocked', reason: dispatchMessage })
+          }
+        })
+      } else {
+        dispatchedActionId = action.id
+        dispatchMessage = '安装作业已分派给在线 Host Agent，等待 Agent 拉取执行'
+        await prisma.deploymentJob.update({
+          where: { id: job.id },
+          data: {
+            status: 'RUNNING',
+            resultJson: JSON.stringify({ dispatch: 'host-agent', actionId: action.id, hostAgentId: onlineAgent.id })
+          }
+        })
+      }
+    } else {
+      dispatchMessage = onlineAgent
+        ? '当前目标不是 REMOTE_DOCKER，作业已入队，等待后续原生安装执行器接管'
+        : '当前无在线 Host Agent，作业已入队，等待 Agent 上线后接管'
+
+      await prisma.deploymentJob.update({
+        where: { id: job.id },
+        data: {
+          resultJson: JSON.stringify({ dispatch: 'queued', reason: dispatchMessage })
+        }
+      })
+    }
+
+    await writeApiAuditLog({
+      traceId,
+      actor,
+      action: 'OPENCLAW_BOOTSTRAP_INSTALL_JOB_CREATE',
+      tool: 'deployment',
+      request: body,
+      response: { jobId: job.id, targetId: target.id, profileId: profile.id, dispatchedActionId, dispatchMessage }
+    })
+
+    return ok({
+      jobId: job.id,
+      status: dispatchedActionId ? 'RUNNING' : job.status,
+      targetId: target.id,
+      targetName: target.name,
+      profileId: profile.id,
+      profileName: profile.name,
+      dispatchedActionId,
+      dispatchMessage
+    })
+  } catch (error) {
+    const errMsg = toErrorMessage(error)
+    await writeApiAuditLog({
+      traceId,
+      actor,
+      action: 'OPENCLAW_BOOTSTRAP_INSTALL_JOB_CREATE',
+      tool: 'deployment',
+      request: body,
+      response: fail(errMsg)
+    })
+    reply.code(500)
+    return fail(`发起安装作业失败：${errMsg}`)
+  }
+})
+
 // ==================== Connection Profiles Extended ====================
 fastify.put('/api/profiles/:id', async (request) => {
   const { id } = request.params as { id: string }
@@ -4563,6 +5135,137 @@ fastify.post('/api/backup/import', async (request, reply) => {
   }
 })
 
+fastify.get('/api/backup/history', async (request, reply) => {
+  const { workspaceId } = request.query as { workspaceId?: string }
+  const targetWorkspaceId = (workspaceId || '').trim()
+
+  try {
+    if (!targetWorkspaceId) {
+      reply.code(400)
+      return fail('workspaceId 不能为空')
+    }
+
+    return ok(await BackupManager.listBackups(targetWorkspaceId))
+  } catch (error) {
+    reply.code(500)
+    return fail(`获取备份历史失败：${toErrorMessage(error)}`)
+  }
+})
+
+fastify.get('/api/search', async (request, reply) => {
+  const traceId = uuidv4()
+  const actor = 'admin'
+  const { q, workspaceId } = request.query as { q?: string; workspaceId?: string }
+
+  try {
+    const query = (q || '').trim()
+    if (!query) {
+      reply.code(400)
+      return fail('搜索关键词不能为空')
+    }
+
+    const scope = workspaceId ? { workspaceId } : {}
+
+    const [tickets, approvals, auditLogs] = await Promise.all([
+      prisma.ticket.findMany({
+        where: {
+          ...scope,
+          OR: [
+            { title: { contains: query } },
+            { source: { contains: query } }
+          ]
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 8,
+        select: {
+          id: true,
+          title: true,
+          source: true,
+          status: true,
+          priority: true
+        }
+      }),
+      prisma.approval.findMany({
+        where: {
+          ...(workspaceId
+            ? {
+                ticket: {
+                  workspaceId
+                }
+              }
+            : {}),
+          OR: [
+            { actionType: { contains: query } },
+            { status: { contains: query } },
+            { requestedBy: { contains: query } }
+          ]
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+        select: {
+          id: true,
+          actionType: true,
+          status: true,
+          requestedBy: true,
+          ticketId: true
+        }
+      }),
+      prisma.auditLog.findMany({
+        where: {
+          ...scope,
+          OR: [
+            { traceId: { contains: query } },
+            { actor: { contains: query } },
+            { action: { contains: query } }
+          ]
+        },
+        orderBy: { ts: 'desc' },
+        take: 8,
+        select: {
+          id: true,
+          traceId: true,
+          actor: true,
+          action: true,
+          ts: true
+        }
+      })
+    ])
+
+    const result: GlobalSearchResponse = {
+      query,
+      tickets,
+      approvals,
+      auditLogs: auditLogs.map(item => ({
+        ...item,
+        ts: item.ts.toISOString()
+      }))
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        workspaceId: workspaceId || '00000000-0000-0000-0000-000000000001',
+        traceId,
+        actor,
+        action: 'GLOBAL_SEARCH',
+        tool: 'search',
+        request: JSON.stringify({ query, workspaceId: workspaceId || null }),
+        response: JSON.stringify({
+          tickets: result.tickets.length,
+          approvals: result.approvals.length,
+          auditLogs: result.auditLogs.length
+        }),
+        ts: new Date()
+      }
+    })
+
+    return ok(result)
+  } catch (error) {
+    const errMsg = toErrorMessage(error)
+    reply.code(500)
+    return fail(`搜索失败：${errMsg}`)
+  }
+})
+
 // ==================== Doctor ====================
 fastify.post('/api/doctor/run', async (request, reply) => {
   const traceId = uuidv4()
@@ -4668,6 +5371,22 @@ fastify.get('/api/alerts', async (request, reply) => {
   } catch (error) {
     reply.code(500)
     return fail(`获取 Alerts 失败：${toErrorMessage(error)}`)
+  }
+})
+
+fastify.get('/api/alerts/:id', async (request, reply) => {
+  const { id } = request.params as { id: string }
+
+  try {
+    const row = await prisma.alert.findUnique({ where: { id } })
+    if (!row) {
+      reply.code(404)
+      return fail('Alert 不存在')
+    }
+    return ok(row)
+  } catch (error) {
+    reply.code(500)
+    return fail(`获取 Alert 详情失败：${toErrorMessage(error)}`)
   }
 })
 
@@ -5904,45 +6623,6 @@ interface CreateChangeRequestBody {
 function isWorkspaceTemporarilyUnlocked(workspace: { unlockUntil: Date | null }): boolean {
   if (!workspace.unlockUntil) return false
   return workspace.unlockUntil.getTime() > Date.now()
-}
-
-async function resolveWorkspaceOpenClawClient(workspaceId: string): Promise<{ profileId: string; client: OpenClawClient }> {
-  const defaultProfile = await prisma.workspaceProfile.findFirst({
-    where: { workspaceId, isDefault: true }
-  })
-  const fallbackProfile = defaultProfile
-    ? null
-    : await prisma.workspaceProfile.findFirst({
-      where: { workspaceId },
-      orderBy: { createdAt: 'asc' }
-    })
-
-  const profileId = (defaultProfile || fallbackProfile)?.profileId
-  if (!profileId) {
-    throw new Error('Workspace 未绑定任何 ConnectionProfile，无法访问 OpenClaw')
-  }
-
-  const profile = await prisma.connectionProfile.findUnique({ where: { id: profileId } })
-  if (!profile) {
-    throw new Error('ConnectionProfile 不存在')
-  }
-
-  const token = await KeychainService.getPassword(workspaceId, `${profile.name}-token`)
-  const password = await KeychainService.getPassword(workspaceId, `${profile.name}-password`)
-  const edgeToken = await KeychainService.getPassword(workspaceId, `${profile.name}-edge-token`)
-
-  const client = new OpenClawClient({
-    name: profile.name,
-    baseUrl: profile.baseUrl,
-    wsUrl: profile.wsUrl,
-    authMode: profile.authMode as 'token' | 'password' | 'trusted-proxy',
-    token: token || undefined,
-    password: password || undefined,
-    edgeToken: edgeToken || undefined,
-    eventPath: profile.eventPath || undefined
-  })
-
-  return { profileId, client }
 }
 
 fastify.put('/api/workspaces/:id/env-type', async (request, reply) => {
@@ -7612,6 +8292,31 @@ fastify.get('/api/agent-actions', async (request, reply) => {
   }
 })
 
+fastify.get('/api/agent-actions/:id', async (request, reply) => {
+  const { id } = request.params as { id: string }
+
+  try {
+    const row = await prisma.agentAction.findUnique({
+      where: { id },
+      include: {
+        hostAgent: { select: { id: true, name: true } },
+        target: { select: { id: true, name: true } },
+        logs: { orderBy: { createdAt: 'asc' } }
+      }
+    })
+
+    if (!row) {
+      reply.code(404)
+      return fail('Agent Action 不存在')
+    }
+
+    return ok(row)
+  } catch (error) {
+    reply.code(500)
+    return fail(`获取 Agent Action 详情失败：${toErrorMessage(error)}`)
+  }
+})
+
 fastify.get('/api/agent-logs', async (request, reply) => {
   const { workspaceId, hostAgentId, actionId } = request.query as { workspaceId?: string; hostAgentId?: string; actionId?: string }
   try {
@@ -8107,11 +8812,28 @@ export async function startServer(): Promise<number> {
     // 开发模式使用固定端口，生产模式使用随机端口
     const DEV_PORT = 13789
     const isDev = !app.isPackaged
-    const port = isDev && !isE2ETestMode() ? DEV_PORT : 0
-    await fastify.listen({ port, host: '127.0.0.1' })
-    const actualPort = (fastify.server.address() as any).port
-    console.log(`Local API server listening on port ${actualPort}`)
-    return actualPort
+    if (isDev && !isE2ETestMode()) {
+      await fastify.listen({ port: DEV_PORT, host: '127.0.0.1' })
+      const actualPort = (fastify.server.address() as { port: number }).port
+      console.log(`Local API server listening on port ${actualPort}`)
+      return actualPort
+    }
+
+    const SAFE_PORT_CANDIDATES = [23119, 23120, 23121, 23122, 23123, 23124, 23125, 23126]
+    for (const candidate of SAFE_PORT_CANDIDATES) {
+      try {
+        await fastify.listen({ port: candidate, host: '127.0.0.1' })
+        console.log(`Local API server listening on port ${candidate}`)
+        return candidate
+      } catch (error) {
+        const err = error as NodeJS.ErrnoException
+        if (err.code !== 'EADDRINUSE') {
+          throw error
+        }
+      }
+    }
+
+    throw new Error('无法为本地 API 服务器分配安全端口')
   } catch (err) {
     fastify.log.error(err)
     process.exit(1)

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 
 interface ChangeRequest {
@@ -14,6 +15,7 @@ interface ChangeRequest {
 }
 
 export function Changes() {
+  const navigate = useNavigate()
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([])
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -55,17 +57,17 @@ export function Changes() {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
-      DRAFT: { label: '草稿', className: 'bg-gray-100 text-gray-800' },
-      PENDING_APPROVAL: { label: '待审批', className: 'bg-yellow-100 text-yellow-800' },
-      APPROVED: { label: '已批准', className: 'bg-green-100 text-green-800' },
-      APPLYING: { label: '执行中', className: 'bg-blue-100 text-blue-800' },
-      APPLIED: { label: '已应用', className: 'bg-green-100 text-green-800' },
-      FAILED: { label: '失败', className: 'bg-red-100 text-red-800' },
-      ROLLED_BACK: { label: '已回滚', className: 'bg-gray-100 text-gray-800' }
+      DRAFT: { label: '草稿', className: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' },
+      PENDING_APPROVAL: { label: '待审批', className: 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]' },
+      APPROVED: { label: '已批准', className: 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]' },
+      APPLYING: { label: '执行中', className: 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]' },
+      APPLIED: { label: '已应用', className: 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]' },
+      FAILED: { label: '失败', className: 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]' },
+      ROLLED_BACK: { label: '已回滚', className: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' }
     }
-    const config = statusMap[status] || { label: status, className: 'bg-gray-100 text-gray-800' }
+    const config = statusMap[status] || { label: status, className: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' }
     return (
-      <span className={`px-2 py-1 rounded-workshop-sm text-xs font-medium ${config.className}`}>
+      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${config.className}`}>
         {config.label}
       </span>
     )
@@ -73,15 +75,15 @@ export function Changes() {
 
   const getTypeBadge = (type: string) => {
     const typeMap: Record<string, { label: string; className: string }> = {
-      CONFIG: { label: '配置', className: 'bg-blue-100 text-blue-800' },
-      POLICY: { label: '策略', className: 'bg-purple-100 text-purple-800' },
-      TOOLS: { label: '工具', className: 'bg-orange-100 text-orange-800' },
-      COMMS: { label: '通信', className: 'bg-teal-100 text-teal-800' },
-      MIXED: { label: '混合', className: 'bg-gray-100 text-gray-800' }
+      CONFIG: { label: '配置', className: 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]' },
+      POLICY: { label: '策略', className: 'border border-[hsl(268_65%_70%_/_0.2)] bg-[hsl(268_65%_70%_/_0.14)] text-[hsl(268_45%_45%)]' },
+      TOOLS: { label: '工具', className: 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]' },
+      COMMS: { label: '通信', className: 'border border-[hsl(186_70%_55%_/_0.2)] bg-[hsl(186_70%_55%_/_0.14)] text-[hsl(186_70%_32%)]' },
+      MIXED: { label: '混合', className: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' }
     }
-    const config = typeMap[type] || { label: type, className: 'bg-gray-100 text-gray-800' }
+    const config = typeMap[type] || { label: type, className: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' }
     return (
-      <span className={`px-2 py-1 rounded-workshop-sm text-xs font-medium ${config.className}`}>
+      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${config.className}`}>
         {config.label}
       </span>
     )
@@ -171,14 +173,11 @@ export function Changes() {
                       <span>创建时间: {new Date(cr.createdAt).toLocaleString('zh-CN')}</span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      // TODO: 导航到详情页
-                      console.log('查看详情:', cr.id)
-                    }}
-                    className="ml-4 px-3 py-1 text-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-sm hover:opacity-90 transition-opacity"
-                  >
-                    查看详情
+                   <button
+                     onClick={() => navigate(`/changes/${cr.id}`)}
+                     className="ml-4 px-3 py-1 text-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-sm hover:opacity-90 transition-opacity"
+                   >
+                     查看详情
                   </button>
                 </div>
               </div>

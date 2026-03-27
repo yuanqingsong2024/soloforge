@@ -23,6 +23,17 @@ export interface BackupPack {
   }
 }
 
+export interface BackupHistoryItem {
+  id: string
+  workspaceId: string
+  workspaceName: string
+  exportedAt: string
+  exportedBy: string
+  hash: string
+  itemCount: number
+  traceId: string | null
+}
+
 /**
  * 导入结果
  */
@@ -126,6 +137,28 @@ export class BackupManager {
 
     // 计算哈希
     backupPack.metadata.hash = this.hashBackupPack(backupPack)
+
+    await prisma.auditLog.create({
+      data: {
+        workspaceId,
+        traceId: crypto.randomUUID(),
+        actor: exportedBy,
+        action: 'BACKUP_EXPORT_HISTORY',
+        tool: 'backup',
+        request: JSON.stringify({
+          workspaceId,
+          includeChangeRequests,
+          includeSnapshots
+        }),
+        response: JSON.stringify({
+          workspaceName: workspace.name,
+          exportedAt: backupPack.exportedAt,
+          hash: backupPack.metadata.hash,
+          itemCount: backupPack.metadata.itemCount
+        }),
+        ts: new Date(backupPack.exportedAt)
+      }
+    })
 
     return backupPack
   }
@@ -309,10 +342,50 @@ export class BackupManager {
    * 列出备份历史（从文件系统或数据库）
    * TODO: 实现备份包持久化存储
    */
-  static async listBackups(_workspaceId: string): Promise<any[]> {
-    // 简化版：返回空数组
-    // 实际应从文件系统或对象存储读取
-    return []
+  static async listBackups(workspaceId: string): Promise<BackupHistoryItem[]> {
+    const [workspace, rows] = await Promise.all([
+      prisma.workspace.findUnique({ where: { id: workspaceId } }),
+      prisma.auditLog.findMany({
+        where: {
+          workspaceId,
+          action: 'BACKUP_EXPORT_HISTORY',
+          tool: 'backup'
+        },
+        orderBy: { ts: 'desc' },
+        take: 50
+      })
+    ])
+
+    return rows.map(row => {
+      const response = this.safeJsonParse<Record<string, unknown>>(row.response, {})
+      const request = this.safeJsonParse<Record<string, unknown>>(row.request, {})
+
+      return {
+        id: row.id,
+        workspaceId,
+        workspaceName: typeof response.workspaceName === 'string'
+          ? response.workspaceName
+          : workspace?.name || workspaceId,
+        exportedAt: row.ts.toISOString(),
+        exportedBy: typeof row.actor === 'string' && row.actor.length > 0
+          ? row.actor
+          : typeof request.exportedBy === 'string'
+            ? request.exportedBy
+            : 'unknown',
+        hash: typeof response.hash === 'string' ? response.hash : '',
+        itemCount: typeof response.itemCount === 'number' ? response.itemCount : 0,
+        traceId: row.traceId || null
+      }
+    })
+  }
+
+  private static safeJsonParse<T>(raw: string | null | undefined, fallback: T): T {
+    if (!raw) return fallback
+    try {
+      return JSON.parse(raw) as T
+    } catch {
+      return fallback
+    }
   }
 }
 

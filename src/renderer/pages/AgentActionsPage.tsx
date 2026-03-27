@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
@@ -96,6 +97,15 @@ export function AgentActionsPage() {
                     <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{new Date(row.createdAt).toLocaleString('zh-CN')}</div>
                   </div>
                   <span className="text-sm">{row.status}</span>
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <Link
+                    to={`/agent-actions/${row.id}`}
+                    className="rounded-full px-3 py-1 text-[11px] font-medium text-[hsl(var(--google-blue))] transition-colors hover:bg-[hsl(var(--accent))]"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    查看详情
+                  </Link>
                 </div>
               </button>
             ))}

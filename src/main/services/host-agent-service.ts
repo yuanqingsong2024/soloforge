@@ -890,6 +890,25 @@ export class HostAgentService {
       await this.applyActionSideEffects(updated)
     }
 
+    const request = safeJsonParse<Record<string, unknown>>(action.requestJson, {})
+    const deploymentJobId = typeof request.deploymentJobId === 'string' ? request.deploymentJobId : null
+    if (deploymentJobId) {
+      await prisma.deploymentJob.update({
+        where: { id: deploymentJobId },
+        data: {
+          status: input.status === 'SUCCEEDED' ? 'SUCCEEDED' : 'FAILED',
+          resultJson: JSON.stringify(maskSensitiveObject({
+            actionId: action.id,
+            actionType: action.actionType,
+            status: input.status,
+            result: input.result || null,
+            errorSummary: input.errorSummary || null
+          })),
+          lastError: input.status === 'SUCCEEDED' ? null : (input.errorSummary || 'Host Agent 安装动作失败')
+        }
+      })
+    }
+
     await prisma.auditLog.create({
       data: {
         workspaceId: action.workspaceId,

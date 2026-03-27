@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { useEventDrivenRefresh } from '../hooks/useEventDrivenRefresh'
 
 interface HostAgentRow {
   id: string
@@ -56,13 +57,27 @@ function parseCapabilities(raw: string): string[] {
 }
 
 export function HostAgentsPage() {
+  const location = useLocation()
   const navigate = useNavigate()
+  const initialQuery = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return {
+      workspaceId: params.get('workspaceId') || localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
+      status: params.get('status') || ''
+    }
+  }, [location.search])
   const [apiPort, setApiPort] = useState<number | null>(null)
-  const [workspaceId, setWorkspaceId] = useState(localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001')
-  const [status, setStatus] = useState('')
+  const [workspaceId, setWorkspaceId] = useState(initialQuery.workspaceId)
+  const [status, setStatus] = useState(initialQuery.status)
   const [rows, setRows] = useState<HostAgentRow[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+
+  useEffect(() => {
+    setWorkspaceId(initialQuery.workspaceId)
+    setStatus(initialQuery.status)
+  }, [initialQuery])
 
   useEffect(() => {
     getApiPort().then(port => {
@@ -70,6 +85,18 @@ export function HostAgentsPage() {
       void load(port, workspaceId, status)
     })
   }, [workspaceId, status])
+
+  const { lastEventPollAt } = useEventDrivenRefresh({
+    apiPort,
+    workspaceId,
+    targetId: undefined,
+    enabled: Boolean(autoRefresh && apiPort && workspaceId),
+    hasActiveWork: Boolean((stats?.onlineAgents || 0) + (stats?.degradedAgents || 0) > 0),
+    onRelevantEvent: async () => {
+      if (!apiPort) return
+      await load(apiPort, workspaceId, status)
+    }
+  })
 
   const load = async (port: number, wid: string, nextStatus: string) => {
     setLoading(true)
@@ -135,6 +162,20 @@ export function HostAgentsPage() {
           </select>
           <button onClick={() => apiPort && void load(apiPort, workspaceId, status)} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">刷新</button>
         </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[hsl(var(--muted-foreground))]">
+          <div>
+            {lastEventPollAt ? `最近事件检查：${new Date(lastEventPollAt).toLocaleTimeString('zh-CN')}` : '尚未进行事件检查'}
+          </div>
+          <label className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.52)] px-3 py-1.5">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={event => setAutoRefresh(event.target.checked)}
+              className="rounded border-[hsl(var(--border))]"
+            />
+            <span>事件驱动自动刷新</span>
+          </label>
+        </div>
       </SectionCard>
 
       <SectionCard title={`Agent 列表 (${rows.length})`} description="远程 Agent 与 target 绑定关系、能力声明和最近心跳。">
@@ -170,7 +211,7 @@ export function HostAgentsPage() {
                     <td className="px-4 py-3 text-sm">{row.lastHeartbeatAt ? new Date(row.lastHeartbeatAt).toLocaleString('zh-CN') : '从未'}</td>
                     <td className="px-4 py-3 text-right text-sm space-x-3">
                       <button onClick={() => void runTestAction(row.id)} className="text-[hsl(var(--primary))] hover:opacity-80">Run Test Action</button>
-                      <button onClick={() => void revokeAgent(row.id)} className="text-red-600 hover:opacity-80">Revoke</button>
+                      <button onClick={() => void revokeAgent(row.id)} className="text-[hsl(var(--destructive))] hover:opacity-80">Revoke</button>
                     </td>
                   </tr>
                 ))}

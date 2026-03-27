@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { getApiPort } from '../lib/api'
 
 interface BackupPack {
   version: string
@@ -27,6 +28,17 @@ interface ImportResult {
   credentialsNeeded: string[]
 }
 
+interface BackupHistoryItem {
+  id: string
+  workspaceId: string
+  workspaceName: string
+  exportedAt: string
+  exportedBy: string
+  hash: string
+  itemCount: number
+  traceId: string | null
+}
+
 interface ApiSuccessResponse<T> {
   success: true
   data: T
@@ -48,18 +60,37 @@ export function BackupRestore() {
   const [includeSnapshots, setIncludeSnapshots] = useState(true)
   const [createNewWorkspace, setCreateNewWorkspace] = useState(true)
   const [targetWorkspaceId, setTargetWorkspaceId] = useState('')
+  const [history, setHistory] = useState<BackupHistoryItem[]>([])
 
   const workspaceId = useMemo(
     () => localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
     []
   )
 
+  const fetchHistory = async () => {
+    try {
+      const port = await getApiPort()
+      const response = await fetch(`http://127.0.0.1:${port}/api/backup/history?workspaceId=${encodeURIComponent(workspaceId)}`)
+      const result = await response.json() as ApiResponse<BackupHistoryItem[]>
+      if (!response.ok || !result.success) {
+        throw new Error(result.success ? '获取备份历史失败' : result.error)
+      }
+      setHistory(result.data)
+    } catch (error) {
+      console.error('Fetch backup history failed:', error)
+    }
+  }
+
+  useEffect(() => {
+    void fetchHistory()
+  }, [workspaceId])
+
   const handleExport = async () => {
     if (!confirm('确定要导出当前 Workspace 的备份包吗？')) return
 
     setExporting(true)
     try {
-      const port = await window.electronAPI.getApiPort()
+      const port = await getApiPort()
       const response = await fetch(`http://127.0.0.1:${port}/api/backup/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,6 +108,7 @@ export function BackupRestore() {
       }
 
       setExportedPackText(JSON.stringify(result.data, null, 2))
+      await fetchHistory()
       alert(`导出成功：Workspace「${result.data.workspaceName}」备份包已生成`)
     } catch (error) {
       console.error('Export failed:', error)
@@ -103,7 +135,7 @@ export function BackupRestore() {
     setImporting(true)
     try {
       const backupPack = JSON.parse(importPackText) as BackupPack
-      const port = await window.electronAPI.getApiPort()
+      const port = await getApiPort()
       const response = await fetch(`http://127.0.0.1:${port}/api/backup/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -236,6 +268,30 @@ export function BackupRestore() {
           </div>
         </SectionCard>
       </div>
+
+      <SectionCard title="备份历史" description="展示当前 Workspace 最近导出的备份记录。" className="mt-6">
+        <div className="space-y-3">
+          {history.length === 0 ? (
+            <div className="text-sm text-[hsl(var(--muted-foreground))]">暂无备份历史</div>
+          ) : (
+            history.map(item => (
+              <div key={item.id} className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-[hsl(var(--foreground))]">{item.workspaceName}</div>
+                    <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                      导出人：{item.exportedBy} · 条目数：{item.itemCount} · {new Date(item.exportedAt).toLocaleString('zh-CN')}
+                    </div>
+                  </div>
+                  <div className="text-xs font-mono text-[hsl(var(--muted-foreground))] break-all">
+                    {item.hash || '无哈希'}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </SectionCard>
     </div>
   )
 }

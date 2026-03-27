@@ -1,102 +1,117 @@
 import { test, expect } from '@playwright/test'
+import { closeElectronApp, launchElectronApp, waitForDashboardReady } from './helpers/electron'
 
-/**
- * E2E 测试：联系人绑定与目标选择
- * 
- * 验证点：
- * 1. 创建联系人并绑定通讯目标
- * 2. 在工单中选择联系人后自动带出主目标
- * 3. 可手动切换联系人的其他目标
- */
-test.describe('联系人绑定与目标选择', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
-  })
+test.describe('联系人管理稳定回归', () => {
+  test('联系人绑定到工单后在工单详情自动选中', async ({}, testInfo) => {
+    const context = await launchElectronApp(testInfo)
+    const contactName = `E2E绑定联系人-${Date.now()}`
+    const targetDisplay = `E2E目标-${Date.now()}`
 
-  test('应该能创建联系人并绑定目标', async ({ page }) => {
-    // 1. 导航到联系人页面
-    await page.click('text=联系人')
-    await page.waitForSelector('text=联系人管理')
+    try {
+      await waitForDashboardReady(context.page)
 
-    // 2. 填写联系人信息
-    await page.locator('input[placeholder="联系人姓名"]').fill('E2E测试联系人')
-    await page.locator('input[placeholder*="公司"]').fill('测试公司')
-    await page.locator('input[placeholder*="标签"]').fill('VIP,测试')
-    await page.locator('textarea[placeholder="备注"]').fill('E2E自动化测试创建')
+      const ids = await context.page.evaluate(async ({ contactName, targetDisplay }) => {
+        const params = new URLSearchParams(window.location.search)
+        const portValue = params.get('apiPort')
+        if (!portValue) throw new Error('无法获取 apiPort')
+        const port = Number(portValue)
+        if (!Number.isFinite(port)) throw new Error('apiPort 无效')
 
-    // 3. 创建联系人
-    await page.click('button:has-text("创建联系人")')
-    await page.waitForTimeout(1000)
+        const profileResponse = await fetch(`http://127.0.0.1:${port}/api/comms/profiles`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: `E2E-Profile-${Date.now()}`, provider: 'openclaw', enabled: true })
+        })
+        const profile = await profileResponse.json() as { id: string }
 
-    // 4. 验证联系人出现在列表中
-    await expect(page.locator('text=E2E测试联系人')).toBeVisible({ timeout: 5000 })
-  })
+        const targetResponse = await fetch(`http://127.0.0.1:${port}/api/comms/targets`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            commsProfileId: profile.id,
+            channel: 'slack',
+            to: `e2e-${Date.now()}-channel`,
+            displayName: targetDisplay,
+            allowlisted: false
+          })
+        })
+        const targetResult = await targetResponse.json() as { target: { id: string } }
 
-  test('应该能在工单中绑定联系人并自动带出主目标', async ({ page }) => {
-    // 1. 先确保有联系人（使用已创建的示例联系人）
-    await page.click('text=联系人')
-    const hasContact = await page.locator('text=示例客户-张女士').count() > 0
-    if (!hasContact) {
-      test.skip()
+        const contactResponse = await fetch(`http://127.0.0.1:${port}/api/contacts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: contactName, tags: ['e2e'], notes: '绑定到工单测试' })
+        })
+        const contact = await contactResponse.json() as { id: string }
+
+        await fetch(`http://127.0.0.1:${port}/api/contacts/${contact.id}/targets`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commsTargetId: targetResult.target.id, isPrimary: true })
+        })
+
+        const ticketResponse = await fetch(`http://127.0.0.1:${port}/api/tickets`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: `E2E工单-${Date.now()}`,
+            source: 'e2e',
+            status: 'INBOX',
+            priority: 'MEDIUM',
+            customerMeta: '{}'
+          })
+        })
+        const ticket = await ticketResponse.json() as { id: string }
+
+        await fetch(`http://127.0.0.1:${port}/api/tickets/${ticket.id}/contact`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contactId: contact.id, primaryTargetId: targetResult.target.id })
+        })
+
+        return { contactId: contact.id, targetId: targetResult.target.id, ticketId: ticket.id }
+      }, { contactName, targetDisplay })
+
+      await context.page.evaluate((ticketId) => {
+        window.location.hash = `#/tickets/${ticketId}`
+      }, ids.ticketId)
+      await expect(context.page).toHaveURL(new RegExp(`#\\/tickets\\/${ids.ticketId}`))
+
+      await context.page.getByText('Compose & Send').scrollIntoViewIfNeeded()
+
+      const contactSelect = context.page.locator('select').filter({
+        has: context.page.locator(`option[value="${ids.contactId}"]`)
+      }).first()
+      await expect(contactSelect).toHaveValue(ids.contactId)
+
+      const targetSelect = context.page.locator('select').filter({
+        has: context.page.locator(`option[value="${ids.targetId}"]`)
+      }).first()
+      await expect(targetSelect).toHaveValue(ids.targetId)
+    } finally {
+      await closeElectronApp(context)
     }
-
-    // 2. 导航到工单详情
-    await page.click('text=工单看板')
-    const firstTicket = page.locator('[data-testid="ticket-card"]').first()
-    if (await firstTicket.count() === 0) test.skip()
-    await firstTicket.click()
-
-    // 3. 滚动到 Compose & Send 区块
-    await page.locator('text=Compose & Send').scrollIntoViewIfNeeded()
-
-    // 4. 选择联系人
-    const contactSelect = page.locator('select').filter({ hasText: '选择联系人' })
-    await contactSelect.selectOption({ label: /示例客户-张女士/ })
-    await page.waitForTimeout(500)
-
-    // 5. 验证目标下拉框出现选项
-    const targetSelect = page.locator('select').filter({ hasText: '选择联系人目标' })
-    const targetOptions = await targetSelect.locator('option').count()
-    expect(targetOptions).toBeGreaterThan(1) // 至少有"请选择"和一个目标
-
-    // 6. 验证 channel 和 to 字段已自动填充（如果有主目标）
-    const channelSelect = page.locator('select[value]').filter({ has: page.locator('option[value="slack"]') })
-    if (await channelSelect.count() > 0) {
-      const channelValue = await channelSelect.inputValue()
-      expect(channelValue).toBeTruthy()
-    }
   })
 
-  test('应该能手动切换联系人目标', async ({ page }) => {
-    await page.click('text=工单看板')
-    const firstTicket = page.locator('[data-testid="ticket-card"]').first()
-    if (await firstTicket.count() === 0) test.skip()
-    await firstTicket.click()
+  test('应该能在联系人页创建联系人并立即看到结果', async ({}, testInfo) => {
+    const context = await launchElectronApp(testInfo)
+    const contactName = `E2E联系人-${Date.now()}`
 
-    await page.locator('text=Compose & Send').scrollIntoViewIfNeeded()
+    try {
+      await waitForDashboardReady(context.page)
+      await context.page.getByTestId('sidebar-link-contacts').click()
+      await expect(context.page).toHaveURL(/#\/contacts/)
+      await expect(context.page.getByRole('heading', { name: '联系人管理' })).toBeVisible()
 
-    // 选择联系人
-    const contactSelect = page.locator('select').filter({ hasText: '选择联系人' })
-    const contactOptions = await contactSelect.locator('option').count()
-    if (contactOptions <= 1) test.skip()
+      await context.page.getByPlaceholder('联系人姓名').fill(contactName)
+      await context.page.getByPlaceholder('公司（可选）').fill('E2E测试公司')
+      await context.page.getByPlaceholder('标签，逗号分隔').fill('稳定回归,联系人')
+      await context.page.getByPlaceholder('备注').fill('Electron E2E 自动创建联系人')
+      await context.page.getByRole('button', { name: '创建联系人' }).click()
 
-    await contactSelect.selectOption({ index: 1 })
-    await page.waitForTimeout(500)
-
-    // 切换目标
-    const targetSelect = page.locator('select').filter({ hasText: '选择联系人目标' })
-    const targetOptions = await targetSelect.locator('option').count()
-    if (targetOptions > 1) {
-      const initialTo = await page.locator('input[placeholder*="收件人"]').inputValue()
-      await targetSelect.selectOption({ index: 1 })
-      await page.waitForTimeout(500)
-      const updatedTo = await page.locator('input[placeholder*="收件人"]').inputValue()
-      
-      // 验证 to 字段已更新（如果有多个目标）
-      if (targetOptions > 2) {
-        expect(updatedTo).not.toBe(initialTo)
-      }
+      await expect(context.page.getByText(`${contactName} / E2E测试公司`)).toBeVisible({ timeout: 10000 })
+    } finally {
+      await closeElectronApp(context)
     }
   })
 })

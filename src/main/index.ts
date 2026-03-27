@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { startServer } from './services/api-server'
@@ -32,6 +32,10 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    frame: false,
+    titleBarStyle: 'hidden',
+    autoHideMenuBar: true,
+    backgroundColor: '#0b1220',
     webPreferences: {
       preload: isE2ETestMode() ? undefined : preloadPath,
       contextIsolation: true,
@@ -63,6 +67,8 @@ async function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
+  Menu.setApplicationMenu(null)
 }
 
 // IPC Handlers
@@ -72,6 +78,28 @@ ipcMain.handle('ping', async () => {
 
 ipcMain.handle('get-api-port', async () => {
   return apiPort
+})
+
+ipcMain.handle('window-minimize', () => {
+  mainWindow?.minimize()
+})
+
+ipcMain.handle('window-toggle-maximize', () => {
+  if (!mainWindow) return false
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize()
+    return false
+  }
+  mainWindow.maximize()
+  return true
+})
+
+ipcMain.handle('window-close', () => {
+  mainWindow?.close()
+})
+
+ipcMain.handle('window-is-maximized', () => {
+  return mainWindow?.isMaximized() ?? false
 })
 
 app.whenReady().then(() => {

@@ -14,14 +14,20 @@ import { Contacts } from './pages/Contacts'
 import { OutboxManagement } from './pages/OutboxManagement'
 import { BackupRestore } from './pages/BackupRestore'
 import { Changes } from './pages/Changes'
+import { ChangeRequestDetail } from './pages/ChangeRequestDetail'
 import { WorkspaceSettings } from './pages/WorkspaceSettings'
 import { Deployments } from './pages/Deployments'
 import { DeploymentDetail } from './pages/DeploymentDetail'
+import { DeploymentJobDetail } from './pages/DeploymentJobDetail'
 import { DeploymentWizard } from './pages/DeploymentWizard'
 import { DoctorPage } from './pages/DoctorPage'
 import { ActivityFeed } from './pages/ActivityFeed'
+import { InvestigationTimelinePage } from './pages/InvestigationTimelinePage'
+import { TraceDetailPage } from './pages/TraceDetailPage'
 import { OperationsPage } from './pages/OperationsPage'
+import { OperationDetail } from './pages/OperationDetail'
 import { AlertsPage } from './pages/AlertsPage'
+import { AlertDetail } from './pages/AlertDetail'
 import { NotificationPoliciesPage } from './pages/NotificationPoliciesPage'
 import { DoctorSchedulerPage } from './pages/DoctorSchedulerPage'
 import { ReleasesPage } from './pages/ReleasesPage'
@@ -33,6 +39,7 @@ import { HostAgentsPage } from './pages/HostAgentsPage'
 import { HostAgentDetailPage } from './pages/HostAgentDetailPage'
 import { HostAgentBootstrapWizardPage } from './pages/HostAgentBootstrapWizardPage'
 import { AgentActionsPage } from './pages/AgentActionsPage'
+import { AgentActionDetail } from './pages/AgentActionDetail'
 
 function App() {
   return (
@@ -53,10 +60,15 @@ function App() {
           <Route path="/outbox" element={<OutboxManagement />} />
           <Route path="/backup" element={<BackupRestore />} />
           <Route path="/changes" element={<Changes />} />
+          <Route path="/changes/:id" element={<ChangeRequestDetail />} />
           <Route path="/doctor" element={<DoctorPage />} />
           <Route path="/activity-feed" element={<ActivityFeed />} />
+          <Route path="/investigation-timeline" element={<InvestigationTimelinePage />} />
+          <Route path="/traces/:traceId" element={<TraceDetailPage />} />
           <Route path="/operations" element={<OperationsPage />} />
+          <Route path="/operations/:id" element={<OperationDetail />} />
           <Route path="/alerts" element={<AlertsPage />} />
+          <Route path="/alerts/:id" element={<AlertDetail />} />
           <Route path="/notification-policies" element={<NotificationPoliciesPage />} />
           <Route path="/doctor-scheduler" element={<DoctorSchedulerPage />} />
           <Route path="/releases" element={<ReleasesPage />} />
@@ -68,10 +80,12 @@ function App() {
           <Route path="/host-agents/new" element={<HostAgentBootstrapWizardPage />} />
           <Route path="/host-agents/:id" element={<HostAgentDetailPage />} />
           <Route path="/agent-actions" element={<AgentActionsPage />} />
+          <Route path="/agent-actions/:id" element={<AgentActionDetail />} />
           <Route path="/workspace-settings" element={<WorkspaceSettings />} />
           <Route path="/deployments" element={<Deployments />} />
           <Route path="/deployments/new" element={<DeploymentWizard />} />
           <Route path="/deployments/:id" element={<DeploymentDetail />} />
+          <Route path="/deployment-jobs/:id" element={<DeploymentJobDetail />} />
         </Routes>
       </Layout>
     </HashRouter>

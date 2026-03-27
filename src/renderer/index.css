@@ -8,54 +8,60 @@
    ============================================ */
 
 :root {
-  /* 颜色系统 - 浅色主题 */
-  --background: 0 0% 100%;           /* 纯白背景 */
-  --foreground: 222 47% 11%;         /* 深灰文字 */
-  
-  --muted: 210 40% 96%;              /* 次要背景（灰白） */
-  --muted-foreground: 215 16% 47%;   /* 次要文字（中灰） */
-  
+  /* 颜色系统 - 浅色主题（Material 3 风格） */
+  --background: 220 35% 97%;         /* 应用画布背景 */
+  --foreground: 222 32% 16%;         /* 主文字 */
+
+  --muted: 220 30% 94%;              /* 柔和背景 */
+  --muted-foreground: 215 15% 42%;   /* 次级文字 */
+
   --card: 0 0% 100%;                 /* 卡片背景 */
-  --card-foreground: 222 47% 11%;    /* 卡片文字 */
+  --card-foreground: 222 32% 16%;    /* 卡片文字 */
+
+  --popover: 0 0% 100%;              /* 弹层背景 */
+  --popover-foreground: 222 32% 16%; /* 弹层文字 */
+
+  --border: 220 24% 88%;             /* 边框 */
+  --input: 220 24% 88%;              /* 输入框边框 */
+
+  --primary: 217 89% 61%;            /* Google Blue #4285F4 */
+  --primary-foreground: 0 0% 100%;   /* 主色文字 */
+
+  --secondary: 220 36% 96%;          /* 次级面板色 */
+  --secondary-foreground: 222 32% 20%;
+
+  --accent: 214 100% 97%;            /* 轻蓝强调面 */
+  --accent-foreground: 217 78% 43%;  /* 强调文字 */
+
+  --destructive: 4 80% 57%;          /* Google Red #EA4335 */
+  --destructive-foreground: 0 0% 100%;
+
+  --success: 137 52% 43%;            /* Google Green #34A853 */
+  --success-foreground: 0 0% 100%;
+
+  --warning: 45 96% 50%;             /* Google Yellow #FBBC05 */
+  --warning-foreground: 222 32% 16%;
+
+  --info: 217 89% 61%;               /* 信息色与主色统一 */
+  --info-foreground: 0 0% 100%;
+
+  --ring: 217 89% 61%;               /* 焦点环 */
+
+  /* Google 辅助点缀色 */
+  --google-blue: 217 89% 61%;
+  --google-red: 4 80% 57%;
+  --google-yellow: 45 96% 50%;
+  --google-green: 137 52% 43%;
   
-  --popover: 0 0% 100%;              /* 弹窗背景 */
-  --popover-foreground: 222 47% 11%; /* 弹窗文字 */
+  /* 圆角系统（更接近 Material 3） */
+  --radius-sm: 0.625rem; /* 10px */
+  --radius-md: 1rem;     /* 16px */
+  --radius-lg: 1.25rem;  /* 20px */
   
-  --border: 214 32% 91%;             /* 边框（浅灰） */
-  --input: 214 32% 91%;              /* 输入框边框 */
-  
-  --primary: 222 47% 11%;            /* 主色（深灰黑） */
-  --primary-foreground: 210 40% 98%; /* 主色文字（白） */
-  
-  --secondary: 210 40% 96%;          /* 次要色（浅灰） */
-  --secondary-foreground: 222 47% 11%; /* 次要色文字 */
-  
-  --accent: 210 40% 96%;             /* 强调色（浅灰） */
-  --accent-foreground: 222 47% 11%;  /* 强调色文字 */
-  
-  --destructive: 0 84% 60%;          /* 危险色（红） */
-  --destructive-foreground: 210 40% 98%; /* 危险色文字 */
-  
-  --success: 142 76% 36%;            /* 成功色（绿） */
-  --success-foreground: 210 40% 98%; /* 成功色文字 */
-  
-  --warning: 38 92% 50%;             /* 警告色（橙） */
-  --warning-foreground: 222 47% 11%; /* 警告色文字 */
-  
-  --info: 199 89% 48%;               /* 信息色（蓝） */
-  --info-foreground: 210 40% 98%;    /* 信息色文字 */
-  
-  --ring: 222 47% 11%;               /* 焦点环 */
-  
-  /* 圆角系统（8px 网格） */
-  --radius-sm: 0.25rem;  /* 4px */
-  --radius-md: 0.5rem;   /* 8px */
-  --radius-lg: 0.75rem;  /* 12px */
-  
-  /* 阴影系统（轻阴影） */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  /* 阴影系统（细腻悬浮感） */
+  --shadow-sm: 0 10px 28px rgb(60 64 67 / 0.08), 0 2px 6px rgb(60 64 67 / 0.06);
+  --shadow-md: 0 14px 36px rgb(60 64 67 / 0.12), 0 4px 12px rgb(60 64 67 / 0.08);
+  --shadow-lg: 0 22px 48px rgb(60 64 67 / 0.16), 0 8px 18px rgb(60 64 67 / 0.1);
   
   /* 间距系统（8px 网格） */
   --spacing-xs: 0.5rem;   /* 8px */
@@ -68,43 +74,48 @@
 
 /* 深色主题 */
 [data-theme="dark"] {
-  --background: 222 47% 11%;         /* 深灰黑背景 */
-  --foreground: 210 40% 98%;         /* 浅灰白文字 */
-  
-  --muted: 217 33% 17%;              /* 次要背景（深灰） */
-  --muted-foreground: 215 20% 65%;   /* 次要文字（中灰） */
-  
-  --card: 222 47% 11%;               /* 卡片背景 */
-  --card-foreground: 210 40% 98%;    /* 卡片文字 */
-  
-  --popover: 222 47% 11%;            /* 弹窗背景 */
-  --popover-foreground: 210 40% 98%; /* 弹窗文字 */
-  
-  --border: 217 33% 17%;             /* 边框（深灰） */
-  --input: 217 33% 17%;              /* 输入框边框 */
-  
-  --primary: 210 40% 98%;            /* 主色（浅灰白） */
-  --primary-foreground: 222 47% 11%; /* 主色文字（深灰黑） */
-  
-  --secondary: 217 33% 17%;          /* 次要色（深灰） */
-  --secondary-foreground: 210 40% 98%; /* 次要色文字 */
-  
-  --accent: 217 33% 17%;             /* 强调色（深灰） */
-  --accent-foreground: 210 40% 98%;  /* 强调色文字 */
-  
-  --destructive: 0 63% 31%;          /* 危险色（暗红） */
-  --destructive-foreground: 210 40% 98%; /* 危险色文字 */
-  
-  --success: 142 70% 45%;            /* 成功色（绿） */
-  --success-foreground: 210 40% 98%; /* 成功色文字 */
-  
-  --warning: 38 92% 50%;             /* 警告色（橙） */
-  --warning-foreground: 222 47% 11%; /* 警告色文字 */
-  
-  --info: 199 89% 48%;               /* 信息色（蓝） */
-  --info-foreground: 210 40% 98%;    /* 信息色文字 */
-  
-  --ring: 212 35% 70%;               /* 焦点环 */
+  --background: 224 24% 11%;
+  --foreground: 210 40% 96%;
+
+  --muted: 223 18% 18%;
+  --muted-foreground: 215 18% 72%;
+
+  --card: 224 20% 14%;
+  --card-foreground: 210 40% 96%;
+
+  --popover: 224 20% 14%;
+  --popover-foreground: 210 40% 96%;
+
+  --border: 223 16% 24%;
+  --input: 223 16% 24%;
+
+  --primary: 217 89% 68%;
+  --primary-foreground: 222 32% 12%;
+
+  --secondary: 223 18% 18%;
+  --secondary-foreground: 210 40% 96%;
+
+  --accent: 223 28% 21%;
+  --accent-foreground: 210 40% 96%;
+
+  --destructive: 4 76% 61%;
+  --destructive-foreground: 210 40% 98%;
+
+  --success: 137 45% 50%;
+  --success-foreground: 210 40% 98%;
+
+  --warning: 45 96% 56%;
+  --warning-foreground: 222 32% 12%;
+
+  --info: 217 89% 68%;
+  --info-foreground: 222 32% 12%;
+
+  --ring: 217 89% 68%;
+
+  --google-blue: 217 89% 68%;
+  --google-red: 4 76% 61%;
+  --google-yellow: 45 96% 56%;
+  --google-green: 137 45% 50%;
 }
 
 /* ============================================
@@ -124,6 +135,11 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  background-image: radial-gradient(circle at top left, hsl(var(--google-blue) / 0.08), transparent 24%), radial-gradient(circle at top right, hsl(var(--google-yellow) / 0.08), transparent 18%);
+}
+
+#root {
+  min-height: 100vh;
 }
 
 /* 等宽字体（用于 ID 显示） */
@@ -141,16 +157,17 @@ code,
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
+  background: hsl(var(--background));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: hsl(var(--muted-foreground) / 0.2);
   border-radius: var(--radius-sm);
+  border: 2px solid hsl(var(--background));
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: hsl(var(--muted-foreground) / 0.35);
 }
 
 /* 焦点样式 */
@@ -161,7 +178,7 @@ code,
 
 /* 选择文本样式 */
 ::selection {
-  background-color: hsl(var(--primary) / 0.2);
+  background-color: hsl(var(--primary) / 0.22);
   color: hsl(var(--foreground));
 }
 

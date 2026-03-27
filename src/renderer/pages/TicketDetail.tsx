@@ -317,21 +317,21 @@ export function TicketDetail() {
   }
   const getPipelineStatusBadge = (status: string) => {
     switch (status) {
-      case 'RUNNING': return 'bg-blue-100 text-blue-800'
-      case 'PAUSED': return 'bg-yellow-100 text-yellow-800'
-      case 'COMPLETED': return 'bg-green-100 text-green-800'
-      case 'FAILED': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'RUNNING': return 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]'
+      case 'PAUSED': return 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]'
+      case 'COMPLETED': return 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
+      case 'FAILED': return 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
+      default: return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
     }
   }
   const getJobStatusBadge = (status: string) => {
     switch (status) {
-      case 'PENDING': return 'bg-gray-100 text-gray-800'
-      case 'RUNNING': return 'bg-blue-100 text-blue-800'
-      case 'SUCCEEDED': return 'bg-green-100 text-green-800'
-      case 'FAILED': return 'bg-red-100 text-red-800'
-      case 'CANCELED': return 'bg-gray-100 text-gray-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'PENDING': return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
+      case 'RUNNING': return 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]'
+      case 'SUCCEEDED': return 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
+      case 'FAILED': return 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
+      case 'CANCELED': return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
+      default: return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
     }
   }
   const handleAddTag = async () => {
@@ -560,8 +560,8 @@ export function TicketDetail() {
         actions={
           <button
             onClick={() => navigate('/tickets')}
-            className="px-4 py-2 text-sm font-medium text-[hsl(var(--muted-foreground))]
-                     hover:text-[hsl(var(--foreground))] transition-colors"
+            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--muted-foreground))]
+                     hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))] transition-colors"
           >
             ← 返回看板
           </button>
@@ -569,37 +569,37 @@ export function TicketDetail() {
       />
       {/* 工单基本信息 */}
       <SectionCard className="mb-6">
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
+        <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
+          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-4">
             <span className="text-[hsl(var(--muted-foreground))]">状态：</span>
-            <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(ticket.status)}`}>
+            <span className={`ml-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getStatusBadge(ticket.status)}`}>
               {ticket.status}
             </span>
           </div>
-          <div>
+          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-4">
             <span className="text-[hsl(var(--muted-foreground))]">优先级：</span>
-            <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityBadge(ticket.priority)}`}>
+            <span className={`ml-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getPriorityBadge(ticket.priority)}`}>
               {ticket.priority}
             </span>
           </div>
-          <div>
+          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
             <span className="text-[hsl(var(--muted-foreground))]">来源：</span>
             <span className="ml-2 font-medium text-[hsl(var(--foreground))]">{ticket.source}</span>
           </div>
-          <div>
+          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
             <span className="text-[hsl(var(--muted-foreground))]">负责人：</span>
             <span className="ml-2 font-medium text-[hsl(var(--foreground))]">{ticket.assignee?.name || '未分配'}</span>
           </div>
         </div>
         {/* 标签显示 */}
-        <div className="mt-6 pt-6 border-t border-[hsl(var(--border))]">
+        <div className="mt-6 border-t border-[hsl(var(--border))] pt-6">
           <span className="text-[hsl(var(--muted-foreground))] text-sm font-medium">标签：</span>
           <div className="flex flex-wrap gap-2 mt-3">
             {ticket.tags && ticket.tags.length > 0 ? (
               ticket.tags.map(tt => (
                 <span
                   key={tt.id}
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium"
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium shadow-workshop-sm"
                   style={{ backgroundColor: `${tt.tag.color}20`, color: tt.tag.color }}
                 >
                   {tt.tag.name}
@@ -624,7 +624,7 @@ export function TicketDetail() {
             <select
               value={selectedTagId}
               onChange={e => setSelectedTagId(e.target.value)}
-              className="flex-1 px-3 py-2 text-sm rounded-workshop-md
+              className="flex-1 rounded-full px-4 py-2.5 text-sm
                        bg-[hsl(var(--background))] text-[hsl(var(--foreground))]
                        border border-[hsl(var(--border))]
                        focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
@@ -641,9 +641,9 @@ export function TicketDetail() {
             <button
               onClick={handleAddTag}
               disabled={!selectedTagId}
-              className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]
-                       rounded-workshop-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed
-                       text-sm font-medium transition-opacity"
+               className="rounded-full px-4 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]
+                        hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed
+                        text-sm font-medium transition-opacity"
             >
               添加
             </button>
@@ -656,16 +656,18 @@ export function TicketDetail() {
         <SectionCard title="交付物">
           <div className="space-y-3 mb-6">
             {ticket.artifacts?.map(artifact => (
-              <div key={artifact.id} className="p-4 border border-[hsl(var(--border))] rounded-workshop-md">
+              <div key={artifact.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
                 <div className="flex justify-between items-start mb-2">
-                  <span className="font-semibold text-sm text-[hsl(var(--foreground))]">{artifact.type}</span>
-                  <span className="text-xs text-[hsl(var(--muted-foreground))] font-mono">v{artifact.version}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-[hsl(var(--google-blue)_/_0.14)] bg-[hsl(var(--google-blue)_/_0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--google-blue))]">{artifact.type}</span>
+                    <span className="text-xs text-[hsl(var(--muted-foreground))] font-mono">v{artifact.version}</span>
+                  </div>
                 </div>
                 <p className="text-sm text-[hsl(var(--foreground))] whitespace-pre-wrap leading-relaxed">{artifact.content}</p>
                 {(artifact.type === 'CLIENT_MSG' || artifact.type === 'DELIVERY_LIST') && (
                   <button
                     onClick={() => handleCreateOutboundDraftFromArtifact(artifact)}
-                    className="mt-3 px-3 py-1 text-xs rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90"
+                    className="mt-3 rounded-full bg-[hsl(var(--primary))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90"
                   >
                     用此交付物生成外发草稿
                   </button>
@@ -684,10 +686,10 @@ export function TicketDetail() {
             <select
               value={newArtifactType}
               onChange={e => setNewArtifactType(e.target.value)}
-              className="w-full mb-3 px-3 py-2 text-sm rounded-workshop-md
-                       bg-[hsl(var(--background))] text-[hsl(var(--foreground))]
-                       border border-[hsl(var(--border))]
-                       focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+               className="mb-3 w-full rounded-full px-4 py-2.5 text-sm
+                        bg-[hsl(var(--background))] text-[hsl(var(--foreground))]
+                        border border-[hsl(var(--border))]
+                        focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
             >
               <option value="PRD">PRD</option>
               <option value="PLAN">方案</option>
@@ -702,18 +704,18 @@ export function TicketDetail() {
               value={newArtifactContent}
               onChange={e => setNewArtifactContent(e.target.value)}
               placeholder="内容（支持 Markdown）"
-              className="w-full px-3 py-2 text-sm rounded-workshop-md mb-3
-                       bg-[hsl(var(--background))] text-[hsl(var(--foreground))]
-                       border border-[hsl(var(--border))]
-                       placeholder:text-[hsl(var(--muted-foreground))]
+               className="mb-3 w-full rounded-workshop-lg px-4 py-3 text-sm
+                        bg-[hsl(var(--background))] text-[hsl(var(--foreground))]
+                        border border-[hsl(var(--border))]
+                        placeholder:text-[hsl(var(--muted-foreground))]
                        focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
               rows={4}
             />
             <button
               onClick={handleAddArtifact}
-              className="w-full px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]
-                       rounded-workshop-md hover:opacity-90 transition-opacity
-                       text-sm font-medium"
+               className="w-full rounded-full px-4 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]
+                        hover:opacity-90 transition-opacity
+                        text-sm font-medium"
             >
               添加
             </button>
@@ -731,7 +733,7 @@ export function TicketDetail() {
                     handleBindContactToTicket(nextId)
                   }
                 }}
-                className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
               >
                 <option value="">选择联系人（可选）</option>
                 {contacts.map(contact => (
@@ -751,7 +753,7 @@ export function TicketDetail() {
                     setOutboundDraft(prev => ({ ...prev, channel: target.channel, to: target.to }))
                   }
                 }}
-                className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
               >
                 <option value="">选择联系人目标（可选）</option>
                 {(selectedContact?.contactTargets || []).map(target => (
@@ -767,7 +769,7 @@ export function TicketDetail() {
                   setSelectedTemplateId(e.target.value)
                   setTemplateVariables({})
                 }}
-                className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
               >
                 <option value="">选择模板</option>
                 {templates.map(template => (
@@ -785,7 +787,7 @@ export function TicketDetail() {
                       value={templateVariables[key] || ''}
                       onChange={e => setTemplateVariables(prev => ({ ...prev, [key]: e.target.value }))}
                       placeholder={schema.title || key}
-                      className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                       className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
                     />
                   ))}
                 </div>
@@ -794,24 +796,24 @@ export function TicketDetail() {
               <button
                 onClick={handleRenderTemplateDraft}
                 disabled={!selectedTemplateId}
-                className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50"
+                className="rounded-full px-4 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
               >
                 生成草稿（DRAFT）
               </button>
 
               {composePreview && (
-                <div className="p-3 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2">模板预览</p>
-                  <p className="text-sm font-medium mb-2">主题：{composePreview.subject || '（无）'}</p>
-                  <p className="text-sm whitespace-pre-wrap">{composePreview.body}</p>
+                 <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.56)] p-3 shadow-workshop-sm">
+                   <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2">模板预览</p>
+                   <p className="text-sm font-medium mb-2">主题：{composePreview.subject || '（无）'}</p>
+                   <p className="text-sm whitespace-pre-wrap">{composePreview.body}</p>
                 </div>
               )}
 
               <select
                 value={outboundDraft.channel}
                 onChange={e => setOutboundDraft(prev => ({ ...prev, channel: e.target.value }))}
-                className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
-              >
+                 className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+               >
                 <option value="slack">slack</option>
                 <option value="telegram">telegram</option>
                 <option value="discord">discord</option>
@@ -824,26 +826,26 @@ export function TicketDetail() {
                 value={outboundDraft.to}
                 onChange={e => setOutboundDraft(prev => ({ ...prev, to: e.target.value }))}
                 placeholder="收件人 / 频道 ID"
-                className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
               />
               <input
                 value={outboundDraft.subject}
                 onChange={e => setOutboundDraft(prev => ({ ...prev, subject: e.target.value }))}
                 placeholder="主题（可选）"
-                className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
               />
               <textarea
                 value={outboundDraft.body}
                 onChange={e => setOutboundDraft(prev => ({ ...prev, body: e.target.value }))}
                 placeholder="外发正文（支持 Markdown）"
                 rows={6}
-                className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                className="rounded-workshop-lg px-4 py-3 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
               />
             </div>
             <button
               onClick={handleSendOutboundDraft}
               disabled={sendingOutbound || !outboundDraft.to.trim() || !outboundDraft.body.trim()}
-              className="w-full px-4 py-2 bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50"
+              className="w-full rounded-full px-4 py-2.5 bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] hover:opacity-90 disabled:opacity-50"
             >
               {sendingOutbound ? '提交中...' : '发送（创建审批）'}
             </button>
@@ -854,10 +856,10 @@ export function TicketDetail() {
         <SectionCard title="审批记录">
           <div className="space-y-3">
             {ticket.approvals?.map(approval => (
-              <div key={approval.id} className="p-4 border border-[hsl(var(--border))] rounded-workshop-md">
+              <div key={approval.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
                 <div className="flex justify-between items-start mb-2">
                   <span className="font-semibold text-sm text-[hsl(var(--foreground))]">{approval.actionType}</span>
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${getApprovalBadge(approval.status)}`}>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getApprovalBadge(approval.status)}`}>
                     {approval.status}
                   </span>
                 </div>
@@ -883,7 +885,7 @@ export function TicketDetail() {
         {pipelineState && (
           <SectionCard title="Pipeline 流程">
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.52)] p-4">
                 <div>
                   <p className="text-sm font-medium text-[hsl(var(--foreground))]">
                     当前步骤：{pipelineState.currentStepOrder}/{pipelineState.pipeline.steps.length} - {pipelineState.pipeline.steps.find(s => s.order === pipelineState.currentStepOrder)?.roleName}
@@ -892,7 +894,7 @@ export function TicketDetail() {
                     Pipeline: {pipelineState.pipeline.name}
                   </p>
                 </div>
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${getPipelineStatusBadge(pipelineState.status)}`}>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getPipelineStatusBadge(pipelineState.status)}`}>
                   {pipelineState.status}
                 </span>
               </div>
@@ -900,14 +902,14 @@ export function TicketDetail() {
                 <button
                   onClick={handleAdvancePipeline}
                   disabled={pipelineState.status !== 'RUNNING'}
-                  className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50"
+                  className="rounded-full px-4 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
                 >
                   推进到下一步
                 </button>
                 <button
                   onClick={handleRollbackPipeline}
                   disabled={pipelineState.currentStepOrder <= 1}
-                  className="px-4 py-2 bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50"
+                  className="rounded-full px-4 py-2.5 bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] hover:opacity-90 disabled:opacity-50"
                 >
                   回退到上一步
                 </button>
@@ -919,15 +921,15 @@ export function TicketDetail() {
         <SectionCard title="Jobs 执行记录">
           <div className="space-y-3">
             {jobs.map(job => (
-              <div key={job.id} className="p-4 border border-[hsl(var(--border))] rounded-workshop-md">
+              <div key={job.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <span className="font-semibold text-sm text-[hsl(var(--foreground))]">{job.type}</span>
+                    <span className="rounded-full border border-[hsl(var(--google-blue)_/_0.14)] bg-[hsl(var(--google-blue)_/_0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--google-blue))]">{job.type}</span>
                     <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
                       {new Date(job.createdAt).toLocaleString('zh-CN')}
                     </p>
                   </div>
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${getJobStatusBadge(job.status)}`}>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getJobStatusBadge(job.status)}`}>
                     {job.status}
                   </span>
                 </div>
@@ -940,7 +942,7 @@ export function TicketDetail() {
                       {expandedJobId === job.id ? '隐藏日志' : '查看日志'}
                     </button>
                     {expandedJobId === job.id && (
-                      <pre className="mt-2 p-2 bg-[hsl(var(--muted))] rounded text-xs overflow-x-auto">
+                      <pre className="mt-2 overflow-x-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-3 text-xs">
                         {job.logs}
                       </pre>
                     )}
@@ -949,7 +951,7 @@ export function TicketDetail() {
                 {job.status === 'FAILED' && (
                   <button
                     onClick={() => handleRetryJob(job.id)}
-                    className="mt-2 px-3 py-1 text-xs bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] rounded-workshop-md hover:opacity-90"
+                    className="mt-2 rounded-full px-3 py-1.5 text-xs font-medium bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] hover:opacity-90"
                   >
                     重试
                   </button>

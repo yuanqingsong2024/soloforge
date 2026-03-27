@@ -216,7 +216,7 @@ export function UpgradePlansPage() {
             <>
               <button onClick={() => runPlanAction(selectedPlan.id, 'dry-run')} className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">Dry Run</button>
               <button onClick={() => runPlanAction(selectedPlan.id, 'execute')} className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">执行升级</button>
-              <button onClick={() => runPlanAction(selectedPlan.id, 'rollback')} className="px-3 py-2 text-sm rounded-workshop-md bg-red-600 text-white hover:opacity-90">回滚</button>
+              <button onClick={() => runPlanAction(selectedPlan.id, 'rollback')} className="rounded-full border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] px-3 py-2 text-sm font-medium text-[hsl(var(--destructive))] hover:bg-[hsl(var(--google-red)_/_0.18)] transition-colors">回滚</button>
             </>
           ) : undefined}
         >

@@ -316,22 +316,24 @@ export function ConfigCenter() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-[hsl(var(--google-blue))]"></div>
       </div>
     )
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">配置中心</h1>
+    <div className="space-y-6 p-6">
+      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card)_/_0.76)] px-6 py-5 shadow-workshop-sm backdrop-blur">
+        <h1 className="text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">配置中心</h1>
+      </div>
 
       {/* Profile Selector */}
-      <div className="mb-6 flex items-center gap-4">
-        <label className="text-sm font-medium text-gray-700">连接配置:</label>
+      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+        <label className="text-sm font-medium text-[hsl(var(--foreground))]">连接配置:</label>
         <select
           value={selectedProfileId}
           onChange={e => handleProfileChange(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 min-w-64"
+          className="min-w-64 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
         >
           <option value="">请选择连接配置</option>
           {profiles.map(p => (
@@ -340,13 +342,13 @@ export function ConfigCenter() {
         </select>
 
         {rateLimit && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-gray-500">剩余写入:</span>
-            <span className={`font-medium ${rateLimit.remaining > 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-3 py-2 text-sm shadow-workshop-sm">
+            <span className="text-[hsl(var(--muted-foreground))]">剩余写入:</span>
+            <span className={`font-medium ${rateLimit.remaining > 0 ? 'text-[hsl(var(--success))]' : 'text-[hsl(var(--destructive))]'}`}>
               {rateLimit.remaining}/3
             </span>
             {countdown > 0 && (
-              <span className="text-red-500">({countdown}s)</span>
+              <span className="text-[hsl(var(--destructive))]">({countdown}s)</span>
             )}
           </div>
         )}
@@ -355,14 +357,14 @@ export function ConfigCenter() {
       {/* Status Banner */}
       {applyStatus && (
         <div
-          className={`mb-4 p-3 rounded border ${
+          className={`mb-4 rounded-workshop-lg border px-4 py-3 shadow-workshop-sm ${
             applyStatus.type === 'success'
-              ? 'bg-green-50 border-green-200 text-green-700'
+              ? 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
               : applyStatus.type === 'pending'
-              ? 'bg-yellow-50 border-yellow-200 text-yellow-700'
+              ? 'border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]'
               : applyStatus.type === 'rate_limited'
-              ? 'bg-orange-50 border-orange-200 text-orange-700'
-              : 'bg-red-50 border-red-200 text-red-700'
+              ? 'border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.14)] text-[hsl(var(--foreground))]'
+              : 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
           }`}
         >
           <p className="text-sm">{applyStatus.message}</p>
@@ -370,18 +372,18 @@ export function ConfigCenter() {
       )}
 
       {!selectedProfileId ? (
-        <div className="bg-white shadow rounded-lg p-12 text-center text-gray-500">
+        <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-12 text-center text-[hsl(var(--muted-foreground))] shadow-workshop-sm">
           请选择一个连接配置以管理 OpenClaw 配置
         </div>
       ) : configLoading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[hsl(var(--google-blue))]"></div>
         </div>
       ) : (
         <>
           {/* Tabs */}
-          <div className="border-b border-gray-200 mb-6">
-            <nav className="-mb-px flex space-x-8">
+          <div className="mb-6 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-2 shadow-workshop-sm">
+            <nav className="flex flex-wrap gap-2">
               {([
                 { key: 'form' as const, label: '表单编辑' },
                 { key: 'json' as const, label: 'Raw JSON' },
@@ -391,10 +393,10 @@ export function ConfigCenter() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  className={`rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
                     activeTab === tab.key
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))] shadow-workshop-sm'
+                      : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
                   }`}
                 >
                   {tab.label}
@@ -407,35 +409,35 @@ export function ConfigCenter() {
           {activeTab === 'form' && (
             <div className="space-y-6">
               {/* 模型与路由 */}
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">模型与路由</h3>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+                <h3 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">模型与路由</h3>
                 <div className="grid grid-cols-1 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">默认模型</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">默认模型</label>
                     <input
                       type="text"
                       value={formDefaultModel}
                       onChange={e => setFormDefaultModel(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-full border border-[hsl(var(--border))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       placeholder="gpt-4"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Fallbacks (逗号分隔)</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">Fallbacks (逗号分隔)</label>
                     <textarea
                       value={formFallbacks}
                       onChange={e => setFormFallbacks(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-workshop-lg border border-[hsl(var(--border))] px-4 py-3 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       rows={2}
                       placeholder="gpt-3.5-turbo, claude-3-sonnet"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Allowlist (逗号分隔)</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">Allowlist (逗号分隔)</label>
                     <textarea
                       value={formAllowlist}
                       onChange={e => setFormAllowlist(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-workshop-lg border border-[hsl(var(--border))] px-4 py-3 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       rows={2}
                       placeholder="gpt-4, gpt-3.5-turbo, claude-3-sonnet"
                     />
@@ -444,34 +446,34 @@ export function ConfigCenter() {
               </div>
 
               {/* Hooks */}
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Hooks</h3>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+                <h3 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">Hooks</h3>
                 <div className="grid grid-cols-1 gap-4">
                   <div className="flex items-center">
                     <input
                       type="checkbox"
                       checked={formHooksEnabled}
                       onChange={e => setFormHooksEnabled(e.target.checked)}
-                      className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                      className="h-4 w-4 rounded border-[hsl(var(--border))] text-[hsl(var(--google-blue))]"
                     />
-                    <label className="ml-2 text-sm font-medium text-gray-700">启用 Hooks</label>
+                    <label className="ml-2 text-sm font-medium text-[hsl(var(--foreground))]">启用 Hooks</label>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Hooks Token</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">Hooks Token</label>
                     <input
                       type="text"
                       value={formHooksToken}
                       onChange={e => setFormHooksToken(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-full border border-[hsl(var(--border))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Hooks Path</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">Hooks Path</label>
                     <input
                       type="text"
                       value={formHooksPath}
                       onChange={e => setFormHooksPath(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-full border border-[hsl(var(--border))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       placeholder="/hooks"
                     />
                   </div>
@@ -479,26 +481,26 @@ export function ConfigCenter() {
               </div>
 
               {/* Tools 策略 */}
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Tools 策略</h3>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+                <h3 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">Tools 策略</h3>
                 <div className="grid grid-cols-1 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">默认策略</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">默认策略</label>
                     <select
                       value={formToolsPolicy}
                       onChange={e => setFormToolsPolicy(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                     >
                       <option value="allow">Allow</option>
                       <option value="deny">Deny</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Blocklist (每行一个)</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">Blocklist (每行一个)</label>
                     <textarea
                       value={formToolsBlocklist}
                       onChange={e => setFormToolsBlocklist(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-workshop-lg border border-[hsl(var(--border))] px-4 py-3 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       rows={3}
                       placeholder="dangerous_tool&#10;risky_command"
                     />
@@ -507,15 +509,15 @@ export function ConfigCenter() {
               </div>
 
               {/* Gateway 安全 */}
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Gateway 安全</h3>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+                <h3 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">Gateway 安全</h3>
                 <div className="grid grid-cols-1 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Auth Mode</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">Auth Mode</label>
                     <select
                       value={formAuthMode}
                       onChange={e => setFormAuthMode(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                     >
                       <option value="token">Token</option>
                       <option value="password">Password</option>
@@ -524,13 +526,13 @@ export function ConfigCenter() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">
                       Trusted Proxies (每行一个，精确 IP 或 /24+ 网段)
                     </label>
                     <textarea
                       value={formTrustedProxies}
                       onChange={e => setFormTrustedProxies(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-workshop-lg border border-[hsl(var(--border))] px-4 py-3 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       rows={3}
                       placeholder="10.0.0.1&#10;192.168.1.0/24"
                     />
@@ -539,28 +541,28 @@ export function ConfigCenter() {
               </div>
 
               {/* Channels 配置 */}
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Channels</h3>
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+                <h3 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">Channels</h3>
                 <div className="grid grid-cols-1 gap-4">
                   <div className="flex items-center">
                     <input
                       type="checkbox"
                       checked={formChannelsEnabled}
                       onChange={e => setFormChannelsEnabled(e.target.checked)}
-                      className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                      className="h-4 w-4 rounded border-[hsl(var(--border))] text-[hsl(var(--google-blue))]"
                     />
-                    <label className="ml-2 text-sm font-medium text-gray-700">启用 Channels</label>
+                    <label className="ml-2 text-sm font-medium text-[hsl(var(--foreground))]">启用 Channels</label>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Targets 映射 (每行: channel:target)</label>
+                    <label className="mb-1 block text-sm font-medium text-[hsl(var(--foreground))]">Targets 映射 (每行: channel:target)</label>
                     <textarea
                       value={formChannelsMappings}
                       onChange={e => setFormChannelsMappings(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-workshop-lg border border-[hsl(var(--border))] px-4 py-3 text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       rows={4}
                       placeholder="slack:#support\ntelegram:@ops_channel"
                     />
-                    <p className="mt-1 text-xs text-gray-500">用于说明 channel 与通讯目标映射，仅写入配置，不含敏感凭证。</p>
+                    <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">用于说明 channel 与通讯目标映射，仅写入配置，不含敏感凭证。</p>
                   </div>
                 </div>
               </div>
@@ -569,7 +571,7 @@ export function ConfigCenter() {
                 <button
                   onClick={() => handleApply()}
                   disabled={applying || !currentConfig}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-full bg-[hsl(var(--primary))] px-6 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
                 >
                   {applying ? '应用中...' : '应用配置'}
                 </button>
@@ -579,11 +581,11 @@ export function ConfigCenter() {
 
           {activeTab === 'json' && (
             <div className="space-y-4">
-              <div className="bg-white shadow rounded-lg p-6">
+              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
                 <textarea
                   value={rawJson}
                   onChange={e => setRawJson(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-md font-mono text-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full rounded-workshop-lg border border-[hsl(var(--border))] px-4 py-3 font-mono text-sm text-[hsl(var(--foreground))] focus:border-[hsl(var(--google-blue)_/_0.35)] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                   style={{ minHeight: '400px' }}
                   spellCheck={false}
                 />
@@ -599,7 +601,7 @@ export function ConfigCenter() {
                     }
                   }}
                   disabled={applying || !currentConfig}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-full bg-[hsl(var(--primary))] px-6 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
                 >
                   {applying ? '应用中...' : '应用配置'}
                 </button>
@@ -608,17 +610,17 @@ export function ConfigCenter() {
           )}
 
           {activeTab === 'diff' && (
-            <div className="bg-white shadow rounded-lg p-6">
+            <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">当前配置 (远程)</h3>
-                  <pre className="p-4 bg-gray-50 border rounded-md text-xs font-mono overflow-auto max-h-96 whitespace-pre-wrap">
+                  <h3 className="mb-2 text-sm font-medium text-[hsl(var(--foreground))]">当前配置 (远程)</h3>
+                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.42)] p-4 text-xs font-mono text-[hsl(var(--foreground))]">
                     {currentConfig ? JSON.stringify(currentConfig, null, 2) : '无配置'}
                   </pre>
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">修改后配置 (本地)</h3>
-                  <pre className="p-4 bg-blue-50 border border-blue-200 rounded-md text-xs font-mono overflow-auto max-h-96 whitespace-pre-wrap">
+                  <h3 className="mb-2 text-sm font-medium text-[hsl(var(--foreground))]">修改后配置 (本地)</h3>
+                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 text-xs font-mono text-[hsl(var(--foreground))]">
                     {activeTab === 'diff'
                       ? JSON.stringify(buildConfigFromForm(), null, 2)
                       : rawJson || '无配置'
@@ -630,32 +632,32 @@ export function ConfigCenter() {
           )}
 
           {activeTab === 'snapshots' && (
-            <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="overflow-hidden rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm">
               {snapshots.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
+                <div className="py-12 text-center text-[hsl(var(--muted-foreground))]">
                   暂无配置快照
                 </div>
               ) : (
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-[hsl(var(--border)_/_0.8)]">
+                  <thead className="bg-[hsl(var(--muted)_/_0.56)]">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">序号</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">配置哈希</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">创建时间</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">序号</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">配置哈希</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">创建时间</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">操作</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="divide-y divide-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))]">
                     {snapshots.map((snapshot, index) => (
                       <React.Fragment key={snapshot.id}>
                         <tr>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-[hsl(var(--foreground))]">
                             #{snapshots.length - index}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
+                          <td className="whitespace-nowrap px-6 py-4 text-sm font-mono text-[hsl(var(--muted-foreground))]">
                             {snapshot.configHash.substring(0, 12)}...
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-[hsl(var(--muted-foreground))]">
                             {new Date(snapshot.createdAt).toLocaleString('zh-CN')}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
@@ -663,14 +665,14 @@ export function ConfigCenter() {
                               onClick={() => setExpandedSnapshotId(
                                 expandedSnapshotId === snapshot.id ? null : snapshot.id
                               )}
-                              className="px-3 py-1 text-blue-600 border border-blue-600 rounded hover:bg-blue-50 mr-2"
+                              className="mr-2 rounded-full border border-[hsl(var(--google-blue)_/_0.18)] bg-[hsl(var(--google-blue)_/_0.08)] px-3 py-1.5 text-[hsl(var(--google-blue))] hover:bg-[hsl(var(--google-blue)_/_0.14)]"
                             >
                               {expandedSnapshotId === snapshot.id ? '收起' : '查看'}
                             </button>
                             <button
                               onClick={() => handleRollback(snapshot.id)}
                               disabled={applying}
-                              className="px-3 py-1 text-orange-600 border border-orange-600 rounded hover:bg-orange-50 disabled:opacity-50"
+                              className="rounded-full border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.14)] px-3 py-1.5 text-[hsl(var(--foreground))] hover:bg-[hsl(var(--google-yellow)_/_0.22)] disabled:opacity-50"
                             >
                               回滚
                             </button>
@@ -678,8 +680,8 @@ export function ConfigCenter() {
                         </tr>
                         {expandedSnapshotId === snapshot.id && (
                           <tr>
-                            <td colSpan={4} className="px-6 py-4 bg-gray-50">
-                              <pre className="text-xs font-mono whitespace-pre-wrap max-h-64 overflow-auto">
+                            <td colSpan={4} className="bg-[hsl(var(--muted)_/_0.46)] px-6 py-4">
+                              <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--background))] p-4 text-xs font-mono text-[hsl(var(--foreground))]">
                                 {JSON.stringify(JSON.parse(snapshot.configJson), null, 2)}
                               </pre>
                             </td>

@@ -276,9 +276,9 @@ export function ReleasesPage() {
                             <td className="py-2 pr-4 font-mono">{latest?.version || '—'}</td>
                             <td className="py-2 pr-4">
                               {latest && latest.version !== item.installedVersion ? (
-                                <span className="text-amber-600">可升级</span>
+                                <span className="text-[hsl(var(--google-yellow))]">可升级</span>
                               ) : (
-                                <span className="text-emerald-600">已是最新</span>
+                                 <span className="text-[hsl(var(--success))]">已是最新</span>
                               )}
                             </td>
                           </tr>

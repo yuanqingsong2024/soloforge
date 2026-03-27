@@ -41,15 +41,15 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={`overflow-x-auto ${className}`}>
+    <div className={`overflow-x-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm ${className}`}>
       <table className="w-full border-collapse">
         {/* 表头 */}
         <thead>
-          <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
+          <tr className="border-b border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.7)]">
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={`px-4 py-3 text-sm font-semibold text-[hsl(var(--foreground))] ${getAlignClass(column.align)}`}
+                className={`px-4 py-3.5 text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))] ${getAlignClass(column.align)}`}
                 style={{ width: column.width }}
               >
                 {column.label}
@@ -64,7 +64,7 @@ export function DataTable<T>({
             <tr>
               <td
                 colSpan={columns.length}
-                className="px-4 py-8 text-center text-sm text-[hsl(var(--muted-foreground))]"
+                className="px-4 py-10 text-center text-sm text-[hsl(var(--muted-foreground))]"
               >
                 {emptyMessage}
               </td>
@@ -74,16 +74,16 @@ export function DataTable<T>({
               <tr
                 key={keyExtractor(item)}
                 className={`
-                  border-b border-[hsl(var(--border))] last:border-b-0
-                  transition-colors duration-150
-                  ${onRowClick ? 'cursor-pointer hover:bg-[hsl(var(--accent))]' : ''}
+                  border-b border-[hsl(var(--border)_/_0.72)] last:border-b-0
+                  transition-colors duration-200
+                  ${onRowClick ? 'cursor-pointer hover:bg-[hsl(var(--accent)_/_0.72)]' : ''}
                 `}
                 onClick={() => onRowClick?.(item)}
               >
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className={`px-4 py-3 text-sm text-[hsl(var(--foreground))] ${getAlignClass(column.align)}`}
+                    className={`px-4 py-3.5 text-sm text-[hsl(var(--foreground))] ${getAlignClass(column.align)}`}
                   >
                     {column.render
                       ? column.render(item)

@@ -91,26 +91,26 @@ function severityRank(sev: DiagnosticSeverity): number {
 function getSeverityBadgeClass(sev: DiagnosticSeverity): string {
   switch (sev) {
     case 'OK':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      return 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
     case 'WARNING':
-      return 'bg-amber-50 text-amber-800 border-amber-200'
+      return 'border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]'
     case 'ERROR':
-      return 'bg-red-50 text-red-700 border-red-200'
+      return 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
     case 'CRITICAL':
-      return 'bg-rose-100 text-rose-800 border-rose-300'
+      return 'border-[hsl(var(--google-red)_/_0.26)] bg-[hsl(var(--google-red)_/_0.18)] text-[hsl(var(--destructive))]'
   }
 }
 
 function getSeverityDotClass(sev: DiagnosticSeverity): string {
   switch (sev) {
     case 'OK':
-      return 'bg-emerald-500'
+      return 'bg-[hsl(var(--google-green))]'
     case 'WARNING':
-      return 'bg-amber-500'
+      return 'bg-[hsl(var(--google-yellow))]'
     case 'ERROR':
-      return 'bg-red-500'
+      return 'bg-[hsl(var(--google-red))]'
     case 'CRITICAL':
-      return 'bg-rose-700'
+      return 'bg-[hsl(var(--destructive))]'
   }
 }
 
@@ -465,16 +465,16 @@ export function DoctorPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[hsl(var(--foreground))]">诊断中心</h1>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
+        <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card)_/_0.76)] px-6 py-5 shadow-workshop-sm backdrop-blur flex-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">诊断中心</h1>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
             运行工作区健康诊断：WS 连接、认证、漂移、Hooks 与 trustedProxies 风险
           </p>
           <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
             Workspace: <span className="font-mono">{workspaceId}</span>
             <button
               onClick={handleRefreshWorkspace}
-              className="ml-3 text-[hsl(var(--primary))] hover:opacity-80"
+              className="ml-3 rounded-full border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.08)] px-3 py-1 text-[hsl(var(--google-blue))] hover:bg-[hsl(var(--google-blue)_/_0.14)]"
               type="button"
             >
               刷新
@@ -485,7 +485,7 @@ export function DoctorPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/alerts')}
-            className="px-4 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors"
+            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors"
             type="button"
           >
             查看 Alerts
@@ -493,7 +493,7 @@ export function DoctorPage() {
           <button
             onClick={handleRunDiagnostic}
             disabled={!apiPort || runStatus.running}
-            className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50 transition-opacity"
             type="button"
           >
             {runStatus.running ? '运行中…' : 'Run Diagnostic'}
@@ -505,10 +505,10 @@ export function DoctorPage() {
         <div className="space-y-2">
           {runStatus.message && (
             <div
-              className={`p-3 rounded-workshop-md border text-sm ${
+              className={`rounded-workshop-lg border p-3 text-sm shadow-workshop-sm ${
                 runStatus.message.type === 'success'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : 'bg-red-50 border-red-200 text-red-800'
+                  ? 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
+                  : 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
               }`}
             >
               {runStatus.message.text}
@@ -516,10 +516,10 @@ export function DoctorPage() {
           )}
           {crStatus && (
             <div
-              className={`p-3 rounded-workshop-md border text-sm ${
+              className={`rounded-workshop-lg border p-3 text-sm shadow-workshop-sm ${
                 crStatus.type === 'success'
-                  ? 'bg-blue-50 border-blue-200 text-blue-800'
-                  : 'bg-red-50 border-red-200 text-red-800'
+                  ? 'border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.08)] text-[hsl(var(--google-blue))]'
+                  : 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
               }`}
             >
               {crStatus.text}
@@ -529,7 +529,7 @@ export function DoctorPage() {
       )}
 
       {runStatus.running && (
-        <div className="bg-[hsl(var(--card))] rounded-workshop-md shadow-workshop-sm border border-[hsl(var(--border))] p-4">
+        <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="animate-spin rounded-full h-5 w-5 border-2 border-[hsl(var(--primary))] border-t-transparent"></div>
@@ -540,7 +540,7 @@ export function DoctorPage() {
             </div>
             <div className="text-xs text-[hsl(var(--muted-foreground))] tabular-nums">{runStatus.progress}%</div>
           </div>
-          <div className="mt-3 h-2 rounded-full bg-[hsl(var(--muted))] overflow-hidden">
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[hsl(var(--muted))]">
             <div
               className="h-2 bg-[hsl(var(--primary))] transition-all duration-300 ease-out relative"
               style={{ width: `${runStatus.progress}%` }}
@@ -554,7 +554,7 @@ export function DoctorPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* 历史列表 */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="bg-[hsl(var(--card))] rounded-workshop-md shadow-workshop-sm border border-[hsl(var(--border))]">
+          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm">
             <div className="p-4 border-b border-[hsl(var(--border))]">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">诊断历史</h2>
@@ -571,14 +571,14 @@ export function DoctorPage() {
                     key={r.id}
                     type="button"
                     onClick={() => setSelectedReportId(r.id)}
-                    className={`w-full text-left p-4 hover:bg-[hsl(var(--accent))] transition-colors ${
-                      selectedReportId === r.id ? 'bg-[hsl(var(--accent))]' : ''
+                    className={`w-full p-4 text-left transition-colors hover:bg-[hsl(var(--accent)_/_0.56)] ${
+                      selectedReportId === r.id ? 'bg-[hsl(var(--accent)_/_0.56)]' : ''
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-workshop-sm border text-xs font-medium ${getSeverityBadgeClass(r.severity)}`}
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border text-xs font-medium ${getSeverityBadgeClass(r.severity)}`}
                           >
                             <span className={`h-1.5 w-1.5 rounded-full ${getSeverityDotClass(r.severity)}`}></span>
                             {getSeverityLabelZh(r.severity)}
@@ -598,7 +598,7 @@ export function DoctorPage() {
 
         {/* 报告详情 */}
         <div className="lg:col-span-8 space-y-4">
-          <div className="bg-[hsl(var(--card))] rounded-workshop-md shadow-workshop-sm border border-[hsl(var(--border))]">
+          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm">
             <div className="p-4 border-b border-[hsl(var(--border))]">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -611,7 +611,7 @@ export function DoctorPage() {
                 <button
                   onClick={handleGenerateChangeRequest}
                   disabled={!selectedReport || generatingCr}
-                  className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] disabled:opacity-50 transition-colors"
+                  className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2.5 text-sm text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] disabled:opacity-50 transition-colors"
                   type="button"
                   title="基于最新漂移（drift）生成可执行的配置变更单，并自动触发审批"
                 >
@@ -633,7 +633,7 @@ export function DoctorPage() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2">
                     {overallSeverity && (
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-workshop-sm border text-xs font-medium ${getSeverityBadgeClass(overallSeverity)}`}>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border text-xs font-medium ${getSeverityBadgeClass(overallSeverity)}`}>
                         <span className={`h-2 w-2 rounded-full ${getSeverityDotClass(overallSeverity)}`}></span>
                         总体：{getSeverityLabelZh(overallSeverity)}
                       </span>
@@ -643,7 +643,7 @@ export function DoctorPage() {
                   <div className="text-xs text-[hsl(var(--muted-foreground))] font-mono">{selectedReport.id}</div>
                 </div>
 
-                <div className="p-3 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]">
+                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--background))] p-3 shadow-workshop-sm">
                   <div className="text-sm text-[hsl(var(--foreground))]">{selectedReport.summary}</div>
                 </div>
 
@@ -659,12 +659,12 @@ export function DoctorPage() {
                       return (
                         <details
                           key={group.category}
-                          className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+                          className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--background))] shadow-workshop-sm"
                           open={severityRank(highest) >= severityRank('ERROR')}
                         >
                           <summary className="cursor-pointer select-none list-none p-3 flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3 min-w-0">
-                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-workshop-sm border text-xs font-medium ${getSeverityBadgeClass(highest)}`}>
+                              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border text-xs font-medium ${getSeverityBadgeClass(highest)}`}>
                                 <span className={`h-1.5 w-1.5 rounded-full ${getSeverityDotClass(highest)}`}></span>
                                 {catLabel}
                               </span>
@@ -678,20 +678,20 @@ export function DoctorPage() {
                             {group.findings.map((f, idx) => (
                               <div
                                 key={`${group.category}-${idx}-${f.message}`}
-                                className={`rounded-workshop-md border p-3 ${
+                                className={`rounded-workshop-lg border p-3 shadow-workshop-sm ${
                                   f.severity === 'OK'
-                                    ? 'border-emerald-200 bg-emerald-50/40'
+                                    ? 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.08)]'
                                     : f.severity === 'WARNING'
-                                    ? 'border-amber-200 bg-amber-50/40'
+                                    ? 'border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.12)]'
                                     : f.severity === 'ERROR'
-                                    ? 'border-red-200 bg-red-50/40'
-                                    : 'border-rose-300 bg-rose-50/50'
+                                    ? 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.08)]'
+                                    : 'border-[hsl(var(--google-red)_/_0.24)] bg-[hsl(var(--google-red)_/_0.14)]'
                                 }`}
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <div className="flex items-center gap-2">
-                                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-workshop-sm border text-xs font-medium ${getSeverityBadgeClass(f.severity)}`}>
+                                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border text-xs font-medium ${getSeverityBadgeClass(f.severity)}`}>
                                         <span className={`h-1.5 w-1.5 rounded-full ${getSeverityDotClass(f.severity)}`}></span>
                                         {getSeverityLabelZh(f.severity)}
                                       </span>

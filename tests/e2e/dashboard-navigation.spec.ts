@@ -16,6 +16,8 @@ test('Dashboard 卡片与关键项可跳转并返回', async ({}, testInfo) => {
 
     await openDashboard(context.page)
     await context.page.getByTestId('dashboard-pending-action-pending-upgrade-1').click()
+    await expect(context.page.getByTestId('drawer-action-summary')).toBeVisible()
+    await context.page.getByTestId('drawer-action-navigate').click()
     await expect(context.page).toHaveURL(/#\/upgrade-plans/)
 
     await openDashboard(context.page)

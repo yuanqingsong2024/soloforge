@@ -24,28 +24,28 @@ interface Props {
 }
 
 const PRIORITY_COLORS = {
-  LOW: 'bg-gray-200 text-gray-700',
-  MEDIUM: 'bg-blue-200 text-blue-700',
-  HIGH: 'bg-orange-200 text-orange-700',
-  URGENT: 'bg-red-200 text-red-700'
+  LOW: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))]',
+  MEDIUM: 'bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))] border border-[hsl(var(--google-blue)_/_0.16)]',
+  HIGH: 'bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))] border border-[hsl(var(--google-yellow)_/_0.24)]',
+  URGENT: 'bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))] border border-[hsl(var(--google-red)_/_0.16)]'
 }
 
 export function TicketCard({ ticket, onClick, isDragging }: Props) {
   return (
     <div
       onClick={onClick}
-      className={`bg-white p-3 rounded-lg shadow cursor-pointer hover:shadow-md transition ${
+      className={`cursor-pointer rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm transition-all duration-200 hover:border-[hsl(var(--google-blue)_/_0.16)] hover:shadow-workshop-md ${
         isDragging ? 'rotate-3 scale-105' : ''
       }`}
     >
-      <h3 className="font-medium text-gray-900 mb-2 line-clamp-2">{ticket.title}</h3>
+      <h3 className="mb-2 line-clamp-2 font-medium text-[hsl(var(--foreground))]">{ticket.title}</h3>
       {/* 标签显示 */}
       {ticket.tags && ticket.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
           {ticket.tags.map(tt => (
             <span
               key={tt.id}
-              className="text-xs px-2 py-0.5 rounded"
+              className="rounded-full border px-2 py-0.5 text-xs"
               style={{ backgroundColor: `${tt.tag.color}20`, color: tt.tag.color }}
             >
               {tt.tag.name}
@@ -55,14 +55,14 @@ export function TicketCard({ ticket, onClick, isDragging }: Props) {
       )}
       <div className="flex items-center justify-between">
         <span
-          className={`text-xs px-2 py-1 rounded-full ${
+          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
             PRIORITY_COLORS[ticket.priority as keyof typeof PRIORITY_COLORS] || PRIORITY_COLORS.MEDIUM
           }`}
         >
           {ticket.priority}
         </span>
         {ticket.assignee && (
-          <span className="text-xs text-gray-500">{ticket.assignee.name}</span>
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">{ticket.assignee.name}</span>
         )}
       </div>
     </div>

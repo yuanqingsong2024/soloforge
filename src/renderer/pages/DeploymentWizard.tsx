@@ -219,7 +219,7 @@ export function DeploymentWizard() {
         actions={
           <button
             onClick={() => navigate('/deployments')}
-            className="px-4 py-2 bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] rounded-workshop-md hover:bg-[hsl(var(--muted)/0.8)] transition-colors"
+            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
           >
             取消
           </button>
@@ -227,7 +227,7 @@ export function DeploymentWizard() {
       />
 
       {/* Progress Steps */}
-      <div className="bg-[hsl(var(--card))] rounded-workshop-lg border border-[hsl(var(--border))] p-6">
+      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
         <div className="flex items-center justify-between">
           {[
             { step: 1, label: '选择类型' },
@@ -238,7 +238,7 @@ export function DeploymentWizard() {
             <div key={item.step} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${
+                  className={`flex h-10 w-10 items-center justify-center rounded-full font-medium shadow-workshop-sm ${
                     currentStep >= item.step
                       ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
                       : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
@@ -263,7 +263,7 @@ export function DeploymentWizard() {
       </div>
 
       {/* Step Content */}
-      <div className="bg-[hsl(var(--card))] rounded-workshop-lg border border-[hsl(var(--border))] p-6">
+      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
         {/* Step 1: Type Selection */}
         {currentStep === 1 && (
           <div className="space-y-6">
@@ -273,10 +273,10 @@ export function DeploymentWizard() {
                 <button
                   key={type.id}
                   onClick={() => setSelectedType(type.id)}
-                  className={`p-6 rounded-workshop-lg border-2 text-left transition-all ${
+                  className={`rounded-workshop-lg border-2 p-6 text-left transition-all shadow-workshop-sm ${
                     selectedType === type.id
-                      ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.1)]'
-                      : 'border-[hsl(var(--border))] hover:border-[hsl(var(--primary)/0.5)]'
+                      ? 'border-[hsl(var(--google-blue)_/_0.26)] bg-[hsl(var(--google-blue)_/_0.08)]'
+                      : 'border-[hsl(var(--border))] hover:border-[hsl(var(--google-blue)_/_0.22)] hover:bg-[hsl(var(--accent)_/_0.36)]'
                   }`}
                 >
                   <div className="text-4xl mb-3">{type.icon}</div>
@@ -306,7 +306,7 @@ export function DeploymentWizard() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="例如: 生产环境 OpenClaw"
-                  className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                  className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                 />
               </div>
 
@@ -321,7 +321,7 @@ export function DeploymentWizard() {
                       value={host}
                       onChange={(e) => setHost(e.target.value)}
                       placeholder="例如: 192.168.1.100"
-                      className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                      className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                     />
                   </div>
 
@@ -335,7 +335,7 @@ export function DeploymentWizard() {
                         value={sshUser}
                         onChange={(e) => setSshUser(e.target.value)}
                         placeholder="例如: root"
-                        className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                        className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       />
                     </div>
                     <div>
@@ -346,7 +346,7 @@ export function DeploymentWizard() {
                         type="number"
                         value={sshPort}
                         onChange={(e) => setSshPort(e.target.value)}
-                        className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                        className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                       />
                     </div>
                   </div>
@@ -360,7 +360,7 @@ export function DeploymentWizard() {
                       value={sshPassword}
                       onChange={(e) => setSshPassword(e.target.value)}
                       placeholder="SSH 密码（将安全存储在系统 Keychain）"
-                      className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                      className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                     />
                   </div>
                 </>
@@ -374,7 +374,7 @@ export function DeploymentWizard() {
                   type="number"
                   value={port}
                   onChange={(e) => setPort(e.target.value)}
-                  className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                   className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                 />
               </div>
 
@@ -385,7 +385,7 @@ export function DeploymentWizard() {
                 <select
                   value={envType}
                   onChange={(e) => setEnvType(e.target.value as EnvType)}
-                  className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                   className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                 >
                   <option value="DEV">开发环境</option>
                   <option value="STAGING">预发布环境</option>
@@ -420,10 +420,10 @@ export function DeploymentWizard() {
                 {precheckResult.checks.map((check, index) => (
                   <div
                     key={index}
-                    className={`p-4 rounded-workshop-md border ${
+                    className={`rounded-workshop-lg border p-4 shadow-workshop-sm ${
                       check.passed
-                        ? 'bg-green-50 border-green-200'
-                        : 'bg-red-50 border-red-200'
+                        ? 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.08)]'
+                        : 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.08)]'
                     }`}
                   >
                     <div className="flex items-start">
@@ -443,8 +443,8 @@ export function DeploymentWizard() {
                 ))}
 
                 {!precheckResult.passed && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-workshop-md p-4">
-                    <p className="text-sm text-yellow-800">
+                  <div className="rounded-workshop-lg border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.16)] p-4 shadow-workshop-sm">
+                    <p className="text-sm text-[hsl(var(--foreground))]">
                       <strong>警告：</strong>预检查未通过，请修复上述问题后重试。
                     </p>
                   </div>
@@ -462,20 +462,20 @@ export function DeploymentWizard() {
             <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">部署结果</h2>
             {deployResult ? (
               <div className="space-y-4">
-                <div className="bg-green-50 border border-green-200 rounded-workshop-md p-6 text-center">
+                <div className="rounded-workshop-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.1)] p-6 text-center shadow-workshop-sm">
                   <div className="text-6xl mb-4">🎉</div>
-                  <p className="text-lg text-green-800 whitespace-pre-line">{deployResult}</p>
+                  <p className="text-lg text-[hsl(var(--success))] whitespace-pre-line">{deployResult}</p>
                 </div>
                 <div className="flex justify-center space-x-4">
                   <button
                     onClick={() => navigate(`/deployments/${targetId}`)}
-                    className="px-6 py-3 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 transition-opacity"
+                    className="rounded-full bg-[hsl(var(--primary))] px-6 py-3 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
                   >
                     查看详情
                   </button>
                   <button
                     onClick={() => navigate('/deployments')}
-                    className="px-6 py-3 bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] rounded-workshop-md hover:bg-[hsl(var(--muted)/0.8)] transition-colors"
+                    className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-6 py-3 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
                   >
                     返回列表
                   </button>
@@ -489,8 +489,8 @@ export function DeploymentWizard() {
 
         {/* Error Display */}
         {error && (
-          <div className="mt-6 bg-red-50 border border-red-200 rounded-workshop-md p-4">
-            <p className="text-sm text-red-800">{error}</p>
+          <div className="mt-6 rounded-workshop-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-4 shadow-workshop-sm">
+            <p className="text-sm text-[hsl(var(--destructive))]">{error}</p>
           </div>
         )}
 
@@ -500,14 +500,14 @@ export function DeploymentWizard() {
             <button
               onClick={handleBack}
               disabled={currentStep === 1 || loading}
-              className="px-6 py-2 bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] rounded-workshop-md hover:bg-[hsl(var(--muted)/0.8)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-6 py-2.5 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))] disabled:cursor-not-allowed disabled:opacity-50"
             >
               上一步
             </button>
             <button
               onClick={handleNext}
               disabled={!canProceed() || loading}
-              className="px-6 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              className="rounded-full bg-[hsl(var(--primary))] px-6 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 transition-opacity"
             >
               {loading ? '处理中...' : currentStep === 3 ? '开始部署' : '下一步'}
             </button>

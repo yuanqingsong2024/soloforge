@@ -8,6 +8,9 @@ import { logger } from './logger'
 import { OpenClawClient, ConnectionProfile } from './openclaw-client'
 import { SSHExecutor, SSHConfig, SSHCommandResult } from './ssh-executor'
 import { DockerManager, DockerConfig } from './docker-manager'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 
 /**
  * 执行器类型
@@ -327,6 +330,70 @@ export class DockerExecutorAdapter implements IExecutor {
 }
 
 /**
+ * Host Agent 执行器适配器
+ * 提供最小统一接口，避免工厂层继续抛出未实现异常。
+ */
+export class HostAgentExecutorAdapter implements IExecutor {
+  private agentId: string
+  private traceId?: string
+
+  constructor(agentId: string, traceId?: string) {
+    this.agentId = agentId
+    this.traceId = traceId
+  }
+
+  async connect(): Promise<OperationResult<void>> {
+    try {
+      const agent = await prisma.hostAgent.findUnique({ where: { id: this.agentId } })
+      if (!agent) {
+        return failure(ErrorType.NOT_FOUND, 'Host Agent 不存在')
+      }
+      logger.debug('Host Agent 执行器已就绪', 'HostAgentExecutor', { agentId: this.agentId }, this.traceId)
+      return success()
+    } catch (error) {
+      logger.error('Host Agent 执行器初始化失败', 'HostAgentExecutor', error as Error, undefined, this.traceId)
+      return fromError(error)
+    }
+  }
+
+  async disconnect(): Promise<OperationResult<void>> {
+    logger.debug('Host Agent 执行器关闭', 'HostAgentExecutor', { agentId: this.agentId }, this.traceId)
+    return success()
+  }
+
+  async executeCommand(_request: ExecuteCommandRequest): Promise<OperationResult<ExecuteCommandResult>> {
+    return failure(ErrorType.NOT_SUPPORTED, 'Host Agent 统一执行器暂不支持直接命令执行，请通过 Agent Action API 发起动作')
+  }
+
+  async healthCheck(): Promise<OperationResult<HealthCheckResult>> {
+    try {
+      const agent = await prisma.hostAgent.findUnique({ where: { id: this.agentId } })
+      if (!agent) {
+        return failure(ErrorType.NOT_FOUND, 'Host Agent 不存在')
+      }
+
+      const healthy = agent.status === 'ONLINE' || agent.status === 'DEGRADED'
+      return success({
+        healthy,
+        details: {
+          agentId: agent.id,
+          status: agent.status,
+          lastHeartbeatAt: agent.lastHeartbeatAt?.toISOString() || null,
+          version: agent.agentVersion
+        }
+      })
+    } catch (error) {
+      logger.error('Host Agent 健康检查失败', 'HostAgentExecutor', error as Error, undefined, this.traceId)
+      return fromError(error)
+    }
+  }
+
+  getType(): ExecutorType {
+    return ExecutorType.HOST_AGENT
+  }
+}
+
+/**
  * 执行器工厂
  */
 export class ExecutorFactory {
@@ -339,7 +406,7 @@ export class ExecutorFactory {
       case ExecutorType.DOCKER:
         return new DockerExecutorAdapter(config.config, traceId)
       case ExecutorType.HOST_AGENT:
-        throw new Error('Host Agent 执行器尚未实现统一适配器')
+        return new HostAgentExecutorAdapter(config.agentId, traceId)
       default:
         throw new Error(`未知的执行器类型: ${(config as any).type}`)
     }

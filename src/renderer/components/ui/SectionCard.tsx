@@ -10,25 +10,25 @@ interface SectionCardProps {
 // 区块卡片组件
 export function SectionCard({ title, description, actions, children, className = '' }: SectionCardProps) {
   return (
-    <div className={`bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-workshop-md shadow-workshop-sm animate-fade-in ${className}`}>
+    <div className={`animate-fade-in rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm ${className}`}>
       {/* 卡片头部 */}
       {(title || actions) && (
-        <div className="px-4 sm:px-6 py-4 border-b border-[hsl(var(--border))]">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="border-b border-[hsl(var(--border)_/_0.8)] px-4 py-4 sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               {title && (
-                <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">
+                <h3 className="text-lg font-semibold tracking-tight text-[hsl(var(--foreground))]">
                   {title}
                 </h3>
               )}
               {description && (
-                <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+                <p className="mt-1 text-sm leading-6 text-[hsl(var(--muted-foreground))]">
                   {description}
                 </p>
               )}
             </div>
             {actions && (
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-wrap items-center gap-2">
                 {actions}
               </div>
             )}

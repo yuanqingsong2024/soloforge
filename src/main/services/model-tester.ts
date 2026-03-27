@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import crypto from 'crypto'
+import { resolveWorkspaceOpenClawClient } from './workspace-openclaw'
 
 const prisma = new PrismaClient()
 
@@ -85,7 +85,7 @@ export class ModelTester {
   private static async testSingleModel(
     workspaceId: string,
     model: { provider: string; modelName: string },
-    testPayload: any,
+    testPayload: BatchTestConfig['testPayload'],
     timeout: number
   ): Promise<ModelTestResult> {
     const startTime = Date.now()
@@ -97,7 +97,7 @@ export class ModelTester {
       })
 
       // 实际测试 Promise（这里简化为模拟调用）
-      const testPromise = this.callModel(model.provider, model.modelName, testPayload)
+      const testPromise = this.callModel(workspaceId, model.provider, model.modelName, testPayload)
 
       // 竞速
       const response = await Promise.race([testPromise, timeoutPromise])
@@ -156,24 +156,20 @@ export class ModelTester {
    * TODO: 集成 OpenClawClient
    */
   private static async callModel(
+    workspaceId: string,
     provider: string,
     modelName: string,
-    _payload: any
-  ): Promise<any> {
-    // 模拟调用延迟
-    const delay = Math.random() * 2000 + 500 // 500-2500ms
-    await new Promise(resolve => setTimeout(resolve, delay))
+    payload: BatchTestConfig['testPayload']
+  ): Promise<unknown> {
+    const traceId = `model-test-${provider}-${modelName}-${Date.now()}`
+    const { client } = await resolveWorkspaceOpenClawClient(workspaceId)
 
-    // 模拟成功/失败
-    if (Math.random() < 0.1) {
-      throw new Error(`Model ${provider}/${modelName} returned error`)
-    }
-
-    return {
-      id: crypto.randomUUID(),
+    return await client.createChatCompletion({
       model: modelName,
-      choices: [{ message: { role: 'assistant', content: 'Test response' } }]
-    }
+      messages: payload.messages,
+      maxTokens: payload.maxTokens,
+      traceId
+    })
   }
 
   /**

@@ -219,7 +219,7 @@ export function Communications() {
       />
 
       {statusMessage && (
-        <div className="mb-4 px-4 py-3 rounded-workshop-md bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] text-sm">
+        <div className="mb-4 rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] px-4 py-3 text-sm text-[hsl(var(--foreground))] shadow-workshop-sm">
           {statusMessage}
         </div>
       )}
@@ -227,14 +227,14 @@ export function Communications() {
         <SectionCard title="通讯档案（Comms Profiles）" description="将通讯能力映射到 OpenClaw 连接档案或 webhook provider">
           <div className="space-y-3 mb-4">
             {commsProfiles.map(profile => (
-              <div key={profile.id} className="p-3 border border-[hsl(var(--border))] rounded-workshop-md flex items-center justify-between">
+              <div key={profile.id} className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
                 <div>
                   <p className="font-medium text-[hsl(var(--foreground))]">{profile.name}</p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">provider: {profile.provider}</p>
                 </div>
                 <button
                   onClick={() => handleToggleCommsProfile(profile)}
-                  className={`px-3 py-1 text-xs rounded-workshop-md ${profile.enabled ? 'bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${profile.enabled ? 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]' : 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}
                 >
                   {profile.enabled ? '已启用' : '已停用'}
                 </button>
@@ -251,12 +251,12 @@ export function Communications() {
               value={newProfileName}
               onChange={e => setNewProfileName(e.target.value)}
               placeholder="档案名称"
-              className="w-full px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+              className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
             />
             <select
               value={newProvider}
               onChange={e => setNewProvider(e.target.value as 'openclaw' | 'webhook')}
-              className="w-full px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+              className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
             >
               <option value="openclaw">openclaw</option>
               <option value="webhook">webhook</option>
@@ -264,7 +264,7 @@ export function Communications() {
             <select
               value={newOpenclawProfileId}
               onChange={e => setNewOpenclawProfileId(e.target.value)}
-              className="w-full px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+              className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
             >
               <option value="">选择 OpenClaw 连接档案（可选）</option>
               {connectionProfiles.map(profile => (
@@ -273,7 +273,7 @@ export function Communications() {
             </select>
             <button
               onClick={handleCreateCommsProfile}
-              className="w-full px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90"
+              className="w-full rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] transition-opacity hover:opacity-90"
             >
               创建通讯档案
             </button>
@@ -285,7 +285,7 @@ export function Communications() {
             <select
               value={selectedTargetId}
               onChange={e => setSelectedTargetId(e.target.value)}
-              className="w-full px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+              className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
             >
               <option value="">选择目标</option>
               {targets.map(target => (
@@ -297,13 +297,13 @@ export function Communications() {
             <textarea
               value={testMessageBody}
               onChange={e => setTestMessageBody(e.target.value)}
-              className="w-full px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+              className="w-full rounded-workshop-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-3 text-sm text-[hsl(var(--foreground))]"
               rows={6}
             />
             <button
               onClick={handleSendTestMessage}
               disabled={!selectedTargetId}
-              className="w-full px-4 py-2 bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50"
+              className="w-full rounded-full bg-[hsl(var(--warning))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--warning-foreground))] hover:opacity-90 disabled:opacity-50"
             >
               发送测试消息（走审批）
             </button>
@@ -314,7 +314,7 @@ export function Communications() {
       <SectionCard title="通讯目标（Targets）" description="仅 allowlisted=true 的目标允许发送">
         <div className="space-y-3 mb-4">
           {targets.map(target => (
-            <div key={target.id} className="p-3 border border-[hsl(var(--border))] rounded-workshop-md flex items-center justify-between">
+            <div key={target.id} className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
               <div>
                 <p className="font-medium text-[hsl(var(--foreground))]">{target.displayName}</p>
                 <p className="text-xs text-[hsl(var(--muted-foreground))]">{target.channel} / {target.to}</p>
@@ -322,7 +322,7 @@ export function Communications() {
               </div>
               <button
                 onClick={() => handleRequestAllowlist(target)}
-                className={`px-3 py-1 text-xs rounded-workshop-md ${target.allowlisted ? 'bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]' : 'bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))]'}`}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium ${target.allowlisted ? 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]' : 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]'}`}
 >
                 {target.allowlisted ? '已允许' : '申请加入 allowlist'}
               </button>
@@ -337,7 +337,7 @@ export function Communications() {
           <select
             value={newTargetProfileId}
             onChange={e => setNewTargetProfileId(e.target.value)}
-            className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
           >
             <option value="">选择通讯档案</option>
             {commsProfiles.map(profile => (
@@ -347,7 +347,7 @@ export function Communications() {
           <select
             value={newTargetChannel}
             onChange={e => setNewTargetChannel(e.target.value)}
-            className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
           >
             <option value="slack">slack</option>
             <option value="telegram">telegram</option>
@@ -361,19 +361,19 @@ export function Communications() {
             value={newTargetTo}
             onChange={e => setNewTargetTo(e.target.value)}
             placeholder="收件人/频道 ID"
-            className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
           />
           <input
             value={newTargetDisplayName}
             onChange={e => setNewTargetDisplayName(e.target.value)}
             placeholder="显示名称"
-            className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
           />
           <input
             value={newTargetNotes}
             onChange={e => setNewTargetNotes(e.target.value)}
             placeholder="备注（可选）"
-            className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] md:col-span-2"
+            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] md:col-span-2"
           />
           <label className="md:col-span-2 flex items-center gap-2 text-sm text-[hsl(var(--foreground))]">
             <input
@@ -385,7 +385,7 @@ export function Communications() {
           </label>
           <button
             onClick={handleCreateTarget}
-            className="md:col-span-2 px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90"
+            className="md:col-span-2 rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90"
           >
             新增目标
           </button>
