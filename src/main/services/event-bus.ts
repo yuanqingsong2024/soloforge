@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from './db'
 
 export type EventSourceType = 'CONFIG' | 'CHANGE_REQUEST' | 'DEPLOYMENT_JOB' | 'DOCTOR' | 'BACKUP' | 'SYSTEM' | 'COMMUNICATION' | 'HOST_AGENT'
 export type EventSeverity = 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL'
@@ -100,4 +98,4 @@ export class EventBusService {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

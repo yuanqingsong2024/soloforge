@@ -1,0 +1,150 @@
+{
+  "pageTitle": "配置中心",
+  "selectProfile": "请选择连接配置",
+  "selectProfileToManage": "请选择一个连接配置以管理 OpenClaw 配置",
+  "tabs": {
+    "form": "表单编辑",
+    "json": "JSON 编辑",
+    "diff": "差异对比",
+    "snapshots": "历史快照"
+  },
+  "quickMode": {
+    "title": "快速配置优先",
+    "basicDesc": "当前为基础模式，优先使用表单配置，隐藏 Raw JSON 入口。",
+    "advancedDesc": "当前为高级模式，可同时使用快速配置和 Raw JSON。",
+    "expertDesc": "当前为专家模式，显示全部配置入口与底层编辑能力。",
+    "rawJsonHidden": "切换到高级或专家模式后可使用 Raw JSON。",
+    "quickConfigTitle": "快速配置路径",
+    "quickConfigDesc": "优先在这里完成模型、Hooks、工具策略和网关安全的常见修改；差异对比和历史快照继续保留在下方。"
+  },
+  "models": {
+    "title": "模型与路由",
+    "defaultModel": "默认模型",
+    "fallbacks": "Fallbacks (逗号分隔)",
+    "allowlist": "Allowlist (逗号分隔)",
+    "providers": "提供商"
+  },
+  "gateway": {
+    "title": "Gateway 安全",
+    "authMode": "Auth Mode",
+    "trustedProxies": "Trusted Proxies (每行一个，精确 IP 或 /24+ 网段)",
+    "rateLimit": "限流配置"
+  },
+  "hooks": {
+    "title": "Hooks",
+    "enabled": "启用 Hooks",
+    "token": "Hooks Token",
+    "path": "Hooks Path",
+    "mappings": "映射"
+  },
+  "tools": {
+    "title": "Tools 策略",
+    "defaultPolicy": "默认策略",
+    "allow": "Allow",
+    "deny": "Deny",
+    "blocklist": "Blocklist (每行一个)"
+  },
+  "channels": {
+    "title": "Channels",
+    "enabled": "启用 Channels",
+    "mappings": "Targets 映射 (每行: channel:target)",
+    "hint": "用于说明 channel 与通讯目标映射，仅写入配置，不含敏感凭证。"
+  },
+  "actions": {
+    "save": "保存",
+    "apply": "应用配置",
+    "applying": "应用中...",
+    "rollback": "回滚",
+    "view": "查看",
+    "collapse": "收起",
+    "createSnapshot": "创建快照",
+    "loadSnapshot": "加载快照",
+    "compareWithActual": "与实际对比"
+  },
+  "diff": {
+    "title": "配置差异",
+    "current": "当前配置 (远程)",
+    "modified": "修改后配置 (本地)",
+    "noConfig": "无配置"
+  },
+  "snapshots": {
+    "title": "历史快照",
+    "noSnapshots": "暂无配置快照",
+    "sequence": "序号",
+    "hash": "配置哈希",
+    "createdAt": "创建时间"
+  },
+  "rateLimit": {
+    "title": "限频保护",
+    "remaining": "剩余写入",
+    "message": "60 秒内最多 3 次写入",
+    "retryAfter": "请在 {seconds} 秒后重试"
+  },
+  "status": {
+    "loading": "加载配置中心中...",
+    "loadingConfig": "正在加载配置...",
+    "success": "配置已应用",
+    "pending": "配置变更需要审批，审批ID: {approvalId}",
+    "rateLimited": "限频保护",
+    "validationError": "校验失败: {errors}",
+    "applyFailed": "应用失败",
+    "rollbackSuccess": "配置已回滚",
+    "rollbackPending": "配置回滚需要审批，审批ID: {approvalId}",
+    "rollbackFailed": "回滚失败",
+    "fetchFailed": "获取配置失败，请先连接到 OpenClaw",
+    "connectFirst": "请先在连接管理页面连接到 OpenClaw",
+    "jsonError": "JSON 格式错误"
+  },
+  "confirm": {
+    "rollback": "确定回滚到此快照？"
+  },
+  "approval": {
+    "inlineTitle": "当前变更正在等待审批",
+    "applyPending": "配置变更已提交审批，审批 ID：{{approvalId}}。审批通过后可继续在当前页面查看结果。",
+    "rollbackPending": "配置回滚已提交审批，审批 ID：{{approvalId}}。审批通过后建议回到当前页面刷新状态。",
+    "goToApprovals": "前往审批中心",
+    "dismiss": "稍后处理"
+  },
+  "connection": {
+    "pageTitle": "连接管理",
+    "noProfiles": "暂无连接配置",
+    "newProfile": "+ 新建连接",
+    "selectOrCreate": "请选择或新建一个连接配置",
+    "createTitle": "新建连接",
+    "editTitle": "编辑连接",
+    "name": "名称",
+    "namePlaceholder": "例如: 本地开发",
+    "authMode": "认证模式",
+    "authModes": {
+      "token": "Token",
+      "password": "Password",
+      "trustedProxy": "Trusted Proxy",
+      "none": "无认证"
+    },
+    "baseUrl": "Base URL",
+    "wsUrl": "WebSocket URL",
+    "token": "Token",
+    "password": "密码",
+    "edgeToken": "Edge Token",
+    "stored": "已存储",
+    "keepUnchanged": "留空保持不变",
+    "enterToken": "输入 Token",
+    "enterPassword": "输入密码",
+    "enterEdgeToken": "输入 Edge Token",
+    "saving": "保存中...",
+    "diagnostics": "连接诊断",
+    "wsStatus": "WebSocket 状态",
+    "ping": "Ping 测试",
+    "pinging": "测试中...",
+    "connect": "连接 WebSocket",
+    "connecting": "连接中...",
+    "disconnect": "断开",
+    "pingSuccess": "Ping 成功",
+    "pingFailed": "Ping 失败",
+    "connectFailed": "连接失败: {error}",
+    "storedCredentials": "已存储凭据",
+    "notSet": "未设置",
+    "confirmDelete": "确定删除该连接配置？"
+    ,"profileLabel": "连接配置:"
+  }
+}

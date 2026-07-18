@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { closeElectronApp, launchElectronApp, waitForDashboardReady } from './helpers/electron'
+import { apiJson } from './helpers/api'
 
 test.describe('联系人管理稳定回归', () => {
   test('联系人绑定到工单后在工单详情自动选中', async ({}, testInfo) => {
@@ -10,84 +11,70 @@ test.describe('联系人管理稳定回归', () => {
     try {
       await waitForDashboardReady(context.page)
 
-      const ids = await context.page.evaluate(async ({ contactName, targetDisplay }) => {
-        const params = new URLSearchParams(window.location.search)
-        const portValue = params.get('apiPort')
-        if (!portValue) throw new Error('无法获取 apiPort')
-        const port = Number(portValue)
-        if (!Number.isFinite(port)) throw new Error('apiPort 无效')
+      const profile = await apiJson<{ id: string }>(context.page, '/api/comms/profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `E2E-Profile-${Date.now()}`, provider: 'openclaw', enabled: true })
+      })
 
-        const profileResponse = await fetch(`http://127.0.0.1:${port}/api/comms/profiles`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: `E2E-Profile-${Date.now()}`, provider: 'openclaw', enabled: true })
+      const targetResult = await apiJson<{ target: { id: string } }>(context.page, '/api/comms/targets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commsProfileId: profile.id,
+          channel: 'slack',
+          to: `e2e-${Date.now()}-channel`,
+          displayName: targetDisplay,
+          allowlisted: false
         })
-        const profile = await profileResponse.json() as { id: string }
+      })
 
-        const targetResponse = await fetch(`http://127.0.0.1:${port}/api/comms/targets`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            commsProfileId: profile.id,
-            channel: 'slack',
-            to: `e2e-${Date.now()}-channel`,
-            displayName: targetDisplay,
-            allowlisted: false
-          })
+      const contact = await apiJson<{ id: string }>(context.page, '/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: contactName, tags: ['e2e'], notes: '绑定到工单测试' })
+      })
+
+      await apiJson(context.page, `/api/contacts/${contact.id}/targets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commsTargetId: targetResult.target.id, isPrimary: true })
+      })
+
+      const ticket = await apiJson<{ id: string }>(context.page, '/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `E2E工单-${Date.now()}`,
+          source: 'e2e',
+          status: 'INBOX',
+          priority: 'MEDIUM',
+          customerMeta: '{}'
         })
-        const targetResult = await targetResponse.json() as { target: { id: string } }
+      })
 
-        const contactResponse = await fetch(`http://127.0.0.1:${port}/api/contacts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: contactName, tags: ['e2e'], notes: '绑定到工单测试' })
-        })
-        const contact = await contactResponse.json() as { id: string }
-
-        await fetch(`http://127.0.0.1:${port}/api/contacts/${contact.id}/targets`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ commsTargetId: targetResult.target.id, isPrimary: true })
-        })
-
-        const ticketResponse = await fetch(`http://127.0.0.1:${port}/api/tickets`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: `E2E工单-${Date.now()}`,
-            source: 'e2e',
-            status: 'INBOX',
-            priority: 'MEDIUM',
-            customerMeta: '{}'
-          })
-        })
-        const ticket = await ticketResponse.json() as { id: string }
-
-        await fetch(`http://127.0.0.1:${port}/api/tickets/${ticket.id}/contact`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactId: contact.id, primaryTargetId: targetResult.target.id })
-        })
-
-        return { contactId: contact.id, targetId: targetResult.target.id, ticketId: ticket.id }
-      }, { contactName, targetDisplay })
+      await apiJson(context.page, `/api/tickets/${ticket.id}/contact`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: contact.id, primaryTargetId: targetResult.target.id })
+      })
 
       await context.page.evaluate((ticketId) => {
         window.location.hash = `#/tickets/${ticketId}`
-      }, ids.ticketId)
-      await expect(context.page).toHaveURL(new RegExp(`#\\/tickets\\/${ids.ticketId}`))
+      }, ticket.id)
+      await expect(context.page).toHaveURL(new RegExp(`#\/tickets\/${ticket.id}`))
 
       await context.page.getByText('Compose & Send').scrollIntoViewIfNeeded()
 
       const contactSelect = context.page.locator('select').filter({
-        has: context.page.locator(`option[value="${ids.contactId}"]`)
+        has: context.page.locator(`option[value="${contact.id}"]`)
       }).first()
-      await expect(contactSelect).toHaveValue(ids.contactId)
+      await expect(contactSelect).toHaveValue(contact.id)
 
       const targetSelect = context.page.locator('select').filter({
-        has: context.page.locator(`option[value="${ids.targetId}"]`)
+        has: context.page.locator(`option[value="${targetResult.target.id}"]`)
       }).first()
-      await expect(targetSelect).toHaveValue(ids.targetId)
+      await expect(targetSelect).toHaveValue(targetResult.target.id)
     } finally {
       await closeElectronApp(context)
     }

@@ -16,6 +16,7 @@ interface EventGroupCardProps {
   getSummaryEntries: (event: EventRecord) => SummaryEntry[]
   onJump: (event: EventRecord) => void
   renderPayload: (event: EventRecord) => string
+  formatSeverity?: (severity: string) => string
 }
 
 export function EventGroupCard({
@@ -27,7 +28,8 @@ export function EventGroupCard({
   events,
   getSummaryEntries,
   onJump,
-  renderPayload
+  renderPayload,
+  formatSeverity
 }: EventGroupCardProps) {
   return (
     <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
@@ -55,7 +57,7 @@ export function EventGroupCard({
               <span className={`absolute left-[-5px] top-4 h-2 w-2 rounded-full ring-4 ring-[hsl(var(--background))] ${severityDotColor(event.severity)}`} />
               <div className="text-xs text-[hsl(var(--muted-foreground))]">#{index + 1} · {new Date(event.createdAt).toLocaleString('zh-CN')}</div>
               <div className="mt-2 flex items-center gap-2 flex-wrap">
-                <span className={`rounded-sm px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase border ${severityColor(event.severity)}`}>{event.severity}</span>
+                <span className={`rounded-sm px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase border ${severityColor(event.severity)}`}>{formatSeverity ? formatSeverity(event.severity) : event.severity}</span>
                 <span className={`flex items-center gap-1.5 rounded-sm px-2 py-1 text-[11px] border ${sourceTypeColor(event.sourceType)}`}>
                   <SourceTypeIcon type={event.sourceType} />
                   <span className="font-mono font-medium">{event.sourceType}</span>

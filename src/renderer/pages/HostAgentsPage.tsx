@@ -3,7 +3,11 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
 import { useEventDrivenRefresh } from '../hooks/useEventDrivenRefresh'
+import { ThemeCheckbox, ThemeInput, ThemeSelect } from '../components/ui/FormFields'
+import { readWorkspaceId } from '../lib/storage'
 
 interface HostAgentRow {
   id: string
@@ -62,29 +66,31 @@ export function HostAgentsPage() {
   const initialQuery = useMemo(() => {
     const params = new URLSearchParams(location.search)
     return {
-      workspaceId: params.get('workspaceId') || localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
+      workspaceId: params.get('workspaceId') || readWorkspaceId(),
+      targetId: params.get('targetId') || '',
       status: params.get('status') || ''
     }
   }, [location.search])
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [workspaceId, setWorkspaceId] = useState(initialQuery.workspaceId)
+  const [targetId, setTargetId] = useState(initialQuery.targetId)
   const [status, setStatus] = useState(initialQuery.status)
   const [rows, setRows] = useState<HostAgentRow[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(true)
-
   useEffect(() => {
     setWorkspaceId(initialQuery.workspaceId)
+    setTargetId(initialQuery.targetId)
     setStatus(initialQuery.status)
   }, [initialQuery])
 
   useEffect(() => {
     getApiPort().then(port => {
       setApiPort(port)
-      void load(port, workspaceId, status)
+      void load(port, workspaceId, targetId, status)
     })
-  }, [workspaceId, status])
+  }, [targetId, workspaceId, status])
 
   const { lastEventPollAt } = useEventDrivenRefresh({
     apiPort,
@@ -94,13 +100,14 @@ export function HostAgentsPage() {
     hasActiveWork: Boolean((stats?.onlineAgents || 0) + (stats?.degradedAgents || 0) > 0),
     onRelevantEvent: async () => {
       if (!apiPort) return
-      await load(apiPort, workspaceId, status)
+      await load(apiPort, workspaceId, targetId, status)
     }
   })
 
-  const load = async (port: number, wid: string, nextStatus: string) => {
+  const load = async (port: number, wid: string, nextTargetId: string, nextStatus: string) => {
     setLoading(true)
     const params = new URLSearchParams({ workspaceId: wid })
+    if (nextTargetId) params.set('targetId', nextTargetId)
     if (nextStatus) params.set('status', nextStatus)
 
     const [rowsRes, statsRes] = await Promise.all([
@@ -118,78 +125,122 @@ export function HostAgentsPage() {
   const runTestAction = async (id: string) => {
     if (!apiPort) return
     await fetch(`http://127.0.0.1:${apiPort}/api/host-agents/${id}/test-action`, { method: 'POST' })
-    await load(apiPort, workspaceId, status)
+    await load(apiPort, workspaceId, targetId, status)
   }
 
   const revokeAgent = async (id: string) => {
     if (!apiPort) return
     await fetch(`http://127.0.0.1:${apiPort}/api/host-agents/${id}/revoke`, { method: 'POST' })
-    await load(apiPort, workspaceId, status)
+    await load(apiPort, workspaceId, targetId, status)
   }
+
+  const renderRecentlyRegisteredAgents = () => (
+    <SectionCard title="最近注册的代理" description="最近注册成功并开始上报心跳的主机代理。">
+      <div className="space-y-2">
+        {(stats?.recentlyRegisteredAgents || []).map(item => renderRecentAgentItem(item))}
+      </div>
+    </SectionCard>
+  )
+
+  const overviewCards = [
+    { label: '在线代理', value: stats?.onlineAgents ?? 0 },
+    { label: '降级代理', value: stats?.degradedAgents ?? 0 },
+    { label: '离线代理', value: stats?.offlineAgents ?? 0 },
+    { label: '失败动作', value: stats?.failedActions ?? 0 },
+    { label: '心跳健康度', value: `${stats?.heartbeatHealth ?? 100}%` }
+  ]
+
+  const renderAgentRow = (row: HostAgentRow) => (
+    <tr key={row.id} className="hover:bg-[hsl(var(--accent))]">
+      <td className="px-4 py-3 text-sm">
+        <Link to={`/host-agents/${row.id}`} className="font-semibold text-[hsl(var(--primary))]">{row.name}</Link>
+        <div className="text-xs text-[hsl(var(--muted-foreground))]">{row.hostname} · {row.osType}/{row.arch}</div>
+      </td>
+      <td className="px-4 py-3 text-sm">{row.target?.name || '未绑定'}</td>
+      <td className="px-4 py-3 text-sm">{row.status}</td>
+      <td className="px-4 py-3 text-sm">{row.agentVersion}</td>
+      <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">{parseCapabilities(row.capabilitiesJson).slice(0, 4).join(', ') || '—'}</td>
+      <td className="px-4 py-3 text-sm">{row.lastHeartbeatAt ? new Date(row.lastHeartbeatAt).toLocaleString('zh-CN') : '从未'}</td>
+      <td className="px-4 py-3 text-right text-sm space-x-3">
+        <button onClick={() => void runTestAction(row.id)} className="text-[hsl(var(--primary))] hover:opacity-80">执行测试动作</button>
+        <button onClick={() => void revokeAgent(row.id)} className="text-[hsl(var(--destructive))] hover:opacity-80">撤销代理</button>
+      </td>
+    </tr>
+  )
+
+  const renderRecentAgentItem = (item: HostAgentRow) => (
+    <div key={item.id} className="p-3 rounded-workshop-md border border-[hsl(var(--border))] flex items-center justify-between">
+      <div>
+        <div className="font-medium">{item.name}</div>
+        <div className="text-xs text-[hsl(var(--muted-foreground))]">{item.hostname} · {item.target?.name || '未绑定目标环境'}</div>
+      </div>
+      <div className="text-sm">{item.status}</div>
+    </div>
+  )
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Host Agents"
-        description="远程宿主机代理中心：注册、心跳、动作派发、回执与 SSH fallback 状态总览"
+        title="主机代理中心"
+        description="统一查看远程宿主机代理的注册状态、心跳健康、动作派发与执行情况。"
         actions={
           <button
             onClick={() => navigate('/host-agents/new')}
             className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90"
           >
-            Create Bootstrap Token
+            创建引导令牌
           </button>
         }
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <SectionCard className="!p-4"><div className="text-sm text-[hsl(var(--muted-foreground))]">在线 Agents</div><div className="text-2xl font-bold">{stats?.onlineAgents ?? 0}</div></SectionCard>
-        <SectionCard className="!p-4"><div className="text-sm text-[hsl(var(--muted-foreground))]">降级 Agents</div><div className="text-2xl font-bold">{stats?.degradedAgents ?? 0}</div></SectionCard>
-        <SectionCard className="!p-4"><div className="text-sm text-[hsl(var(--muted-foreground))]">离线 Agents</div><div className="text-2xl font-bold">{stats?.offlineAgents ?? 0}</div></SectionCard>
-        <SectionCard className="!p-4"><div className="text-sm text-[hsl(var(--muted-foreground))]">失败动作</div><div className="text-2xl font-bold">{stats?.failedActions ?? 0}</div></SectionCard>
-        <SectionCard className="!p-4"><div className="text-sm text-[hsl(var(--muted-foreground))]">Heartbeat Health</div><div className="text-2xl font-bold">{stats?.heartbeatHealth ?? 100}%</div></SectionCard>
+        {overviewCards.map(card => (
+          <SectionCard key={card.label} className="!p-4">
+            <div className="text-sm text-[hsl(var(--muted-foreground))]">{card.label}</div>
+            <div className="text-2xl font-bold">{card.value}</div>
+          </SectionCard>
+        ))}
       </div>
 
-      <SectionCard title="筛选器" description="按 workspace 与状态筛选 Host Agent 列表。">
+      <SectionCard title="筛选器" description="按工作区、目标环境与状态收敛主机代理列表。">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <input value={workspaceId} onChange={event => setWorkspaceId(event.target.value)} className="px-3 py-2 text-sm rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" placeholder="Workspace ID" />
-          <select value={status} onChange={event => setStatus(event.target.value)} className="px-3 py-2 text-sm rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]">
+          <ThemeInput value={workspaceId} onChange={event => setWorkspaceId(event.target.value)} placeholder="工作区 ID" fieldSize="lg" />
+          <ThemeInput value={targetId} onChange={event => setTargetId(event.target.value)} placeholder="目标环境 ID" fieldSize="lg" />
+          <ThemeSelect value={status} onChange={event => setStatus(event.target.value)} fieldSize="lg">
             <option value="">全部状态</option>
             <option value="ONLINE">ONLINE</option>
             <option value="DEGRADED">DEGRADED</option>
             <option value="OFFLINE">OFFLINE</option>
             <option value="UNREGISTERED">UNREGISTERED</option>
-          </select>
-          <button onClick={() => apiPort && void load(apiPort, workspaceId, status)} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">刷新</button>
+          </ThemeSelect>
+          <button onClick={() => apiPort && void load(apiPort, workspaceId, targetId, status)} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">应用筛选</button>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[hsl(var(--muted-foreground))]">
           <div>
             {lastEventPollAt ? `最近事件检查：${new Date(lastEventPollAt).toLocaleTimeString('zh-CN')}` : '尚未进行事件检查'}
           </div>
           <label className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.52)] px-3 py-1.5">
-            <input
-              type="checkbox"
+            <ThemeCheckbox
               checked={autoRefresh}
               onChange={event => setAutoRefresh(event.target.checked)}
-              className="rounded border-[hsl(var(--border))]"
             />
             <span>事件驱动自动刷新</span>
           </label>
         </div>
       </SectionCard>
 
-      <SectionCard title={`Agent 列表 (${rows.length})`} description="远程 Agent 与 target 绑定关系、能力声明和最近心跳。">
+      <SectionCard title={`主机代理列表（${rows.length}）`} description="查看代理与目标环境的绑定关系、能力声明和最近心跳。">
         {loading ? (
-          <div className="text-sm text-[hsl(var(--muted-foreground))]">加载中...</div>
+          <LoadingState message="加载主机代理中..." />
         ) : rows.length === 0 ? (
-          <div className="text-sm text-[hsl(var(--muted-foreground))]">当前 workspace 暂无 Host Agent。</div>
+          <EmptyState message="当前工作区暂无主机代理。" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-[hsl(var(--muted))]">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs">Agent</th>
-                  <th className="px-4 py-3 text-left text-xs">Target</th>
+                  <th className="px-4 py-3 text-left text-xs">代理</th>
+                  <th className="px-4 py-3 text-left text-xs">目标环境</th>
                   <th className="px-4 py-3 text-left text-xs">状态</th>
                   <th className="px-4 py-3 text-left text-xs">版本</th>
                   <th className="px-4 py-3 text-left text-xs">能力</th>
@@ -198,42 +249,14 @@ export function HostAgentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[hsl(var(--border))]">
-                {rows.map(row => (
-                  <tr key={row.id} className="hover:bg-[hsl(var(--accent))]">
-                    <td className="px-4 py-3 text-sm">
-                      <Link to={`/host-agents/${row.id}`} className="font-semibold text-[hsl(var(--primary))]">{row.name}</Link>
-                      <div className="text-xs text-[hsl(var(--muted-foreground))]">{row.hostname} · {row.osType}/{row.arch}</div>
-                    </td>
-                    <td className="px-4 py-3 text-sm">{row.target?.name || '未绑定'}</td>
-                    <td className="px-4 py-3 text-sm">{row.status}</td>
-                    <td className="px-4 py-3 text-sm">{row.agentVersion}</td>
-                    <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">{parseCapabilities(row.capabilitiesJson).slice(0, 4).join(', ') || '—'}</td>
-                    <td className="px-4 py-3 text-sm">{row.lastHeartbeatAt ? new Date(row.lastHeartbeatAt).toLocaleString('zh-CN') : '从未'}</td>
-                    <td className="px-4 py-3 text-right text-sm space-x-3">
-                      <button onClick={() => void runTestAction(row.id)} className="text-[hsl(var(--primary))] hover:opacity-80">Run Test Action</button>
-                      <button onClick={() => void revokeAgent(row.id)} className="text-[hsl(var(--destructive))] hover:opacity-80">Revoke</button>
-                    </td>
-                  </tr>
-                ))}
+                {rows.map(row => renderAgentRow(row))}
               </tbody>
             </table>
           </div>
         )}
       </SectionCard>
 
-      <SectionCard title="Recently Registered Agents" description="最近注册成功的 Agent。">
-        <div className="space-y-2">
-          {(stats?.recentlyRegisteredAgents || []).map(item => (
-            <div key={item.id} className="p-3 rounded-workshop-md border border-[hsl(var(--border))] flex items-center justify-between">
-              <div>
-                <div className="font-medium">{item.name}</div>
-                <div className="text-xs text-[hsl(var(--muted-foreground))]">{item.hostname} · {item.target?.name || '未绑定 target'}</div>
-              </div>
-              <div className="text-sm">{item.status}</div>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
+      {renderRecentlyRegisteredAgents()}
     </div>
   )
 }

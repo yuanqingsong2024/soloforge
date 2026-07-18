@@ -1,0 +1,76 @@
+{
+  "title": "Unified Task Center",
+  "description": "Aggregates operations, jobs, deployment jobs, host agent actions, and pending sync queues into one task view.",
+  "actions": {
+    "eventRefresh": "Event-driven auto refresh",
+    "refresh": "Refresh Task Center"
+  },
+  "filters": {
+    "title": "Filters",
+    "description": "Filter runtime tasks by Workspace / Target / status / type.",
+    "workspacePlaceholder": "Workspace ID",
+    "targetPlaceholder": "Target ID",
+    "statusPlaceholder": "Status, e.g. RUNNING",
+    "typePlaceholder": "Type, e.g. UPGRADE",
+    "apply": "Apply Filters",
+    "lastEventPollAt": "Last event check: {{time}}",
+    "noEventPoll": "No event check yet"
+  },
+  "unified": {
+    "title": "Unified Task View",
+    "description": "Shows Operation, Job, DeploymentJob, AgentAction, and pending sync queues together to reduce model switching.",
+    "total": "Total",
+    "running": "Running",
+    "blocked": "Blocked",
+    "attention": "Attention",
+    "completed": "Completed",
+    "queued": "Other",
+    "empty": "No tasks to aggregate."
+  },
+  "sources": {
+    "operation": "Operation",
+    "job": "Job",
+    "deploymentJob": "Deployment Job",
+    "agentAction": "Agent Action",
+    "outbox": "Pending Sync"
+  },
+  "statusGroups": {
+    "running": "Running",
+    "blocked": "Blocked",
+    "attention": "Attention",
+    "completed": "Completed",
+    "queued": "Other"
+  },
+  "labels": {
+    "traceId": "Trace ID",
+    "workspace": "Workspace",
+    "target": "Target"
+  },
+  "details": {
+    "title": "Operation Details",
+    "listTitle": "Operations ({{count}})",
+    "listDescription": "Browse layered operation tasks for the current workspace from the left panel.",
+    "empty": "There are no operation records yet. Alerts, deployment, and recovery flows will gradually converge here.",
+    "selectHint": "Select an operation from the left to view its overview.",
+    "noSummary": "No summary",
+    "executionSummary": "Execution Summary",
+    "phaseCount": "Phase Count",
+    "stepCount": "Step Count",
+    "lastUpdated": "Last Updated",
+    "phaseTitle": "Phase {{order}}: {{name}}",
+    "startedAt": "Started: {{time}}",
+    "endedAt": "Ended: {{time}}",
+    "notStarted": "Not started",
+    "totalSteps": "Total Steps",
+    "completedSteps": "Completed",
+    "pendingSteps": "Pending"
+  },
+  "taskSources": {
+    "operation": "Phased operation task",
+    "job": "Background execution job",
+    "deploymentJob": "Deployment-related job",
+    "agentAction": "Host agent execution action",
+    "outbox": "Event waiting for sync or retry"
+  },
+  "loading": "Loading task center..."
+}

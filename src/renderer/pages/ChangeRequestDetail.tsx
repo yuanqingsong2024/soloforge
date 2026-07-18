@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
 
 interface WorkspaceSummary {
   id: string
@@ -119,7 +121,7 @@ export function ChangeRequestDetail() {
   }
 
   if (loading) {
-    return <div className="text-sm text-[hsl(var(--muted-foreground))]">加载变更单详情中...</div>
+    return <LoadingState message="加载变更单详情中..." />
   }
 
   if (!detail || error) {
@@ -130,7 +132,7 @@ export function ChangeRequestDetail() {
           description="加载失败"
           actions={<button onClick={() => navigate('/changes')} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))]">返回列表</button>}
         />
-        <div className="text-sm text-[hsl(var(--destructive))]">{error || '变更单不存在'}</div>
+        <EmptyState message={error || '变更单不存在'} tone="danger" />
       </div>
     )
   }

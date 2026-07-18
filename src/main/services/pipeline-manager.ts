@@ -1,8 +1,8 @@
-import { PrismaClient, type PipelineStep, type Prisma } from '@prisma/client'
+import { type PipelineStep, type Prisma, type PrismaClient } from '@prisma/client'
 import { v4 as uuidv4 } from 'uuid'
 import { ApprovalGuard, type HighRiskAction } from './approval-guard'
-
-const prisma = new PrismaClient()
+import { prisma } from './db'
+import { writeAuditLog } from './audit-log-writer'
 
 type PipelineRuntimeStatus = 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'FAILED'
 
@@ -34,31 +34,6 @@ function asHighRiskAction(action: string): HighRiskAction | null {
     'ROTATE_TOKEN'
   ]
   return candidates.includes(action as HighRiskAction) ? (action as HighRiskAction) : null
-}
-
-async function writeAuditLog(input: {
-  ticketId?: string
-  traceId: string
-  actor: string
-  action: string
-  tool?: string
-  approvalId?: string
-  request: unknown
-  response: unknown
-}): Promise<void> {
-  await prisma.auditLog.create({
-    data: {
-      ticketId: input.ticketId,
-      traceId: input.traceId,
-      actor: input.actor,
-      action: input.action,
-      tool: input.tool,
-      approvalId: input.approvalId,
-      request: JSON.stringify(input.request),
-      response: JSON.stringify(input.response),
-      ts: new Date()
-    }
-  })
 }
 
 export class PipelineManager {
@@ -344,4 +319,4 @@ export class PipelineManager {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import { useTranslation } from 'react-i18next'
+import { useEnumTranslation } from '../lib/i18n-helpers'
+import { getToneByStatus } from '../lib/status-badge'
+import { ThemeInput, ThemeSelect } from '../components/ui/FormFields'
+import { readWorkspaceId } from '../lib/storage'
 
 interface DeploymentTarget {
   id: string
@@ -83,27 +91,10 @@ interface BootstrapInstallJobResponse {
   error?: string
 }
 
-const STATUS_COLORS = {
-  UNKNOWN: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]',
-  HEALTHY: 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]',
-  DEGRADED: 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]',
-  UNREACHABLE: 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
-}
-
-const ENV_COLORS = {
-  DEV: 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]',
-  STAGING: 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]',
-  PROD: 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
-}
-
-const TYPE_LABELS = {
-  LOCAL_HOST: '本地原生',
-  LOCAL_DOCKER: '本地 Docker',
-  REMOTE_HOST: '远程原生',
-  REMOTE_DOCKER: '远程 Docker'
-}
-
 export function Deployments() {
+  const { t } = useTranslation(['deployment', 'common'])
+  const translateType = useEnumTranslation('deploymentTypeMap')
+  
   const [targets, setTargets] = useState<DeploymentTarget[]>([])
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -133,15 +124,16 @@ export function Deployments() {
 
   const fetchTargets = async (port: number) => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/deployment-targets`)
+      const workspaceId = readWorkspaceId()
+      const response = await fetch(`http://127.0.0.1:${port}/api/deployment-targets?workspaceId=${encodeURIComponent(workspaceId)}`)
       if (!response.ok) {
-        throw new Error('获取部署目标失败')
+        throw new Error(t('deployment:errors.fetchTargetsFailed'))
       }
       const data = await response.json()
       setTargets(data)
     } catch (err) {
       console.error('Failed to fetch deployment targets:', err)
-      setError(err instanceof Error ? err.message : '获取部署目标失败')
+      setError(err instanceof Error ? err.message : t('deployment:errors.fetchTargetsFailed'))
     } finally {
       setLoading(false)
     }
@@ -149,7 +141,7 @@ export function Deployments() {
 
   const handleDelete = async (id: string, name: string) => {
     if (!apiPort) return
-    if (!confirm(`确定要删除部署目标"${name}"吗？此操作不可撤销。`)) return
+    if (!confirm(t('deployment:confirmDelete', { name }))) return
 
     try {
       const response = await fetch(`http://127.0.0.1:${apiPort}/api/deployment-targets/${id}`, {
@@ -159,17 +151,17 @@ export function Deployments() {
       if (!response.ok) {
         const error = await response.json()
         if (error.status === 'pending_approval') {
-          alert('删除请求已提交审批，请在审批中心查看')
+          alert(t('deployment:deleteSubmittedForApproval'))
           return
         }
-        throw new Error(error.message || '删除失败')
+        throw new Error(error.message || t('deployment:errors.deleteFailed'))
       }
 
       setTargets(prev => prev.filter(t => t.id !== id))
-      alert('删除成功')
+      alert(t('deployment:deleteSuccess'))
     } catch (err) {
       console.error('Failed to delete target:', err)
-      alert(err instanceof Error ? err.message : '删除失败')
+      alert(err instanceof Error ? err.message : t('deployment:errors.deleteFailed'))
     }
   }
 
@@ -181,16 +173,16 @@ export function Deployments() {
       const result = await response.json()
       
       if (result.healthy) {
-        alert(`健康检查通过\n\n${result.message || '服务运行正常'}`)
+        alert(t('deployment:healthCheckPassed', { message: result.message || t('deployment:serviceRunningNormally') }))
       } else {
-        alert(`健康检查失败\n\n${result.message || '服务不可达'}`)
+        alert(t('deployment:healthCheckFailed', { message: result.message || t('deployment:serviceUnreachable') }))
       }
 
       // 刷新列表
       fetchTargets(apiPort)
     } catch (err) {
       console.error('Health check failed:', err)
-      alert('健康检查失败')
+      alert(t('deployment:errors.healthCheckFailed'))
     }
   }
 
@@ -205,7 +197,7 @@ export function Deployments() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          workspaceId: localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
+          workspaceId: readWorkspaceId(),
           name: bootstrapName,
           targetType: bootstrapType,
           host: bootstrapHost,
@@ -218,16 +210,16 @@ export function Deployments() {
       })
       const result = await response.json() as BootstrapResponse
       if (!response.ok || !result.success || !result.data) {
-        throw new Error(result.error || '一键部署失败')
+        throw new Error(result.error || t('deployment:errors.bootstrapFailed'))
       }
 
       setBootstrapResult(result.data)
-      setBootstrapMessage('OpenClaw 引导部署信息已生成，可以继续复制安装命令并前往相关页面检查。')
+      setBootstrapMessage(t('deployment:bootstrapSuccess'))
 
       await fetchTargets(apiPort)
     } catch (err) {
       setBootstrapResult(null)
-      setBootstrapMessage(err instanceof Error ? err.message : '一键部署失败')
+      setBootstrapMessage(err instanceof Error ? err.message : t('deployment:errors.bootstrapFailed'))
     } finally {
       setBootstrapLoading(false)
     }
@@ -256,15 +248,15 @@ export function Deployments() {
       })
       const result = await response.json() as BootstrapInstallJobResponse
       if (!response.ok || !result.success || !result.data) {
-        throw new Error(result.error || '发起安装作业失败')
+        throw new Error(result.error || t('deployment:errors.installJobFailed'))
       }
       setInstallJobMessage([
-        `已创建安装作业：${result.data.jobId}（${result.data.status}）`,
-        result.data.dispatchMessage || '安装作业已提交',
-        result.data.dispatchedActionId ? `对应 Agent Action：${result.data.dispatchedActionId}` : '当前尚未分派到 Agent Action'
+        t('deployment:installJobCreated', { jobId: result.data.jobId, status: result.data.status }),
+        result.data.dispatchMessage || t('deployment:installJobSubmitted'),
+        result.data.dispatchedActionId ? t('deployment:installJobActionId', { actionId: result.data.dispatchedActionId }) : t('deployment:installJobNoAction')
       ].join('；'))
     } catch (error) {
-      setInstallJobMessage(error instanceof Error ? error.message : '发起安装作业失败')
+      setInstallJobMessage(error instanceof Error ? error.message : t('deployment:errors.installJobFailed'))
     } finally {
       setInstallJobLoading(false)
     }
@@ -274,12 +266,10 @@ export function Deployments() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="部署管理"
-          description="管理 OpenClaw 部署目标"
+          title={t('deployment:title')}
+          description={t('deployment:description')}
         />
-        <div className="flex items-center justify-center h-64">
-          <p className="text-[hsl(var(--muted-foreground))]">加载中...</p>
-        </div>
+        <LoadingState message={t('common:loading')} className="h-64" />
       </div>
     )
   }
@@ -288,12 +278,10 @@ export function Deployments() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="部署管理"
-          description="管理 OpenClaw 部署目标"
+          title={t('deployment:title')}
+          description={t('deployment:description')}
         />
-        <div className="flex items-center justify-center h-64">
-          <p className="text-[hsl(var(--destructive))]">{error}</p>
-        </div>
+        <EmptyState message={error} tone="danger" className="h-64" />
       </div>
     )
   }
@@ -301,51 +289,51 @@ export function Deployments() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="部署管理"
-        description="管理 OpenClaw 部署目标"
+        title={t('deployment:title')}
+        description={t('deployment:description')}
         actions={
           <button
             onClick={() => navigate('/deployments/new')}
             className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 transition-opacity"
           >
-            新建部署
+            {t('deployment:newDeployment')}
           </button>
         }
       />
 
       <div className="bg-[hsl(var(--card))] rounded-workshop-lg border border-[hsl(var(--border))] p-6 space-y-4">
         <div>
-          <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">OpenClaw 一键部署</h2>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">生成部署目标、Host Agent Bootstrap 命令、连接配置，并可选一键招聘默认员工。</p>
+          <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">{t('deployment:bootstrapTitle')}</h2>
+          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">{t('deployment:bootstrapDescription')}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <input value={bootstrapName} onChange={e => setBootstrapName(e.target.value)} placeholder="部署名称，例如：上海 OpenClaw" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm" />
-          <input value={bootstrapHost} onChange={e => setBootstrapHost(e.target.value)} placeholder="主机地址，例如：192.168.1.100" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm" />
-          <input value={bootstrapSshUser} onChange={e => setBootstrapSshUser(e.target.value)} placeholder="SSH 用户" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm" />
-          <select value={bootstrapType} onChange={e => setBootstrapType(e.target.value as 'REMOTE_HOST' | 'REMOTE_DOCKER')} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm">
-            <option value="REMOTE_DOCKER">远程 Docker</option>
-            <option value="REMOTE_HOST">远程原生</option>
-          </select>
-          <input value={bootstrapSshPort} onChange={e => setBootstrapSshPort(e.target.value)} placeholder="SSH 端口" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm" />
-          <input value={bootstrapGatewayPort} onChange={e => setBootstrapGatewayPort(e.target.value)} placeholder="Gateway 端口" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm" />
-          <select value={bootstrapEnvType} onChange={e => setBootstrapEnvType(e.target.value as 'DEV' | 'STAGING' | 'PROD')} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm">
-            <option value="DEV">DEV</option>
-            <option value="STAGING">STAGING</option>
-            <option value="PROD">PROD</option>
-          </select>
-          <select value={autoHireTemplate} onChange={e => setAutoHireTemplate(e.target.value as 'none' | 'core-team' | 'support-pod')} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm">
-            <option value="core-team">自动招聘：核心团队</option>
-            <option value="support-pod">自动招聘：支持小队</option>
-            <option value="none">不自动招聘</option>
-          </select>
+          <ThemeInput value={bootstrapName} onChange={e => setBootstrapName(e.target.value)} placeholder={t('deployment:placeholders.deploymentName')} fieldSize="lg" fieldShape="pill" />
+          <ThemeInput value={bootstrapHost} onChange={e => setBootstrapHost(e.target.value)} placeholder={t('deployment:placeholders.hostAddress')} fieldSize="lg" fieldShape="pill" />
+          <ThemeInput value={bootstrapSshUser} onChange={e => setBootstrapSshUser(e.target.value)} placeholder={t('deployment:placeholders.sshUser')} fieldSize="lg" fieldShape="pill" />
+          <ThemeSelect value={bootstrapType} onChange={e => setBootstrapType(e.target.value as 'REMOTE_HOST' | 'REMOTE_DOCKER')} fieldSize="lg" fieldShape="pill">
+                      <option value="REMOTE_DOCKER">{translateType('REMOTE_DOCKER')}</option>
+                      <option value="REMOTE_HOST">{translateType('REMOTE_HOST')}</option>
+          </ThemeSelect>
+          <ThemeInput value={bootstrapSshPort} onChange={e => setBootstrapSshPort(e.target.value)} placeholder={t('deployment:placeholders.sshPort')} fieldSize="lg" fieldShape="pill" />
+          <ThemeInput value={bootstrapGatewayPort} onChange={e => setBootstrapGatewayPort(e.target.value)} placeholder={t('deployment:placeholders.gatewayPort')} fieldSize="lg" fieldShape="pill" />
+          <ThemeSelect value={bootstrapEnvType} onChange={e => setBootstrapEnvType(e.target.value as 'DEV' | 'STAGING' | 'PROD')} fieldSize="lg" fieldShape="pill">
+                      <option value="DEV">{t('deployment:envTypes.DEV')}</option>
+                      <option value="STAGING">{t('deployment:envTypes.STAGING')}</option>
+                      <option value="PROD">{t('deployment:envTypes.PROD')}</option>
+          </ThemeSelect>
+          <ThemeSelect value={autoHireTemplate} onChange={e => setAutoHireTemplate(e.target.value as 'none' | 'core-team' | 'support-pod')} fieldSize="lg" fieldShape="pill">
+            <option value="core-team">{t('deployment:autoHire.coreTeam')}</option>
+            <option value="support-pod">{t('deployment:autoHire.supportPod')}</option>
+            <option value="none">{t('deployment:autoHire.none')}</option>
+          </ThemeSelect>
         </div>
 
         <div className="flex items-center gap-3">
           <button onClick={() => void handleBootstrap()} disabled={bootstrapLoading || !bootstrapName || !bootstrapHost || !bootstrapSshUser} className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50">
-            {bootstrapLoading ? '创建中...' : '一键部署 OpenClaw'}
+            {bootstrapLoading ? t('deployment:bootstrapCreating') : t('deployment:bootstrapButton')}
           </button>
-          <button onClick={() => navigate('/host-agents/new')} className="px-4 py-2 bg-[hsl(var(--muted))] rounded-workshop-md hover:opacity-90">仅生成 Bootstrap Token</button>
+          <button onClick={() => navigate('/host-agents/new')} className="px-4 py-2 bg-[hsl(var(--muted))] rounded-workshop-md hover:opacity-90">{t('deployment:generateBootstrapTokenOnly')}</button>
         </div>
 
         {bootstrapMessage && (
@@ -358,29 +346,29 @@ export function Deployments() {
           <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-5 space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div>
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-1">部署目标</div>
+                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-1">{t('deployment:deploymentTarget')}</div>
                 <div className="font-medium">{bootstrapResult.target.name}</div>
                 <div className="text-[hsl(var(--muted-foreground))] mt-1">{bootstrapResult.target.targetType} · {bootstrapResult.target.envType}</div>
               </div>
               <div>
-                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-1">连接配置</div>
+                <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-1">{t('deployment:connectionProfile')}</div>
                 <div className="font-medium">{bootstrapResult.profile.name}</div>
                 <div className="text-[hsl(var(--muted-foreground))] mt-1 break-all">{bootstrapResult.profile.baseUrl}</div>
               </div>
               <div>
                 <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-1">Bootstrap</div>
                 <div className="font-medium break-all">{bootstrapResult.bootstrap.registrationId}</div>
-                <div className="text-[hsl(var(--muted-foreground))] mt-1">{new Date(bootstrapResult.bootstrap.expiresAt).toLocaleString('zh-CN')} 过期</div>
+                <div className="text-[hsl(var(--muted-foreground))] mt-1">{t('deployment:expiresAt', { date: new Date(bootstrapResult.bootstrap.expiresAt).toLocaleString('zh-CN') })}</div>
               </div>
             </div>
 
             <div>
-              <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-2">安装命令</div>
+              <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-2">{t('deployment:installCommand')}</div>
               <pre className="text-xs font-mono whitespace-pre-wrap rounded-workshop-md bg-[hsl(var(--muted))] p-4 overflow-auto">{bootstrapResult.bootstrap.installCommand}</pre>
             </div>
 
             <div>
-              <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-2">自动招聘结果</div>
+              <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-2">{t('deployment:autoHireResult')}</div>
               {bootstrapResult.hired.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {bootstrapResult.hired.map(item => (
@@ -390,25 +378,25 @@ export function Deployments() {
                   ))}
                 </div>
               ) : (
-                <div className="text-sm text-[hsl(var(--muted-foreground))]">本次未执行自动招聘</div>
+                <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('deployment:noAutoHire')}</div>
               )}
             </div>
 
             <div className="flex flex-wrap gap-3">
               <button onClick={() => void copyInstallCommand()} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
-                {copiedInstallCommand ? '已复制安装命令' : '复制安装命令'}
+                {copiedInstallCommand ? t('deployment:installCommandCopied') : t('deployment:copyInstallCommand')}
               </button>
               <button onClick={() => void triggerInstallJob()} disabled={installJobLoading} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50">
-                {installJobLoading ? '提交中...' : '发起安装作业'}
+                {installJobLoading ? t('deployment:submitting') : t('deployment:triggerInstallJob')}
               </button>
               <button onClick={() => navigate(`/deployments/${bootstrapResult.target.id}`)} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
-                查看部署详情
+                {t('deployment:viewDeploymentDetail')}
               </button>
               <button onClick={() => navigate('/host-agents')} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
-                前往 Host Agents
+                {t('deployment:goToHostAgents')}
               </button>
               <button onClick={() => navigate('/team')} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
-                前往团队管理
+                {t('deployment:goToTeamManagement')}
               </button>
             </div>
 
@@ -437,43 +425,48 @@ export function Deployments() {
             />
           </svg>
           <h3 className="mt-4 text-lg font-medium text-[hsl(var(--foreground))]">
-            暂无部署目标
+            {t('deployment:noTargets')}
           </h3>
           <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">
-            点击"新建部署"按钮创建第一个部署目标
+            {t('deployment:noTargetsHint')}
           </p>
           <button
             onClick={() => navigate('/deployments/new')}
             className="mt-6 px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 transition-opacity"
           >
-            新建部署
+            {t('deployment:newDeployment')}
           </button>
         </div>
       ) : (
-        <div className="bg-[hsl(var(--card))] rounded-workshop-lg border border-[hsl(var(--border))] overflow-hidden">
-          <table className="w-full">
+        <div className="rounded-workshop-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-workshop-sm">
+          <div className="flex items-center justify-between gap-3 border-b border-[hsl(var(--border))] px-5 py-3 text-sm text-[hsl(var(--muted-foreground))]">
+            <span>当前 Workspace 部署目标 {targets.length} 个</span>
+            <span className="hidden sm:inline">操作列已固定在右侧，可横向滚动查看完整字段</span>
+          </div>
+          <div className="overflow-x-auto pb-2">
+          <table className="min-w-[1120px] w-full table-fixed">
             <thead className="bg-[hsl(var(--muted))] border-b border-[hsl(var(--border))]">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-                  名称
+                <th className="w-[25%] px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+                  {t('deployment:table.name')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-                  类型
+                <th className="w-[12%] px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+                  {t('deployment:table.type')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-                  地址
+                <th className="w-[17%] px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+                  {t('deployment:table.address')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-                  环境
+                <th className="w-[11%] px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+                  {t('deployment:table.environment')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-                  状态
+                <th className="w-[14%] px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+                  {t('deployment:table.status')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-                  最后检查
+                <th className="w-[14%] px-6 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+                  {t('deployment:table.lastCheck')}
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-                  操作
+                <th className="sticky right-0 z-10 w-[9rem] border-l border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-5 py-3 text-right text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider shadow-[-8px_0_16px_-14px_hsl(var(--foreground))]">
+                  {t('common:actions')}
                 </th>
               </tr>
             </thead>
@@ -484,58 +477,57 @@ export function Deployments() {
                   className="hover:bg-[hsl(var(--muted)/0.5)] transition-colors cursor-pointer"
                   onClick={() => navigate(`/deployments/${target.id}`)}
                 >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-[hsl(var(--foreground))]">
+                  <td className="px-6 py-4">
+                    <div className="truncate text-sm font-medium text-[hsl(var(--foreground))]" title={target.name}>
                       {target.name}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-[hsl(var(--muted-foreground))]">
-                      {TYPE_LABELS[target.targetType as keyof typeof TYPE_LABELS] || target.targetType}
+                      {translateType(target.targetType)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-[hsl(var(--muted-foreground))]">
-                      {target.host ? `${target.host}:${target.port || 18789}` : '本地'}
+                      {target.host ? `${target.host}:${target.port || 18789}` : t('deployment:local')}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${ENV_COLORS[target.envType as keyof typeof ENV_COLORS]}`}>
-                        {target.envType}
-                      </span>
+                      <StatusBadge label={t('deployment:envTypes.' + (target.envType || 'DEV'))} tone={getToneByStatus(target.envType, { DEV: 'info', STAGING: 'warning', PROD: 'danger' })} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[target.status as keyof typeof STATUS_COLORS]}`}>
-                        {target.status}
-                      </span>
+                      <StatusBadge label={t('deployment:status.' + (target.status || 'UNKNOWN'))} tone={getToneByStatus(target.status, { HEALTHY: 'success', DEGRADED: 'warning', UNREACHABLE: 'danger' })} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-[hsl(var(--muted-foreground))]">
-                    {target.lastCheckAt ? new Date(target.lastCheckAt).toLocaleString('zh-CN') : '从未'}
+                    {target.lastCheckAt ? new Date(target.lastCheckAt).toLocaleString('zh-CN') : t('deployment:never')}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <td className="sticky right-0 z-10 whitespace-nowrap border-l border-[hsl(var(--border))] bg-[hsl(var(--card))] px-5 py-4 text-right text-sm font-medium shadow-[-8px_0_16px_-14px_hsl(var(--foreground))]">
+                    <div className="flex justify-end gap-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
                         handleHealthCheck(target.id)
                       }}
-                      className="text-[hsl(var(--primary))] hover:text-[hsl(var(--primary)/0.8)] mr-4"
+                      className="rounded-full border border-[hsl(var(--google-blue)_/_0.2)] px-3 py-1.5 text-xs text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--google-blue)_/_0.08)]"
                     >
-                      检查
+                      {t('deployment:check', { defaultValue: '检查' })}
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
                         handleDelete(target.id, target.name)
                       }}
-                       className="text-[hsl(var(--destructive))] transition-colors duration-200 hover:text-[hsl(var(--destructive)_/_0.8)]"
+                       className="rounded-full border border-[hsl(var(--google-red)_/_0.2)] px-3 py-1.5 text-xs text-[hsl(var(--destructive))] transition-colors duration-200 hover:bg-[hsl(var(--google-red)_/_0.08)]"
                     >
-                      删除
+                      {t('common:delete')}
                     </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from './db'
 import { DoctorService } from './doctor-service'
 import { EventBusService } from './event-bus'
-
-const prisma = new PrismaClient()
 
 /**
  * 轻量级巡检调度器
@@ -67,4 +65,4 @@ export class DoctorSchedulerService {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

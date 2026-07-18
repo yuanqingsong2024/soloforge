@@ -1,0 +1,53 @@
+{
+  "pageTitle": "Approval Center",
+  "pageDescription": "Manage high-risk action approval requests",
+  "status": {
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "canceled": "Canceled"
+  },
+  "actionTypes": {
+    "sendExternal": "Send External",
+    "mergeMain": "Merge Main",
+    "deployProd": "Deploy Production",
+    "exportData": "Export Data",
+    "purchase": "Purchase",
+    "changeConfig": "Change Config",
+    "rotateToken": "Rotate Token",
+    "changePolicy": "Change Policy",
+    "changeWorkspaceEnv": "Change Workspace Environment",
+    "unlockWorkspace": "Unlock Workspace",
+    "startService": "Start Service",
+    "stopService": "Stop Service",
+    "restartService": "Restart Service",
+    "upgradeService": "Upgrade Service"
+  },
+  "detail": {
+    "title": "Approval Details",
+    "actionType": "Action Type",
+    "requestedBy": "Requested By",
+    "approvedBy": "Approved By",
+    "reason": "Reason",
+    "metadata": "Metadata",
+    "relatedTicket": "Related Ticket",
+    "noTicket": "No Related Ticket"
+  },
+  "actions": {
+    "approve": "Approve",
+    "reject": "Reject",
+    "cancel": "Cancel",
+    "viewDetails": "View Details",
+    "confirmApprove": "Are you sure to approve this request?",
+    "confirmReject": "Are you sure to reject this request?"
+  },
+  "filters": {
+    "all": "All",
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected"
+  },
+  "loading": "Loading approvals...",
+  "noRecords": "No approval records",
+  "requestContent": "Request Content"
+}

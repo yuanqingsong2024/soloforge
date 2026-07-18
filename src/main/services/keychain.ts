@@ -2,6 +2,7 @@ import { safeStorage } from 'electron'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
+import { logger } from './logger'
 
 const SERVICE_NAME = 'SoloForge'
 
@@ -23,7 +24,7 @@ function readStore(): Record<string, string> {
       return JSON.parse(raw)
     }
   } catch {
-    console.error('Failed to read credential store, resetting')
+    logger.error('Failed to read credential store, resetting')
   }
   return {}
 }
@@ -64,7 +65,7 @@ export class KeychainService {
       store[key] = encrypted.toString('base64')
       writeStore(store)
     } catch (error) {
-      console.error(`Failed to store credential for ${account}:`, error)
+      logger.error(`Failed to store credential for ${account}: ${error instanceof Error ? error.message : String(error)}`)
       throw new Error(`Keychain storage failed: ${error}`)
     }
   }
@@ -95,7 +96,7 @@ export class KeychainService {
       const buffer = Buffer.from(encoded, 'base64')
       return safeStorage.decryptString(buffer)
     } catch (error) {
-      console.error(`Failed to retrieve credential for ${account}:`, error)
+      logger.error(`Failed to retrieve credential for ${account}: ${error instanceof Error ? error.message : String(error)}`)
       return null
     }
   }
@@ -124,7 +125,7 @@ export class KeychainService {
       }
       return false
     } catch (error) {
-      console.error(`Failed to delete credential for ${account}:`, error)
+      logger.error(`Failed to delete credential for ${account}: ${error instanceof Error ? error.message : String(error)}`)
       return false
     }
   }
@@ -164,7 +165,7 @@ export class KeychainService {
       }
       return results
     } catch (error) {
-      console.error('Failed to list credentials:', error)
+      logger.error(`Failed to list credentials: ${error instanceof Error ? error.message : String(error)}`)
       return []
     }
   }

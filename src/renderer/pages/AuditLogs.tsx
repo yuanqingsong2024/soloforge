@@ -1,7 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
+import { translateEnum } from '../lib/i18n-helpers'
+
 interface AuditLog {
   id: string
   ticketId?: string
@@ -14,28 +20,42 @@ interface AuditLog {
   ts: string
   ticket?: { title: string }
 }
+
 export function AuditLogs() {
+  const { t } = useTranslation(['audit', 'common'])
+  const location = useLocation()
+  const initialFilters = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return {
+      ticketId: params.get('ticketId') || '',
+      traceId: params.get('traceId') || '',
+      actor: params.get('actor') || ''
+    }
+  }, [location.search])
+  
   const [logs, setLogs] = useState<AuditLog[]>([])
-  const [filters, setFilters] = useState({
-    ticketId: '',
-    traceId: '',
-    actor: ''
-  })
+  const [filters, setFilters] = useState(initialFilters)
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [expandedLog, setExpandedLog] = useState<string | null>(null)
+  useEffect(() => {
+    setFilters(initialFilters)
+  }, [initialFilters])
+
   useEffect(() => {
     getApiPort().then(port => {
       setApiPort(port)
       fetchLogs(port)
     })
   }, [])
+
   const fetchLogs = async (port: number) => {
     try {
       const params = new URLSearchParams()
       if (filters.ticketId) params.append('ticketId', filters.ticketId)
       if (filters.traceId) params.append('traceId', filters.traceId)
       if (filters.actor) params.append('actor', filters.actor)
+
       const url = `http://127.0.0.1:${port}/api/audit-logs?${params}`
       const response = await fetch(url)
       const data = await response.json()
@@ -46,38 +66,40 @@ export function AuditLogs() {
       setLoading(false)
     }
   }
+
   const handleSearch = () => {
     if (apiPort) {
       setLoading(true)
       fetchLogs(apiPort)
     }
   }
+
   const toggleExpand = (logId: string) => {
     setExpandedLog(expandedLog === logId ? null : logId)
   }
-  // 复制到剪贴板
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
   }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-[hsl(var(--primary))] border-t-transparent"></div>
-      </div>
+      <LoadingState message="加载审计日志中..." />
     )
   }
+
   return (
     <div>
       <PageHeader
-        title="审计日志"
-        description="全链路操作记录与回放"
+        title={t('audit:pageTitle')}
+        description={t('audit:pageDescription')}
       />
-      {/* 筛选器 */}
+
       <SectionCard className="mb-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <input
             type="text"
-            placeholder="Trace ID"
+            placeholder={t('audit:filters.traceId')}
             value={filters.traceId}
             onChange={e => setFilters({ ...filters, traceId: e.target.value })}
             className="rounded-full px-4 py-2.5 text-sm
@@ -88,7 +110,7 @@ export function AuditLogs() {
           />
           <input
             type="text"
-            placeholder="操作人"
+            placeholder={t('audit:filters.actor')}
             value={filters.actor}
             onChange={e => setFilters({ ...filters, actor: e.target.value })}
             className="rounded-full px-4 py-2.5 text-sm
@@ -99,7 +121,7 @@ export function AuditLogs() {
           />
           <input
             type="text"
-            placeholder="工单 ID"
+            placeholder={t('audit:filters.ticketId')}
             value={filters.ticketId}
             onChange={e => setFilters({ ...filters, ticketId: e.target.value })}
             className="rounded-full px-4 py-2.5 text-sm
@@ -114,17 +136,15 @@ export function AuditLogs() {
                      hover:opacity-90 transition-opacity
                      text-sm font-medium"
           >
-            搜索
+            {t('common:buttons.search')}
           </button>
         </div>
       </SectionCard>
-      {/* 日志列表 */}
+
       <div className="space-y-3">
         {logs.length === 0 ? (
           <SectionCard>
-            <div className="text-center py-8">
-              <p className="text-[hsl(var(--muted-foreground))]">暂无审计日志</p>
-            </div>
+            <EmptyState message={t('audit:noLogs')} />
           </SectionCard>
         ) : (
           logs.map(log => (
@@ -142,12 +162,12 @@ export function AuditLogs() {
                           copyToClipboard(log.traceId)
                         }}
                         className="font-mono text-sm text-[hsl(var(--primary))] hover:underline"
-                        title="点击复制 Trace ID"
+                        title={t('audit:actions.copyTraceId')}
                       >
                         {log.traceId}
                       </button>
                       <span className="text-[hsl(var(--muted-foreground))]">•</span>
-                      <span className="font-medium text-[hsl(var(--foreground))]">{log.action}</span>
+                      <span className="font-medium text-[hsl(var(--foreground))]">{translateEnum(t, 'systemActionMap', log.action)}</span>
                       {log.tool && (
                         <>
                           <span className="text-[hsl(var(--muted-foreground))]">•</span>
@@ -156,11 +176,11 @@ export function AuditLogs() {
                       )}
                     </div>
                     <div className="mt-2 flex items-center text-sm text-[hsl(var(--muted-foreground))] gap-2 flex-wrap">
-                      <span>操作人: {log.actor}</span>
+                      <span>{t('audit:columns.actor')}: {log.actor}</span>
                       {log.ticket && (
                         <>
                           <span>•</span>
-                          <span>工单: {log.ticket.title}</span>
+                          <span>{t('audit:ticketLabel')}: {log.ticket.title}</span>
                         </>
                       )}
                       <span>•</span>
@@ -183,13 +203,13 @@ export function AuditLogs() {
                 <div className="border-t border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
-                      <h4 className="font-medium text-sm text-[hsl(var(--foreground))] mb-2">请求:</h4>
+                      <h4 className="font-medium text-sm text-[hsl(var(--foreground))] mb-2">{t('audit:requestLabel')}:</h4>
                       <pre className="max-h-64 overflow-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--background))] p-3 text-xs font-mono text-[hsl(var(--foreground))]">
                         {JSON.stringify(JSON.parse(log.request), null, 2)}
                       </pre>
                     </div>
                     <div>
-                      <h4 className="font-medium text-sm text-[hsl(var(--foreground))] mb-2">响应:</h4>
+                      <h4 className="font-medium text-sm text-[hsl(var(--foreground))] mb-2">{t('audit:responseLabel')}:</h4>
                       <pre className="max-h-64 overflow-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--background))] p-3 text-xs font-mono text-[hsl(var(--foreground))]">
                         {JSON.stringify(JSON.parse(log.response), null, 2)}
                       </pre>

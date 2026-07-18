@@ -1,0 +1,46 @@
+{
+  "pageTitle": "审计日志",
+  "pageDescription": "全链路操作记录与回放",
+  "filters": {
+    "traceId": "Trace ID",
+    "actor": "操作人",
+    "action": "动作",
+    "workspace": "工作区",
+    "dateRange": "时间范围",
+    "all": "全部",
+    "ticketId": "工单 ID"
+  },
+  "columns": {
+    "timestamp": "时间戳",
+    "traceId": "Trace ID",
+    "actor": "操作人",
+    "action": "动作",
+    "target": "目标",
+    "result": "结果",
+    "details": "详情"
+  },
+  "actions": {
+    "viewDetails": "查看详情",
+    "copyTraceId": "复制 Trace ID",
+    "filterByActor": "按操作人筛选",
+    "filterByAction": "按动作筛选"
+  },
+  "detail": {
+    "title": "审计日志详情",
+    "basicInfo": "基本信息",
+    "metadata": "元数据",
+    "beforeState": "变更前",
+    "afterState": "变更后",
+    "relatedLogs": "相关日志"
+  },
+  "export": {
+    "title": "导出审计日志",
+    "format": "格式",
+    "dateRange": "时间范围",
+    "filters": "筛选条件"
+  },
+  "noLogs": "暂无审计日志",
+  "ticketLabel": "工单",
+  "requestLabel": "请求",
+  "responseLabel": "响应"
+}

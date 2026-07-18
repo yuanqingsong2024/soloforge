@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { getApiPort } from '../lib/api'
+import { readWorkspaceId } from '../lib/storage'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { ThemeInput } from '../components/ui/FormFields'
 
 interface ApiSuccess<T> { success: true; data: T }
 interface ApiFailure { success: false; error: string }
@@ -19,7 +21,7 @@ interface UpgradeRun {
   plan: { component: string; targetVersion: string }
 }
 
-const DEFAULT_WORKSPACE_ID = localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001'
+const DEFAULT_WORKSPACE_ID = readWorkspaceId()
 
 export function UpgradeRunsPage() {
   const [apiPort, setApiPort] = useState<number | null>(null)
@@ -45,7 +47,7 @@ export function UpgradeRunsPage() {
       <PageHeader title="Upgrade Runs" description="查看升级执行历史、失败记录与回滚结果。" />
       <SectionCard title="过滤器" description="按状态筛选升级运行历史。">
         <div className="flex gap-3">
-          <input value={status} onChange={e => setStatus(e.target.value)} placeholder="状态，如 SUCCEEDED / FAILED" className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" />
+          <ThemeInput value={status} onChange={e => setStatus(e.target.value)} placeholder="状态，如 SUCCEEDED / FAILED" />
           <button onClick={() => apiPort && fetchRuns(apiPort, status)} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">应用</button>
         </div>
       </SectionCard>

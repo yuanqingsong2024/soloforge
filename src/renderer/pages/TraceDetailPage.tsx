@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
 import { EventGroupCard } from '../components/investigation/EventGroupCard'
 import { EventRecord } from '../components/investigation/types'
+import { translateEnum } from '../lib/i18n-helpers'
 
 interface ApiSuccess<T> {
   success: true
@@ -59,6 +63,7 @@ function eventObjectLabel(event: EventRecord): string {
 }
 
 export function TraceDetailPage() {
+  const { t } = useTranslation('common')
   const { traceId = '' } = useParams<{ traceId: string }>()
   const navigate = useNavigate()
   const [events, setEvents] = useState<EventRecord[]>([])
@@ -109,11 +114,11 @@ export function TraceDetailPage() {
   }
 
   if (loading) {
-    return <div className="p-6 text-sm text-[hsl(var(--muted-foreground))]">加载 Trace 详情中...</div>
+    return <LoadingState message="加载 Trace 详情中..." />
   }
 
   if (error) {
-    return <div className="p-6 text-sm text-[hsl(var(--destructive))]">{error}</div>
+    return <EmptyState message={error} tone="danger" />
   }
 
   const operationCount = new Set(events.filter(event => event.sourceType === 'SYSTEM').map(event => event.sourceId)).size
@@ -199,7 +204,7 @@ export function TraceDetailPage() {
   return (
     <div className="p-6 space-y-6">
       <PageHeader
-        title="Trace Detail"
+        title="链路详情"
         description={traceId}
         actions={
           <div className="flex items-center gap-2">
@@ -216,28 +221,28 @@ export function TraceDetailPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <SectionCard className="!p-0">
           <button type="button" onClick={() => jumpToSummaryTarget('operations')} className="w-full px-6 py-5 text-left transition-colors hover:bg-[hsl(var(--accent))]">
-            <div className="text-sm text-[hsl(var(--muted-foreground))]">关联 Operations</div>
+            <div className="text-sm text-[hsl(var(--muted-foreground))]">关联操作</div>
             <div className="mt-2 text-3xl font-bold text-[hsl(var(--foreground))]">{operationCount}</div>
             <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))] line-clamp-2">{summaryPreview(latestObjectLabels('SYSTEM'))}</div>
           </button>
         </SectionCard>
         <SectionCard className="!p-0">
           <button type="button" onClick={() => jumpToSummaryTarget('jobs')} className="w-full px-6 py-5 text-left transition-colors hover:bg-[hsl(var(--accent))]">
-            <div className="text-sm text-[hsl(var(--muted-foreground))]">关联 Deployment Jobs</div>
+            <div className="text-sm text-[hsl(var(--muted-foreground))]">关联部署任务</div>
             <div className="mt-2 text-3xl font-bold text-[hsl(var(--foreground))]">{deploymentJobCount}</div>
             <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))] line-clamp-2">{summaryPreview(latestObjectLabels('DEPLOYMENT_JOB'))}</div>
           </button>
         </SectionCard>
         <SectionCard className="!p-0">
           <button type="button" onClick={() => jumpToSummaryTarget('alerts')} className="w-full px-6 py-5 text-left transition-colors hover:bg-[hsl(var(--accent))]">
-            <div className="text-sm text-[hsl(var(--muted-foreground))]">关联 Alerts</div>
+            <div className="text-sm text-[hsl(var(--muted-foreground))]">关联告警</div>
             <div className="mt-2 text-3xl font-bold text-[hsl(var(--foreground))]">{alertCount}</div>
             <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))] line-clamp-2">{summaryPreview(latestObjectLabels('ALERT'))}</div>
           </button>
         </SectionCard>
         <SectionCard className="!p-0">
           <button type="button" onClick={() => jumpToSummaryTarget('agents')} className="w-full px-6 py-5 text-left transition-colors hover:bg-[hsl(var(--accent))]">
-            <div className="text-sm text-[hsl(var(--muted-foreground))]">关联 Host Agents</div>
+            <div className="text-sm text-[hsl(var(--muted-foreground))]">关联宿主机 Agent</div>
             <div className="mt-2 text-3xl font-bold text-[hsl(var(--foreground))]">{hostAgentCount}</div>
             <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))] line-clamp-2">{summaryPreview(latestObjectLabels('HOST_AGENT'))}</div>
           </button>
@@ -265,6 +270,7 @@ export function TraceDetailPage() {
                 }}
                 onJump={handleJump}
                 renderPayload={(event) => formatJson(event.payload)}
+                formatSeverity={(severity) => translateEnum(t, 'severityMap', severity)}
               />
             )
           })}

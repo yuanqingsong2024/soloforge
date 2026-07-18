@@ -13,6 +13,8 @@
 - Playwright 直接启动 **Electron 应用实例**，不再只跑浏览器页
 - 启动时注入：`SOLOFORGE_E2E=1`
 - 主进程 API 会为 Dashboard 返回**固定测试数据桩**
+- 默认 E2E **必须** 通过 `helpers/electron.ts` 中的 `launchElectronApp()` 启动
+- 默认 E2E **不能** 直接使用 `page.goto('/')` 作为入口，这种写法适用于浏览器页，不适用于当前 Electron 基线
 
 ### 2. 数据来源
 
@@ -40,6 +42,7 @@
 tests/
   e2e/
     helpers/
+      api.ts
       electron.ts
     app-launch.spec.ts
     dashboard-overview.spec.ts
@@ -107,6 +110,55 @@ tests/
 - 模板渲染：创建模板 + 工单后可生成草稿预览
 - 审批与外发中心：筛选标签/状态切换保持稳定；审批链路通过 API 拒绝验证状态变更
 - 工单外发：通过 UI 触发外发发送，验证 SEND_EXTERNAL 审批被创建
+- 幂等验证：重复创建同 payload 的外发草稿会复用同一条消息
+- 重试验证：可稳定构造 FAILED 消息并覆盖手动重试、批量重试、退避窗口与历史展示
+
+## 当前状态
+
+- 默认全量 E2E：**33 通过 / 1 跳过 / 0 失败**
+- 唯一保留跳过：`outbound-live-openclaw.spec.ts`
+- 跳过原因：依赖真实外部 OpenClaw 环境、真实鉴权与真实投递目标，不属于默认离线基线
+- 首批服务层单测已落地，当前采用 `node:test + tsx`，优先覆盖**不依赖 Electron 运行时**的纯逻辑模块
+
+## 测试约定
+
+### 1. 启动约定
+
+- Electron E2E 统一通过 `launchElectronApp(testInfo, scenario?)` 启动
+- 结束时统一通过 `closeElectronApp(context)` 关闭
+- 需要回到 Dashboard 时使用 `openDashboard(page)`，不要手写重复导航逻辑
+
+### 2. API 调用约定
+
+- 本地 API 调用统一通过 `helpers/api.ts` 的 `apiJson(page, path, init?)`
+- 不要在 spec 内重复解析 `window.location.search` 获取 `apiPort`
+- 不要在 spec 内硬编码 `13789`
+- 不要直接拼 `http://127.0.0.1:${port}` 这种 URL 模板
+
+### 3. 数据约定
+
+- 优先在测试内部**自建前置数据**，不要依赖数据库里“刚好已有”的工单、联系人、失败消息或审批记录
+- 对需要复杂前置状态的测试，优先通过 API 构造，而不是依赖 UI 多步点击
+- 对真实外部依赖场景，如 live OpenClaw，保留独立 spec 和条件跳过，不并入默认基线
+
+### 4. 断言约定
+
+- 优先断言 `data-testid`
+- 优先断言**可观察状态**，例如 URL、区块可见、API 状态变化
+- 少用纯文案断言；若必须依赖文案，优先使用当前真实 UI 文案，而不是历史文案
+- 不要依赖 DOM 层级爬取，如连续 `.locator('..')`
+
+### 5. 稳定性约定
+
+- 禁止使用随意 `sleep` / `waitForTimeout`
+- 优先使用 `expect.poll()`、`toBeVisible()`、`toHaveURL()` 等状态驱动等待
+- 对真实异步链路，不要把“已入队”误当成“已完成”；测试应匹配接口真实状态机
+
+### 6. Skip 策略
+
+- 仅对**不可控外部依赖**使用 `test.skip()`，例如真实 OpenClaw 环境未提供
+- 对可控数据缺失，不要 skip；应改为测试内自建数据
+- 如果某条测试语义与真实实现不一致，优先修正测试语义，不要用 skip 掩盖
 
 ## 运行方式
 
@@ -114,12 +166,13 @@ tests/
 
 ```bash
 npm install
-npx playwright install chromium
+npx playwright install chromium ffmpeg
 npm run build
 ```
 
 > 说明：当前基线使用 **build 后的 Electron 主进程产物** 启动测试，因此在执行 E2E 前需要先 `npm run build`。
 > 若刚修改了 Renderer/Main 代码但未重建，E2E 可能仍会运行旧的 `dist` / `dist-electron` 产物。
+> 若首次运行或 Playwright 版本升级后出现浏览器/视频组件缺失，重新执行 `npx playwright install chromium ffmpeg`。
 
 ### 运行命令
 
@@ -224,6 +277,8 @@ npm run test:e2e:report
 - 不使用随意 `sleep`
 - 优先用 `data-testid`
 - 优先断言关键区块可见与文本稳定内容
+- 优先自建前置数据，避免依赖预置数据库内容
+- API 链路统一走 `apiJson()` helper
 
 ## 已知限制
 
@@ -231,7 +286,6 @@ npm run test:e2e:report
 
 - build 后完整打包安装包链路未纳入 E2E
 - 主进程更细粒度日志抓取仍可继续增强
-- 变更单详情是否真正跳转，当前取决于本地数据里是否已有变更单记录
 - 真实 OpenClaw provider 投递成功仍未纳入默认基线；当前默认基线覆盖到审批创建、审批通过/拒绝与相关状态变更，但不覆盖真实外部投递成功
 - 若需要验证真实外部投递成功，请使用 `npm run test:e2e:live-openclaw`，不要把它并入默认 `test:e2e`
 
@@ -239,3 +293,4 @@ npm run test:e2e:report
 
 - 为了先修复 Dashboard 回归保护，当前只对 `/api/dashboard` 和 Workspace 查询提供测试桩
 - 这能保证基础 E2E 不被外部网络与复杂依赖拖垮，同时不改动生产业务能力
+- 对幂等、重试、审批、联系人绑定等场景，当前优先通过 API 自建数据，减少对种子数据库的耦合

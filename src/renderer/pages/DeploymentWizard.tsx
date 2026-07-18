@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
+import { useTranslation } from 'react-i18next'
+import { useEnumTranslation } from '../lib/i18n-helpers'
+import { ThemeCheckbox, ThemeInput, ThemeNumberInput, ThemeSelect } from '../components/ui/FormFields'
 
 type DeploymentType = 'LOCAL_HOST' | 'LOCAL_DOCKER' | 'REMOTE_HOST' | 'REMOTE_DOCKER'
 type EnvType = 'DEV' | 'STAGING' | 'PROD'
@@ -17,6 +20,9 @@ interface PrecheckResult {
 }
 
 export function DeploymentWizard() {
+  const { t } = useTranslation(['deployment', 'common'])
+  const translateType = useEnumTranslation('deploymentTypeMap')
+  
   const navigate = useNavigate()
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [currentStep, setCurrentStep] = useState<WizardStep>(1)
@@ -52,26 +58,26 @@ export function DeploymentWizard() {
   const deploymentTypes = [
     {
       id: 'LOCAL_HOST' as DeploymentType,
-      label: '本地原生',
-      description: '在本机直接运行 OpenClaw（使用 npm/pm2）',
+      label: translateType('LOCAL_HOST'),
+      description: t('deployment:wizard.types.localHost.description'),
       icon: '💻'
     },
     {
       id: 'LOCAL_DOCKER' as DeploymentType,
-      label: '本地 Docker',
-      description: '在本机使用 Docker Compose 运行 OpenClaw',
+      label: translateType('LOCAL_DOCKER'),
+      description: t('deployment:wizard.types.localDocker.description'),
       icon: '🐳'
     },
     {
       id: 'REMOTE_HOST' as DeploymentType,
-      label: '远程原生',
-      description: '通过 SSH 在远程服务器运行 OpenClaw（使用 npm/pm2）',
+      label: translateType('REMOTE_HOST'),
+      description: t('deployment:wizard.types.remoteHost.description'),
       icon: '🌐'
     },
     {
       id: 'REMOTE_DOCKER' as DeploymentType,
-      label: '远程 Docker',
-      description: '通过 SSH 在远程服务器使用 Docker Compose 运行 OpenClaw',
+      label: translateType('REMOTE_DOCKER'),
+      description: t('deployment:wizard.types.remoteDocker.description'),
       icon: '🚀'
     }
   ]
@@ -96,7 +102,7 @@ export function DeploymentWizard() {
   const handleCreateTarget = async () => {
     if (!apiPort) return
     if (!name.trim()) {
-      setError('请输入部署名称')
+      setError(t('deployment:wizard.errors.nameRequired'))
       return
     }
 
@@ -128,7 +134,7 @@ export function DeploymentWizard() {
 
       if (!createResponse.ok) {
         const errorData = await createResponse.json()
-        throw new Error(errorData.message || '创建部署目标失败')
+        throw new Error(errorData.message || t('deployment:wizard.errors.createFailed'))
       }
 
       const target = await createResponse.json()
@@ -143,7 +149,7 @@ export function DeploymentWizard() {
 
       if (!precheckResponse.ok) {
         const errorData = await precheckResponse.json()
-        throw new Error(errorData.message || '预检查失败')
+        throw new Error(errorData.message || t('deployment:wizard.errors.precheckFailed'))
       }
 
       const precheckData = await precheckResponse.json()
@@ -151,7 +157,7 @@ export function DeploymentWizard() {
       setCurrentStep(3)
     } catch (err) {
       console.error('Failed to create target:', err)
-      setError(err instanceof Error ? err.message : '创建部署目标失败')
+      setError(err instanceof Error ? err.message : t('deployment:wizard.errors.createFailed'))
     } finally {
       setLoading(false)
     }
@@ -160,7 +166,7 @@ export function DeploymentWizard() {
   const handleDeploy = async () => {
     if (!apiPort || !targetId) return
     if (!precheckResult?.passed) {
-      setError('预检查未通过，无法部署')
+      setError(t('deployment:wizard.errors.precheckNotPassed'))
       return
     }
 
@@ -177,20 +183,20 @@ export function DeploymentWizard() {
       const result = await response.json()
 
       if (result.status === 'pending_approval') {
-        setDeployResult(`部署请求已提交审批（审批 ID: ${result.approvalId}）\n\n请在审批中心查看并批准`)
+        setDeployResult(t('deployment:wizard.deployPendingApproval', { approvalId: result.approvalId }))
         setCurrentStep(4)
         return
       }
 
       if (!response.ok) {
-        throw new Error(result.message || '部署失败')
+        throw new Error(result.message || t('deployment:wizard.errors.deployFailed'))
       }
 
-      setDeployResult('部署成功！OpenClaw 已安装并启动。')
+      setDeployResult(t('deployment:wizard.deploySuccess'))
       setCurrentStep(4)
     } catch (err) {
       console.error('Failed to deploy:', err)
-      setError(err instanceof Error ? err.message : '部署失败')
+      setError(err instanceof Error ? err.message : t('deployment:wizard.errors.deployFailed'))
     } finally {
       setLoading(false)
     }
@@ -214,14 +220,14 @@ export function DeploymentWizard() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="新建部署"
-        description="通过向导创建新的 OpenClaw 部署目标"
+        title={t('deployment:wizard.title')}
+        description={t('deployment:wizard.description')}
         actions={
           <button
             onClick={() => navigate('/deployments')}
             className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
           >
-            取消
+            {t('common:cancel')}
           </button>
         }
       />
@@ -230,10 +236,10 @@ export function DeploymentWizard() {
       <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
         <div className="flex items-center justify-between">
           {[
-            { step: 1, label: '选择类型' },
-            { step: 2, label: '配置' },
-            { step: 3, label: '预检查' },
-            { step: 4, label: '部署' }
+            { step: 1, label: t('deployment:wizard.steps.selectType') },
+            { step: 2, label: t('deployment:wizard.steps.configure') },
+            { step: 3, label: t('deployment:wizard.steps.precheck') },
+            { step: 4, label: t('deployment:wizard.steps.deploy') }
           ].map((item, index) => (
             <div key={item.step} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -267,7 +273,7 @@ export function DeploymentWizard() {
         {/* Step 1: Type Selection */}
         {currentStep === 1 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">选择部署类型</h2>
+            <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">{t('deployment:wizard.selectDeploymentType')}</h2>
             <div className="grid grid-cols-2 gap-4">
               {deploymentTypes.map(type => (
                 <button
@@ -295,17 +301,17 @@ export function DeploymentWizard() {
         {/* Step 2: Configuration */}
         {currentStep === 2 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">配置部署参数</h2>
+            <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">{t('deployment:wizard.configureParameters')}</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-2">
-                  部署名称 *
+                  {t('deployment:wizard.fields.name')}
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="例如: 生产环境 OpenClaw"
+                  placeholder={t('deployment:wizard.placeholders.name')}
                   className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                 />
               </div>
@@ -314,13 +320,13 @@ export function DeploymentWizard() {
                 <>
                   <div>
                     <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-2">
-                      主机地址 *
+                      {t('deployment:wizard.fields.host')}
                     </label>
                     <input
                       type="text"
                       value={host}
                       onChange={(e) => setHost(e.target.value)}
-                      placeholder="例如: 192.168.1.100"
+                      placeholder={t('deployment:wizard.placeholders.host')}
                       className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
                     />
                   </div>
@@ -328,82 +334,50 @@ export function DeploymentWizard() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-2">
-                        SSH 用户 *
+                        {t('deployment:wizard.fields.sshUser')}
                       </label>
-                      <input
-                        type="text"
-                        value={sshUser}
-                        onChange={(e) => setSshUser(e.target.value)}
-                        placeholder="例如: root"
-                        className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
-                      />
+                      <ThemeInput type="text" value={sshUser} onChange={(e) => setSshUser(e.target.value)} placeholder={t('deployment:wizard.placeholders.sshUser')} fieldSize="lg" fieldShape="pill" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-2">
-                        SSH 端口
+                        {t('deployment:wizard.fields.sshPort')}
                       </label>
-                      <input
-                        type="number"
-                        value={sshPort}
-                        onChange={(e) => setSshPort(e.target.value)}
-                        className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
-                      />
+                      <ThemeNumberInput value={sshPort} onChange={(e) => setSshPort(e.target.value)} fieldSize="lg" fieldShape="pill" />
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-2">
-                      SSH 密码 *
+                      {t('deployment:wizard.fields.sshPassword')}
                     </label>
-                    <input
-                      type="password"
-                      value={sshPassword}
-                      onChange={(e) => setSshPassword(e.target.value)}
-                      placeholder="SSH 密码（将安全存储在系统 Keychain）"
-                      className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
-                    />
+                    <ThemeInput type="password" value={sshPassword} onChange={(e) => setSshPassword(e.target.value)} placeholder={t('deployment:wizard.placeholders.sshPassword')} fieldSize="lg" fieldShape="pill" />
                   </div>
                 </>
               )}
 
               <div>
                 <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-2">
-                  OpenClaw 端口
+                  {t('deployment:wizard.fields.openclawPort')}
                 </label>
-                <input
-                  type="number"
-                  value={port}
-                  onChange={(e) => setPort(e.target.value)}
-                   className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
-                />
+                <ThemeNumberInput value={port} onChange={(e) => setPort(e.target.value)} fieldSize="lg" fieldShape="pill" />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-2">
-                  环境类型
+                  {t('deployment:wizard.fields.envType')}
                 </label>
-                <select
-                  value={envType}
-                  onChange={(e) => setEnvType(e.target.value as EnvType)}
-                   className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-4 focus:ring-[hsl(var(--google-blue)_/_0.14)]"
-                >
-                  <option value="DEV">开发环境</option>
-                  <option value="STAGING">预发布环境</option>
-                  <option value="PROD">生产环境</option>
-                </select>
+                <ThemeSelect value={envType} onChange={(e) => setEnvType(e.target.value as EnvType)} fieldSize="lg" fieldShape="pill">
+                  <option value="DEV">{t('deployment:envTypes.DEV')}</option>
+                  <option value="STAGING">{t('deployment:envTypes.STAGING')}</option>
+                  <option value="PROD">{t('deployment:envTypes.PROD')}</option>
+                </ThemeSelect>
               </div>
 
               {!selectedType.includes('DOCKER') && (
                 <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="dockerEnabled"
-                    checked={dockerEnabled}
-                    onChange={(e) => setDockerEnabled(e.target.checked)}
-                    className="rounded"
-                  />
+                  <ThemeCheckbox id="dockerEnabled" checked={dockerEnabled} onChange={(e) => setDockerEnabled(e.target.checked)} />
                   <label htmlFor="dockerEnabled" className="text-sm text-[hsl(var(--foreground))]">
-                    启用 Docker 支持（可选）
+                    {t('deployment:wizard.fields.dockerEnabled')}
                   </label>
                 </div>
               )}
@@ -414,7 +388,7 @@ export function DeploymentWizard() {
         {/* Step 3: Precheck */}
         {currentStep === 3 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">预检查结果</h2>
+            <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">{t('deployment:wizard.precheckResult')}</h2>
             {precheckResult ? (
               <div className="space-y-3">
                 {precheckResult.checks.map((check, index) => (
@@ -445,13 +419,13 @@ export function DeploymentWizard() {
                 {!precheckResult.passed && (
                   <div className="rounded-workshop-lg border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.16)] p-4 shadow-workshop-sm">
                     <p className="text-sm text-[hsl(var(--foreground))]">
-                      <strong>警告：</strong>预检查未通过，请修复上述问题后重试。
+                      <strong>{t('common:warning')}：</strong>{t('deployment:wizard.precheckWarning')}
                     </p>
                   </div>
                 )}
               </div>
             ) : (
-              <p className="text-[hsl(var(--muted-foreground))]">正在运行预检查...</p>
+              <p className="text-[hsl(var(--muted-foreground))]">{t('deployment:wizard.runningPrecheck')}</p>
             )}
           </div>
         )}
@@ -459,7 +433,7 @@ export function DeploymentWizard() {
         {/* Step 4: Deploy */}
         {currentStep === 4 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">部署结果</h2>
+            <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">{t('deployment:wizard.deployResult')}</h2>
             {deployResult ? (
               <div className="space-y-4">
                 <div className="rounded-workshop-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.1)] p-6 text-center shadow-workshop-sm">
@@ -471,18 +445,18 @@ export function DeploymentWizard() {
                     onClick={() => navigate(`/deployments/${targetId}`)}
                     className="rounded-full bg-[hsl(var(--primary))] px-6 py-3 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
                   >
-                    查看详情
+                    {t('deployment:wizard.viewDetail')}
                   </button>
                   <button
                     onClick={() => navigate('/deployments')}
                     className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-6 py-3 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
                   >
-                    返回列表
+                    {t('deployment:wizard.backToList')}
                   </button>
                 </div>
               </div>
             ) : (
-              <p className="text-[hsl(var(--muted-foreground))]">正在部署...</p>
+              <p className="text-[hsl(var(--muted-foreground))]">{t('deployment:wizard.deploying')}</p>
             )}
           </div>
         )}

@@ -1,9 +1,52 @@
 import { v4 as uuidv4 } from 'uuid'
-import { PrismaClient } from '@prisma/client'
-import { OpenClawClient } from './openclaw-client'
-// crypto 已导入但在当前实现中未使用（保留以备将来扩展）
+import { prisma } from './db'
+import { resolveWorkspaceOpenClawClient } from './workspace-openclaw'
+import { ConfigManager } from './config-manager'
+import { DoctorService } from './doctor-service'
+import { EventBusService } from './event-bus'
+import { writeAuditLog } from './audit-log-writer'
 
-const prisma = new PrismaClient()
+type JobExecutionResult = Record<string, unknown> & { logs?: string }
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function parseJobRequest(raw: string): Record<string, unknown> {
+  const parsed = JSON.parse(raw) as unknown
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error('Job.request 必须是 JSON 对象')
+  }
+  return parsed as Record<string, unknown>
+}
+
+function readOptionalString(request: Record<string, unknown>, key: string): string | undefined {
+  const value = request[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+async function emitJobEvent(input: {
+  workspaceId: string
+  jobId: string
+  traceId: string
+  eventType: string
+  severity: 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL'
+  title: string
+  summary: string
+  payload: unknown
+}): Promise<void> {
+  await EventBusService.emit({
+    workspaceId: input.workspaceId,
+    sourceType: 'SYSTEM',
+    sourceId: input.jobId,
+    eventType: input.eventType,
+    severity: input.severity,
+    title: input.title,
+    summary: input.summary,
+    payload: input.payload,
+    traceId: input.traceId
+  })
+}
 
 export class JobExecutor {
   /**
@@ -11,7 +54,7 @@ export class JobExecutor {
    * @param jobId Job ID
    * @returns 执行结果
    */
-  static async execute(jobId: string): Promise<{ success: boolean; result?: any; error?: string }> {
+  static async execute(jobId: string): Promise<{ success: boolean; result?: unknown; error?: string }> {
     // 1. 查询 Job
     const job = await prisma.job.findUnique({ where: { id: jobId }, include: { workspace: true } })
     if (!job) return { success: false, error: 'Job not found' }
@@ -33,25 +76,30 @@ export class JobExecutor {
     })
     
     try {
+      await emitJobEvent({
+        workspaceId: job.workspaceId,
+        jobId: job.id,
+        traceId: job.traceId,
+        eventType: 'JOB_STARTED',
+        severity: 'INFO',
+        title: `Job 开始执行：${job.type}`,
+        summary: `Job ${job.id} 已进入 RUNNING`,
+        payload: { jobId: job.id, type: job.type }
+      })
+
       // 5. 根据 type 执行不同逻辑
-      let result: any
-      const request = JSON.parse(job.request)
+      let result: JobExecutionResult
+      const request = parseJobRequest(job.request)
       
       switch (job.type) {
         case 'APPLY_CONFIG':
           result = await this.executeApplyConfig(job.workspaceId, request, job.traceId)
           break
-        case 'RUN_TOOL':
-          result = await this.executeRunTool(job.workspaceId, request, job.traceId)
-          break
         case 'SYNC_STATE':
           result = await this.executeSyncState(job.workspaceId, request, job.traceId)
           break
-        case 'ROTATE_TOKEN':
-          result = await this.executeRotateToken(job.workspaceId, request, job.traceId)
-          break
-        case 'CUSTOM':
-          result = await this.executeCustom(job.workspaceId, request, job.traceId)
+        case 'DOCTOR_CHECK':
+          result = await this.executeDoctorCheck(job.workspaceId, request, job.traceId)
           break
         default:
           throw new Error(`Unknown job type: ${job.type}`)
@@ -70,44 +118,63 @@ export class JobExecutor {
       })
       
       // 7. 写入审计日志
-      await prisma.auditLog.create({
-        data: {
-          workspaceId: job.workspaceId,
-          ticketId: job.ticketId,
-          traceId: job.traceId,
-          actor: 'system',
-          action: 'JOB_EXECUTED',
-          request: JSON.stringify({ jobId, type: job.type }),
-          response: JSON.stringify({ success: true })
-        }
+      await writeAuditLog({
+        workspaceId: job.workspaceId,
+        ticketId: job.ticketId ?? undefined,
+        traceId: job.traceId,
+        actor: 'system',
+        action: 'JOB_EXECUTED',
+        request: { jobId, type: job.type },
+        response: { success: true }
       })
-      
+
+      await emitJobEvent({
+        workspaceId: job.workspaceId,
+        jobId: job.id,
+        traceId: job.traceId,
+        eventType: 'JOB_SUCCEEDED',
+        severity: 'INFO',
+        title: `Job 执行成功：${job.type}`,
+        summary: `Job ${job.id} 已完成`,
+        payload: { jobId: job.id, type: job.type, result: sanitizedResult }
+      })
+       
       return { success: true, result: sanitizedResult }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = toErrorMessage(error)
       // 8. 失败处理
       await prisma.job.update({
         where: { id: jobId },
         data: {
           status: 'FAILED',
-          logs: error.message || 'Unknown error',
+          logs: errorMessage,
           updatedAt: new Date()
         }
       })
       
       // 9. 写入审计日志
-      await prisma.auditLog.create({
-        data: {
-          workspaceId: job.workspaceId,
-          ticketId: job.ticketId,
-          traceId: job.traceId,
-          actor: 'system',
-          action: 'JOB_FAILED',
-          request: JSON.stringify({ jobId, type: job.type }),
-          response: JSON.stringify({ error: error.message })
-        }
+      await writeAuditLog({
+        workspaceId: job.workspaceId,
+        ticketId: job.ticketId ?? undefined,
+        traceId: job.traceId,
+        actor: 'system',
+        action: 'JOB_FAILED',
+        request: { jobId, type: job.type },
+        response: { error: errorMessage }
       })
-      
-      return { success: false, error: error.message }
+
+      await emitJobEvent({
+        workspaceId: job.workspaceId,
+        jobId: job.id,
+        traceId: job.traceId,
+        eventType: 'JOB_FAILED',
+        severity: 'ERROR',
+        title: `Job 执行失败：${job.type}`,
+        summary: errorMessage,
+        payload: { jobId: job.id, type: job.type, error: errorMessage }
+      })
+       
+      return { success: false, error: errorMessage }
     }
   }
   
@@ -118,7 +185,7 @@ export class JobExecutor {
     workspaceId: string
     ticketId?: string
     type: string
-    request: any
+    request: unknown
   }): Promise<string> {
     const traceId = uuidv4()
     const requestStr = JSON.stringify(data.request)
@@ -150,41 +217,57 @@ export class JobExecutor {
   }
   
   // 私有方法：执行具体类型的 Job
-  private static async executeApplyConfig(workspaceId: string, request: any, traceId: string) {
-    // 获取 workspace 的默认 profile
-    const profile = await prisma.workspaceProfile.findFirst({
-      where: { workspaceId, isDefault: true },
-      include: { profile: true }
+  private static async executeApplyConfig(workspaceId: string, request: Record<string, unknown>, traceId: string): Promise<JobExecutionResult> {
+    if (!('config' in request) || request.config === null || request.config === undefined) {
+      throw new Error('APPLY_CONFIG Job 缺少 config')
+    }
+    const { profileId, client } = await resolveWorkspaceOpenClawClient(workspaceId)
+    const response = await client.applyConfig(request.config, traceId)
+    return { profileId, response, logs: '配置已应用到 OpenClaw' }
+  }
+  
+  private static async executeSyncState(workspaceId: string, request: Record<string, unknown>, traceId: string): Promise<JobExecutionResult> {
+    const createdBy = readOptionalString(request, 'createdBy') || 'job-executor'
+    const { profileId, client } = await resolveWorkspaceOpenClawClient(workspaceId)
+    const snapshot = await client.getConfigSnapshot(traceId)
+    const snapshotId = await ConfigManager.syncActualSnapshot(workspaceId, snapshot.config, createdBy)
+    return {
+      profileId,
+      snapshotId,
+      hash: snapshot.hash,
+      logs: '实际状态快照已同步'
+    }
+  }
+
+  private static async executeDoctorCheck(workspaceId: string, request: Record<string, unknown>, traceId: string): Promise<JobExecutionResult> {
+    const createdBy = readOptionalString(request, 'createdBy') || 'job-executor'
+    const report = await DoctorService.runFullDiagnostic(workspaceId, createdBy)
+    await EventBusService.emit({
+      workspaceId,
+      sourceType: 'DOCTOR',
+      sourceId: report.id,
+      eventType: 'DOCTOR_REPORT_COMPLETED',
+      severity: report.severity === 'CRITICAL' ? 'CRITICAL' : report.severity === 'ERROR' ? 'ERROR' : report.severity === 'WARNING' ? 'WARN' : 'INFO',
+      title: 'Doctor 巡检 Job 已完成',
+      summary: report.summary,
+      payload: {
+        reportId: report.id,
+        severity: report.severity,
+        findingCount: report.findings.length
+      },
+      traceId
     })
-    
-    if (!profile) throw new Error('No default profile found for workspace')
-    
-    const client = new OpenClawClient(profile.profile as any)
-    return await client.applyConfig(request.config, traceId)
-  }
-  
-  private static async executeRunTool(_workspaceId: string, _request: any, _traceId: string) {
-    // 实现工具执行逻辑
-    throw new Error('RUN_TOOL not implemented yet')
-  }
-  
-  private static async executeSyncState(_workspaceId: string, _request: any, _traceId: string) {
-    // 实现状态同步逻辑
-    throw new Error('SYNC_STATE not implemented yet')
-  }
-  
-  private static async executeRotateToken(_workspaceId: string, _request: any, _traceId: string) {
-    // 实现 token 轮换逻辑
-    throw new Error('ROTATE_TOKEN not implemented yet')
-  }
-  
-  private static async executeCustom(_workspaceId: string, _request: any, _traceId: string) {
-    // 实现自定义逻辑
-    throw new Error('CUSTOM not implemented yet')
+    return {
+      reportId: report.id,
+      severity: report.severity,
+      findingCount: report.findings.length,
+      summary: report.summary,
+      logs: 'Doctor 巡检已完成'
+    }
   }
   
   // 脱敏结果（移除敏感字段）
-  private static sanitizeResult(result: any): any {
+  private static sanitizeResult(result: JobExecutionResult): JobExecutionResult {
     if (!result) return result
     const sanitized = { ...result }
     

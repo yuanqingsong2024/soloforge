@@ -1,11 +1,21 @@
-import { PrismaClient, type Job } from '@prisma/client'
+import { type Job } from '@prisma/client'
 import { v4 as uuidv4 } from 'uuid'
-
-const prisma = new PrismaClient()
+import { prisma } from './db'
+import { writeAuditLog } from './audit-log-writer'
 
 export type JobStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED'
+export type SupportedJobType = 'APPLY_CONFIG' | 'SYNC_STATE' | 'DOCTOR_CHECK'
 
 const SERVICE_ACTOR = 'job-manager'
+const SUPPORTED_JOB_TYPES: SupportedJobType[] = ['APPLY_CONFIG', 'SYNC_STATE', 'DOCTOR_CHECK']
+
+export function isSupportedJobType(type: string): type is SupportedJobType {
+  return SUPPORTED_JOB_TYPES.includes(type as SupportedJobType)
+}
+
+export function getSupportedJobTypes(): SupportedJobType[] {
+  return [...SUPPORTED_JOB_TYPES]
+}
 
 function safeJsonStringify(data: unknown, fieldLabel: string): string {
   try {
@@ -14,29 +24,6 @@ function safeJsonStringify(data: unknown, fieldLabel: string): string {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(`${fieldLabel} 序列化失败: ${message}`)
   }
-}
-
-async function writeAuditLog(input: {
-  ticketId?: string
-  traceId: string
-  actor?: string
-  action: string
-  tool?: string
-  request: unknown
-  response: unknown
-}): Promise<void> {
-  await prisma.auditLog.create({
-    data: {
-      ticketId: input.ticketId,
-      traceId: input.traceId,
-      actor: input.actor || SERVICE_ACTOR,
-      action: input.action,
-      tool: input.tool,
-      request: safeJsonStringify(input.request, 'AuditLog.request'),
-      response: safeJsonStringify(input.response, 'AuditLog.response'),
-      ts: new Date()
-    }
-  })
 }
 
 export class JobManager {
@@ -50,6 +37,11 @@ export class JobManager {
     stepOrder?: number
   ): Promise<Job> {
     const traceId = uuidv4()
+    const normalizedType = type.trim()
+
+    if (!isSupportedJobType(normalizedType)) {
+      throw new Error(`当前 Job 类型暂未支持: ${normalizedType}`)
+    }
 
     const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } })
     if (!ticket) {
@@ -59,8 +51,9 @@ export class JobManager {
     const job = await prisma.job.create({
       data: {
         ticketId,
+        workspaceId: ticket.workspaceId,
         stepOrder: stepOrder ?? null,
-        type,
+        type: normalizedType,
         status: 'PENDING',
         traceId,
         request: safeJsonStringify(request, 'Job.request'),
@@ -70,12 +63,13 @@ export class JobManager {
     })
 
     await writeAuditLog({
+      actor: SERVICE_ACTOR,
       ticketId,
       traceId,
       action: 'JOB_CREATED',
       tool: 'job',
-      request: { ticketId, type, stepOrder: stepOrder ?? null },
-      response: { jobId: job.id, status: job.status }
+      request: { ticketId, type: normalizedType, stepOrder: stepOrder ?? null },
+      response: { jobId: job.id, workspaceId: job.workspaceId, status: job.status }
     })
 
     return job
@@ -105,6 +99,7 @@ export class JobManager {
     })
 
     await writeAuditLog({
+      actor: SERVICE_ACTOR,
       ticketId: updated.ticketId ?? undefined,
       traceId: updated.traceId,
       action: 'JOB_STATUS_UPDATED',
@@ -129,6 +124,9 @@ export class JobManager {
     if (existing.status !== 'FAILED') {
       throw new Error('仅允许重试状态为 FAILED 的 Job')
     }
+    if (!isSupportedJobType(existing.type)) {
+      throw new Error(`当前 Job 类型暂未支持: ${existing.type}`)
+    }
 
     const newTraceId = uuidv4()
     const newJob = await prisma.job.create({
@@ -145,6 +143,7 @@ export class JobManager {
     })
 
     await writeAuditLog({
+      actor: SERVICE_ACTOR,
       ticketId: existing.ticketId ?? undefined,
       traceId: newTraceId,
       action: 'JOB_RETRIED',
@@ -164,4 +163,4 @@ export class JobManager {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

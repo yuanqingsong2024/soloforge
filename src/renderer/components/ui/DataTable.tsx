@@ -87,7 +87,7 @@ export function DataTable<T>({
                   >
                     {column.render
                       ? column.render(item)
-                      : (item as any)[column.key]}
+                      : String((item as Record<string, unknown>)[column.key] ?? '')}
                   </td>
                 ))}
               </tr>

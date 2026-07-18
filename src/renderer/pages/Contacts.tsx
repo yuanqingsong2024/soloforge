@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { EmptyState } from '../components/ui/EmptyState'
+import { ThemeInput, ThemeSelect, ThemeTextarea } from '../components/ui/FormFields'
 
 interface CommsTarget {
   id: string
@@ -102,27 +104,27 @@ export function Contacts() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <SectionCard title="新增联系人">
           <div className="space-y-3">
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="联系人姓名" className="w-full px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))]" />
-            <input value={company} onChange={e => setCompany(e.target.value)} placeholder="公司（可选）" className="w-full px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))]" />
-            <input value={tagsText} onChange={e => setTagsText(e.target.value)} placeholder="标签，逗号分隔" className="w-full px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))]" />
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="备注" rows={4} className="w-full px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))]" />
+            <ThemeInput value={name} onChange={e => setName(e.target.value)} placeholder="联系人姓名" />
+            <ThemeInput value={company} onChange={e => setCompany(e.target.value)} placeholder="公司（可选）" />
+            <ThemeInput value={tagsText} onChange={e => setTagsText(e.target.value)} placeholder="标签，逗号分隔" />
+            <ThemeTextarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="备注" rows={4} className="resize-y" />
             <button onClick={handleCreate} className="w-full px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md">创建联系人</button>
           </div>
         </SectionCard>
 
         <SectionCard title="绑定通讯目标">
           <div className="space-y-3">
-            <select value={selectedContactId} onChange={e => setSelectedContactId(e.target.value)} className="w-full px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))]">
+            <ThemeSelect value={selectedContactId} onChange={e => setSelectedContactId(e.target.value)}>
               <option value="">选择联系人</option>
               {contacts.map(contact => <option key={contact.id} value={contact.id}>{contact.name}</option>)}
-            </select>
+            </ThemeSelect>
 
-            <select value={bindTargetId} onChange={e => setBindTargetId(e.target.value)} className="w-full px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))]">
+            <ThemeSelect value={bindTargetId} onChange={e => setBindTargetId(e.target.value)}>
               <option value="">选择目标</option>
               {targets.map(target => (
                 <option key={target.id} value={target.id}>{target.displayName} / {target.channel} / {target.allowlisted ? 'allowlisted' : '未allowlist'}</option>
               ))}
-            </select>
+            </ThemeSelect>
 
             <button onClick={handleBindTarget} className="w-full px-4 py-2 bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] rounded-workshop-md">绑定为主目标</button>
 
@@ -145,7 +147,7 @@ export function Contacts() {
               </div>
             </div>
           ))}
-          {contacts.length === 0 && <p className="text-sm text-[hsl(var(--muted-foreground))]">暂无联系人</p>}
+          {contacts.length === 0 && <EmptyState message="暂无联系人" />}
           {selectedContact && <p className="text-xs text-[hsl(var(--muted-foreground))]">当前选中：{selectedContact.name}</p>}
         </div>
       </SectionCard>

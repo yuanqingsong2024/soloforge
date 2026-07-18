@@ -1,0 +1,120 @@
+{
+  "title": "帮助中心",
+  "description": "集中查看常用功能说明、操作路径与快捷入口。",
+  "navigation": {
+    "title": "导航"
+  },
+  "sections": {
+    "quickStart": "快速开始",
+    "tickets": "工单管理",
+    "team": "团队管理",
+    "approvals": "审批流程",
+    "config": "配置中心",
+    "deployments": "部署管理",
+    "faq": "常见问题",
+    "shortcuts": "快捷键"
+  },
+  "quickStart": {
+    "title": "快速开始",
+    "intro": "首次使用建议先完成连接、团队与工单基础配置，再逐步启用巡检、审批与部署能力。",
+    "step1": "在连接设置中配置本地或远程 OpenClaw 连接。",
+    "step2": "进入团队管理，创建岗位、员工并设置最小权限工具授权。",
+    "step3": "在工单看板中接收需求、推进状态并沉淀交付物。",
+    "step4": "按需启用审批、巡检、部署与活动流联动。"
+  },
+  "tickets": {
+    "title": "工单管理",
+    "intro": "工单用于承载从咨询到交付的全过程，是团队协作与资产沉淀的核心入口。",
+    "statusFlow": {
+      "title": "状态流转",
+      "description": "工单遵循 INBOX → SPEC → DEV → TEST → DELIVERY → DONE 的流转路径。"
+    },
+    "artifacts": {
+      "title": "交付物沉淀",
+      "description": "可在工单下记录方案、代码改动、测试用例、部署与回滚清单等资产。"
+    }
+  },
+  "team": {
+    "title": "团队管理",
+    "intro": "团队管理用于维护岗位、员工、工具与授权矩阵，确保最小权限与职责边界清晰。",
+    "roles": {
+      "title": "岗位",
+      "description": "岗位定义默认提示词、输出结构与风险等级，是员工行为边界的基础。"
+    },
+    "agents": {
+      "title": "员工",
+      "description": "员工绑定岗位、模型与运行环境，可按需启用或停用。"
+    },
+    "tools": {
+      "title": "工具授权",
+      "description": "通过授权矩阵为员工配置可用工具，默认避免直接授予高风险能力。"
+    }
+  },
+  "approvals": {
+    "title": "审批流程",
+    "intro": "高风险动作默认进入审批中心，只有审批通过后才允许继续执行。",
+    "highRisk": {
+      "title": "高风险动作",
+      "description": "包括外发消息、生产部署、配置变更、数据导出、令牌轮换等敏感操作。"
+    },
+    "workflow": {
+      "title": "执行流程",
+      "description": "系统会创建审批记录，人工通过后再进入执行与审计链路。"
+    }
+  },
+  "config": {
+    "title": "配置中心",
+    "intro": "配置中心用于统一管理 OpenClaw 常用配置，并支持差异查看、审批与回滚。",
+    "models": {
+      "title": "模型与路由",
+      "description": "可配置默认模型、回退模型、allowlist 与按角色覆盖策略。"
+    },
+    "security": {
+      "title": "安全配置",
+      "description": "敏感字段应通过 Keychain 管理，并重点关注 trustedProxies、hooks 与鉴权策略。"
+    }
+  },
+  "deployments": {
+    "title": "部署管理",
+    "intro": "部署管理支持本地与远程多种模式，统一管理 OpenClaw 生命周期。",
+    "modes": {
+      "title": "部署模式",
+      "description": "支持本地原生、本地 Docker、远程原生、远程 Docker 四种目标类型。"
+    },
+    "operations": {
+      "title": "运维动作",
+      "description": "可执行预检查、健康检查、启动、停止、重启、升级与日志查看等操作。"
+    }
+  },
+  "faq": {
+    "title": "常见问题",
+    "q1": {
+      "question": "如何连接 OpenClaw？",
+      "answer": "进入连接设置页面，填写本地或远程连接地址、鉴权方式与凭证。"
+    },
+    "q2": {
+      "question": "如何创建工单？",
+      "answer": "在工单看板中创建新工单，并按阶段持续补充需求、方案与交付物。"
+    },
+    "q3": {
+      "question": "为什么有些操作需要审批？",
+      "answer": "涉及外发、生产变更、配置修改等高风险动作时，系统默认要求人工审批。"
+    },
+    "q4": {
+      "question": "部署失败后如何排查？",
+      "answer": "可先查看部署详情、活动流、告警与 Doctor 巡检结果，再按 trace 链路定位问题。"
+    },
+    "q5": {
+      "question": "如何查看完整事件链路？",
+      "answer": "进入活动流或 Trace 详情页，可按 trace_id 查看相关操作、告警、任务与对象关系。"
+    }
+  },
+  "shortcuts": {
+    "title": "快捷键",
+    "search": "打开全局搜索",
+    "help": "打开帮助中心",
+    "sidebar": "切换侧边栏",
+    "refresh": "刷新当前页面",
+    "close": "关闭当前浮层或对话框"
+  }
+}

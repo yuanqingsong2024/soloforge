@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
+import { readWorkspaceId } from '../lib/storage'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
 import { useEventDrivenRefresh } from '../hooks/useEventDrivenRefresh'
+import { ThemeCheckbox, ThemeInput, ThemeSelect } from '../components/ui/FormFields'
+import { translateEnum } from '../lib/i18n-helpers'
 
 interface Workspace {
   id: string
@@ -50,7 +56,7 @@ function severityClass(severity: string): string {
   }
 }
 
-function formatJson(value: unknown): string {
+  function formatJson(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2)
   } catch {
@@ -58,7 +64,53 @@ function formatJson(value: unknown): string {
   }
 }
 
+function renderEventCard(
+  event: EventRecord,
+  navigate: ReturnType<typeof useNavigate>,
+  handleJump: (event: EventRecord) => void,
+  formatSeverity: (severity: string) => string
+) {
+  return (
+    <div key={event.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`rounded-full px-2.5 py-1 text-xs border ${severityClass(event.severity)}`}>{formatSeverity(event.severity)}</span>
+            <span className="text-xs font-mono text-[hsl(var(--muted-foreground))]">{event.sourceType}</span>
+            <span className="text-xs font-mono text-[hsl(var(--muted-foreground))]">{event.eventType}</span>
+            {event.traceId && <span className="text-xs font-mono text-[hsl(var(--muted-foreground))]">{event.traceId}</span>}
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-[hsl(var(--foreground))]">{event.title}</h3>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">{event.summary}</p>
+          </div>
+          <div className="text-xs text-[hsl(var(--muted-foreground))] flex gap-3 flex-wrap">
+            <span>Workspace: {event.workspaceId}</span>
+            {event.targetId && <span>Target: {event.targetId}</span>}
+            <span>{new Date(event.createdAt).toLocaleString('zh-CN')}</span>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 shrink-0">
+          {event.traceId && (
+            <button onClick={() => navigate(`/traces/${encodeURIComponent(event.traceId || '')}`)} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-3 py-1.5 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]">
+              查看链路
+            </button>
+          )}
+          <button onClick={() => handleJump(event)} className="rounded-full bg-[hsl(var(--primary))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90">
+            跳转来源
+          </button>
+        </div>
+      </div>
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs text-[hsl(var(--muted-foreground))]">展开 Payload</summary>
+        <pre className="mt-2 max-h-64 overflow-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-3 text-xs font-mono">{formatJson(event.payload)}</pre>
+      </details>
+    </div>
+  )
+}
+
 export function ActivityFeed() {
+  const { t } = useTranslation('common')
   const navigate = useNavigate()
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -66,7 +118,7 @@ export function ActivityFeed() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [filters, setFilters] = useState({
-    workspaceId: localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
+    workspaceId: readWorkspaceId(),
     targetId: '',
     severity: '',
     sourceType: '',
@@ -140,7 +192,7 @@ export function ActivityFeed() {
         navigate('/deployments')
         return
       case 'DOCTOR':
-        navigate('/doctor')
+        navigate('/health-monitoring?tab=doctor')
         return
       case 'BACKUP':
         navigate('/backup')
@@ -154,7 +206,7 @@ export function ActivityFeed() {
   }
 
   if (loading) {
-    return <div className="p-6 text-sm text-[hsl(var(--muted-foreground))]">加载活动流中...</div>
+    return <LoadingState message="加载活动流中..." />
   }
 
   return (
@@ -171,12 +223,7 @@ export function ActivityFeed() {
               打开调查时间线
             </button>
             <label className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.52)] px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={e => setAutoRefresh(e.target.checked)}
-                className="rounded border-[hsl(var(--border))]"
-              />
+              <ThemeCheckbox checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} />
               <span>事件驱动自动刷新</span>
             </label>
             <button
@@ -191,24 +238,24 @@ export function ActivityFeed() {
 
       <SectionCard title="过滤器" description="按 Workspace / Target / Severity / Source / Event Type / Time Range / Trace 查看事件流">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <select value={filters.workspaceId} onChange={e => setFilters(prev => ({ ...prev, workspaceId: e.target.value }))} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]">
+          <ThemeSelect value={filters.workspaceId} onChange={e => setFilters(prev => ({ ...prev, workspaceId: e.target.value }))} fieldSize="lg" fieldShape="pill">
             {workspaces.map(workspace => (
               <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
             ))}
-          </select>
-          <input value={filters.targetId} onChange={e => setFilters(prev => ({ ...prev, targetId: e.target.value }))} placeholder="Target ID" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]" />
-          <select value={filters.severity} onChange={e => setFilters(prev => ({ ...prev, severity: e.target.value }))} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]">
+          </ThemeSelect>
+          <ThemeInput value={filters.targetId} onChange={e => setFilters(prev => ({ ...prev, targetId: e.target.value }))} placeholder="Target ID" fieldSize="lg" fieldShape="pill" />
+          <ThemeSelect value={filters.severity} onChange={e => setFilters(prev => ({ ...prev, severity: e.target.value }))} fieldSize="lg" fieldShape="pill">
             <option value="">全部严重级别</option>
-            <option value="INFO">INFO</option>
-            <option value="WARN">WARN</option>
-            <option value="ERROR">ERROR</option>
-            <option value="CRITICAL">CRITICAL</option>
-          </select>
-          <input value={filters.sourceType} onChange={e => setFilters(prev => ({ ...prev, sourceType: e.target.value }))} placeholder="Source Type" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]" />
-          <input value={filters.eventType} onChange={e => setFilters(prev => ({ ...prev, eventType: e.target.value }))} placeholder="Event Type" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]" />
-          <input value={filters.traceId} onChange={e => setFilters(prev => ({ ...prev, traceId: e.target.value }))} placeholder="Trace ID" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]" />
-          <input type="datetime-local" value={filters.startAt} onChange={e => setFilters(prev => ({ ...prev, startAt: e.target.value }))} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]" />
-          <input type="datetime-local" value={filters.endAt} onChange={e => setFilters(prev => ({ ...prev, endAt: e.target.value }))} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]" />
+            <option value="INFO">{translateEnum(t, 'severityMap', 'INFO')}</option>
+            <option value="WARN">{translateEnum(t, 'severityMap', 'WARN')}</option>
+            <option value="ERROR">{translateEnum(t, 'severityMap', 'ERROR')}</option>
+            <option value="CRITICAL">{translateEnum(t, 'severityMap', 'CRITICAL')}</option>
+          </ThemeSelect>
+          <ThemeInput value={filters.sourceType} onChange={e => setFilters(prev => ({ ...prev, sourceType: e.target.value }))} placeholder="Source Type" fieldSize="lg" fieldShape="pill" />
+          <ThemeInput value={filters.eventType} onChange={e => setFilters(prev => ({ ...prev, eventType: e.target.value }))} placeholder="Event Type" fieldSize="lg" fieldShape="pill" />
+          <ThemeInput value={filters.traceId} onChange={e => setFilters(prev => ({ ...prev, traceId: e.target.value }))} placeholder="Trace ID" fieldSize="lg" fieldShape="pill" />
+          <ThemeInput type="datetime-local" value={filters.startAt} onChange={e => setFilters(prev => ({ ...prev, startAt: e.target.value }))} fieldSize="lg" fieldShape="pill" />
+          <ThemeInput type="datetime-local" value={filters.endAt} onChange={e => setFilters(prev => ({ ...prev, endAt: e.target.value }))} fieldSize="lg" fieldShape="pill" />
         </div>
         <div className="mt-3 text-xs text-[hsl(var(--muted-foreground))]">
           {lastEventPollAt ? `最近事件检查：${new Date(lastEventPollAt).toLocaleTimeString('zh-CN')}` : '尚未进行事件检查'}
@@ -216,46 +263,10 @@ export function ActivityFeed() {
       </SectionCard>
 
       <div>
-        <SectionCard title={`事件流 (${events.length})`} description="按时间倒序展示，支持查看 Trace 及反向跳转来源模块">
-          <div className="space-y-3">
-            {events.map(event => (
-              <div key={event.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`rounded-full px-2.5 py-1 text-xs border ${severityClass(event.severity)}`}>{event.severity}</span>
-                      <span className="text-xs font-mono text-[hsl(var(--muted-foreground))]">{event.sourceType}</span>
-                      <span className="text-xs font-mono text-[hsl(var(--muted-foreground))]">{event.eventType}</span>
-                      {event.traceId && <span className="text-xs font-mono text-[hsl(var(--muted-foreground))]">{event.traceId}</span>}
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-[hsl(var(--foreground))]">{event.title}</h3>
-                      <p className="text-sm text-[hsl(var(--muted-foreground))]">{event.summary}</p>
-                    </div>
-                    <div className="text-xs text-[hsl(var(--muted-foreground))] flex gap-3 flex-wrap">
-                      <span>Workspace: {event.workspaceId}</span>
-                      {event.targetId && <span>Target: {event.targetId}</span>}
-                      <span>{new Date(event.createdAt).toLocaleString('zh-CN')}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2 shrink-0">
-                    {event.traceId && (
-                      <button onClick={() => navigate(`/traces/${encodeURIComponent(event.traceId || '')}`)} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-3 py-1.5 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]">
-                        查看链路
-                      </button>
-                    )}
-                    <button onClick={() => handleJump(event)} className="rounded-full bg-[hsl(var(--primary))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90">
-                      跳转来源
-                    </button>
-                  </div>
-                </div>
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-xs text-[hsl(var(--muted-foreground))]">展开 Payload</summary>
-                  <pre className="mt-2 max-h-64 overflow-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-3 text-xs font-mono">{formatJson(event.payload)}</pre>
-                </details>
-              </div>
-            ))}
-            {events.length === 0 && <div className="text-sm text-[hsl(var(--muted-foreground))]">当前筛选条件下暂无事件。</div>}
+          <SectionCard title={`事件流 (${events.length})`} description="按时间倒序展示，支持查看 Trace 及反向跳转来源模块">
+            <div className="space-y-3">
+              {events.map(event => renderEventCard(event, navigate, handleJump, (severity) => translateEnum(t, 'severityMap', severity)))}
+            {events.length === 0 && <EmptyState message="当前筛选条件下暂无事件。" />}
           </div>
         </SectionCard>
       </div>

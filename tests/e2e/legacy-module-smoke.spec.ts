@@ -45,7 +45,7 @@ test.describe('旧业务模块稳定冒烟', () => {
       await waitForDashboardReady(context.page)
       await context.page.getByTestId('sidebar-link-outbound-messages').click()
       await expect(context.page).toHaveURL(/#\/outbound-messages/)
-      await expect(context.page.getByRole('heading', { name: 'Outbound Message Center' })).toBeVisible()
+      await expect(context.page.getByTestId('outbound-message-filters')).toBeVisible()
       await expect(context.page.getByRole('button', { name: '全部' })).toBeVisible()
       await expect(context.page.getByText(/草稿 \(/)).toBeVisible()
       await expect(context.page.getByText(/待审批 \(/)).toBeVisible()

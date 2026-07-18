@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { useErrorMessage } from '../lib/i18n-helpers'
 import { getApiPort } from '../lib/api'
+import { readLocalStorage, readWorkspaceId, writeLocalStorage } from '../lib/storage'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { ThemeCheckbox, ThemeInput, ThemeSelect } from '../components/ui/FormFields'
 import { Drawer } from '../components/ui/Drawer'
+import { LoadingState } from '../components/ui/LoadingState'
+import { envTypeMap } from '../lib/i18n-enums'
+import { translateEnum } from '../lib/i18n-helpers'
 
 interface WorkspaceOption {
   id: string
@@ -45,7 +52,7 @@ interface DashboardHealthScore {
 
 interface DashboardCriticalIssue {
   id: string
-  issueType: 'CRITICAL_ALERT' | 'CRITICAL_DRIFT' | 'FAILED_UPGRADE' | 'FAILED_REMEDIATION' | 'OFFLINE_AGENT' | 'UNREACHABLE_TARGET'
+  issueType: 'CRITICAL_ALERT' | 'CRITICAL_DRIFT' | 'FAILED_UPGRADE' | 'FAILED_REMEDIATION' | 'OFFLINE_AGENT' | 'UNREACHABLE_TARGET' | 'FAILED_JOB' | 'OUTBOX_FAILURE' | 'BACKUP_STALE' | 'MIGRATION_ISSUE'
   severity: 'CRITICAL' | 'HIGH'
   workspaceId: string
   workspaceName: string
@@ -207,18 +214,51 @@ function getHealthScoreClass(label: DashboardHealthScore['label']): string {
   }
 }
 
-function getStatusLabel(label: DashboardHealthScore['label']): string {
+function getStatusLabel(t: (key: string) => string, label: DashboardHealthScore['label']): string {
   switch (label) {
     case 'GOOD':
-      return 'Good'
+      return t('dashboard:healthScore.good')
     case 'WARNING':
-      return 'Warning'
+      return t('dashboard:healthScore.warning')
     case 'CRITICAL':
-      return 'Critical'
+      return t('dashboard:healthScore.critical')
   }
 }
 
-function buildOverviewCards(overview: DashboardOverview): Array<{
+function getWorkspaceDisplayName(t: (key: string, options?: Record<string, unknown>) => string, name: string): string {
+  const translated = t(`common:workspaceNames.${name}`, { defaultValue: name })
+  return translated || name
+}
+
+function getIssueTypeLabel(t: (key: string) => string, value: string): string {
+  return translateEnum(t, 'criticalIssueTypeMap', value)
+}
+
+function getPendingActionLabel(t: (key: string) => string, value: string): string {
+  return translateEnum(t, 'pendingActionTypeMap', value)
+}
+
+function getStatusText(t: (key: string) => string, value: string): string {
+  return translateEnum(t, 'operationStatusMap', value)
+}
+
+function getSeverityText(t: (key: string) => string, value: string): string {
+  return translateEnum(t, 'severityMap', value)
+}
+
+function appendQuery(route: string, query: Record<string, string | undefined>): string {
+  const [path, search = ''] = route.split('?')
+  const params = new URLSearchParams(search)
+  Object.entries(query).forEach(([key, value]) => {
+    if (value) {
+      params.set(key, value)
+    }
+  })
+  const nextSearch = params.toString()
+  return nextSearch ? `${path}?${nextSearch}` : path
+}
+
+function buildOverviewCards(t: (key: string, options?: Record<string, unknown>) => string, overview: DashboardOverview): Array<{
   key: string
   title: string
   value: string
@@ -228,65 +268,196 @@ function buildOverviewCards(overview: DashboardOverview): Array<{
   return [
     {
       key: 'workspaces',
-      title: 'Workspaces',
+      title: t('dashboard:overview.workspaces'),
       value: String(overview.workspaceCount),
-      subtitle: '当前纳管工作区数',
+      subtitle: t('dashboard:overview.workspacesSubtitle'),
       route: '/workspace-settings'
     },
     {
       key: 'targets',
-      title: 'Targets',
+      title: t('dashboard:overview.targets'),
       value: String(overview.targetTotals.total),
-      subtitle: `Healthy ${overview.targetTotals.healthy} / Degraded ${overview.targetTotals.degraded} / Unreachable ${overview.targetTotals.unreachable}`,
+      subtitle: t('dashboard:overview.targetsSubtitle', { healthy: overview.targetTotals.healthy, degraded: overview.targetTotals.degraded, unreachable: overview.targetTotals.unreachable }),
       route: '/deployments'
     },
     {
       key: 'alerts',
-      title: 'Open Alerts',
+      title: t('dashboard:overview.openAlerts'),
       value: String(overview.openAlerts),
-      subtitle: '未解决风险告警',
-      route: '/alerts'
+      subtitle: t('dashboard:overview.openAlertsSubtitle'),
+      route: '/health-monitoring?tab=alerts'
     },
     {
       key: 'drift',
-      title: 'Critical Drift',
+      title: t('dashboard:overview.criticalDrift'),
       value: String(overview.criticalDrift),
-      subtitle: '高风险配置漂移',
-      route: '/doctor'
+      subtitle: t('dashboard:overview.criticalDriftSubtitle'),
+      route: '/health-monitoring?tab=doctor'
     },
     {
       key: 'operations',
-      title: 'Running Operations',
+      title: t('dashboard:overview.runningOperations'),
       value: String(overview.runningOperations),
-      subtitle: '关键动作执行中',
+      subtitle: t('dashboard:overview.runningOperationsSubtitle'),
       route: '/operations'
     },
     {
       key: 'approvals',
-      title: 'Pending Approvals',
+      title: t('dashboard:overview.pendingApprovals'),
       value: String(overview.pendingApprovals),
-      subtitle: '人工手刹待处理',
+      subtitle: t('dashboard:overview.pendingApprovalsSubtitle'),
       route: '/approvals'
     },
     {
       key: 'agents',
-      title: 'Agents',
+      title: t('dashboard:overview.agents'),
       value: `${overview.agents.online}/${overview.agents.offline}`,
-      subtitle: 'Online / Offline',
+      subtitle: t('dashboard:overview.agentsSubtitle'),
       route: '/host-agents'
     },
     {
       key: 'updates',
-      title: 'Available Updates',
+      title: t('dashboard:overview.availableUpdates'),
       value: String(overview.availableUpdates),
-      subtitle: '可处理升级项',
+      subtitle: t('dashboard:overview.availableUpdatesSubtitle'),
       route: '/releases'
     }
   ]
 }
 
+function buildRecommendedActions(t: (key: string, options?: Record<string, unknown>) => string, dashboard: DashboardPayload): Array<{
+  key: string
+  title: string
+  description: string
+  route: string
+  priority: 'urgent' | 'today' | 'later'
+}> {
+  const recommendations: Array<{
+    key: string
+    title: string
+    description: string
+    route: string
+    priority: 'urgent' | 'today' | 'later'
+  }> = []
+
+  if (dashboard.criticalIssues.length > 0) {
+    recommendations.push({
+      key: 'critical-issues',
+      title: t('dashboard:recommendedActions.criticalIssuesTitle', { count: dashboard.criticalIssues.length }),
+      description: dashboard.criticalIssues[0]?.summary || t('dashboard:recommendedActions.criticalIssuesDesc'),
+      route: dashboard.criticalIssues[0]?.actions[0]?.route || '/health-monitoring',
+      priority: 'urgent'
+    })
+  }
+
+  if (dashboard.overview.targetTotals.unreachable > 0) {
+    recommendations.push({
+      key: 'unreachable-targets',
+      title: t('dashboard:recommendedActions.unreachableTargetsTitle', { count: dashboard.overview.targetTotals.unreachable }),
+      description: t('dashboard:recommendedActions.unreachableTargetsDesc'),
+      route: '/deployments',
+      priority: 'urgent'
+    })
+  }
+
+  if (dashboard.overview.criticalDrift > 0) {
+    recommendations.push({
+      key: 'critical-drift',
+      title: t('dashboard:recommendedActions.criticalDriftTitle', { count: dashboard.overview.criticalDrift }),
+      description: t('dashboard:recommendedActions.criticalDriftDesc'),
+      route: '/health-monitoring?tab=doctor',
+      priority: 'urgent'
+    })
+  }
+
+  if (dashboard.pendingActions.length > 0) {
+    recommendations.push({
+      key: 'pending-actions',
+      title: t('dashboard:recommendedActions.pendingActionsTitle', { count: dashboard.pendingActions.length }),
+      description: dashboard.pendingActions[0]?.summary || t('dashboard:recommendedActions.pendingActionsDesc'),
+      route: dashboard.pendingActions[0]?.route || '/approvals',
+      priority: 'today'
+    })
+  }
+
+  if (dashboard.runtime.hostAgents.offline > 0 || dashboard.runtime.hostAgents.degraded > 0) {
+    recommendations.push({
+      key: 'host-agents',
+      title: t('dashboard:recommendedActions.hostAgentsTitle', {
+        offline: dashboard.runtime.hostAgents.offline,
+        degraded: dashboard.runtime.hostAgents.degraded
+      }),
+      description: t('dashboard:recommendedActions.hostAgentsDesc'),
+      route: '/host-agents',
+      priority: 'today'
+    })
+  }
+
+  if (dashboard.runtime.operations.waitingApproval > 0) {
+    recommendations.push({
+      key: 'waiting-approval',
+      title: t('dashboard:recommendedActions.waitingApprovalTitle', { count: dashboard.runtime.operations.waitingApproval }),
+      description: t('dashboard:recommendedActions.waitingApprovalDesc'),
+      route: '/approvals',
+      priority: 'today'
+    })
+  }
+
+  if (dashboard.overview.availableUpdates > 0) {
+    recommendations.push({
+      key: 'available-updates',
+      title: t('dashboard:recommendedActions.availableUpdatesTitle', { count: dashboard.overview.availableUpdates }),
+      description: t('dashboard:recommendedActions.availableUpdatesDesc'),
+      route: '/releases',
+      priority: 'later'
+    })
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push({
+      key: 'all-clear',
+      title: t('dashboard:recommendedActions.allClearTitle'),
+      description: t('dashboard:recommendedActions.allClearDesc'),
+      route: '/operations',
+      priority: 'later'
+    })
+  }
+
+  return recommendations.slice(0, 5)
+}
+
+function getRecommendedActionClass(priority: 'urgent' | 'today' | 'later'): string {
+  switch (priority) {
+    case 'urgent':
+      return 'border-[hsl(var(--google-red)_/_0.22)] bg-[hsl(var(--google-red)_/_0.08)]'
+    case 'today':
+      return 'border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.08)]'
+    case 'later':
+      return 'border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.07)]'
+  }
+}
+
+function getOverviewCardAccentClass(key: string): string {
+  switch (key) {
+    case 'alerts':
+    case 'drift':
+      return 'bg-[hsl(var(--google-red)_/_0.72)]'
+    case 'operations':
+    case 'approvals':
+      return 'bg-[hsl(var(--google-yellow)_/_0.78)]'
+    case 'agents':
+    case 'targets':
+      return 'bg-[hsl(var(--google-green)_/_0.72)]'
+    default:
+      return 'bg-[hsl(var(--google-blue)_/_0.72)]'
+  }
+}
+
 export function Dashboard() {
   const navigate = useNavigate()
+  const { t } = useTranslation(['dashboard', 'common'])
+  const getErrorMessage = useErrorMessage()
+  
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([])
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
@@ -298,12 +469,13 @@ export function Dashboard() {
   const [activitySeverity, setActivitySeverity] = useState('')
   const [activitySourceType, setActivitySourceType] = useState('')
   const [workspaceMode, setWorkspaceMode] = useState<'global' | 'workspace'>(() => {
-    const stored = localStorage.getItem('soloforge-dashboard-mode')
+    const stored = readLocalStorage('soloforge-dashboard-mode')
     return stored === 'global' ? 'global' : 'workspace'
   })
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(() => {
-    return localStorage.getItem('soloforge-current-workspace') || DEFAULT_WORKSPACE_ID
+    return readWorkspaceId() || DEFAULT_WORKSPACE_ID
   })
+  const [showSetupBanner, setShowSetupBanner] = useState(false)
 
   // Drawer 状态管理
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
@@ -311,7 +483,9 @@ export function Dashboard() {
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
 
   const effectiveWorkspaceId = workspaceMode === 'workspace' ? selectedWorkspaceId : undefined
-  const overviewCards = useMemo(() => (dashboard ? buildOverviewCards(dashboard.overview) : []), [dashboard])
+  const overviewCards = useMemo(() => (dashboard ? buildOverviewCards(t, dashboard.overview) : []), [dashboard, t])
+  const recommendedActions = useMemo(() => (dashboard ? buildRecommendedActions(t, dashboard) : []), [dashboard, t])
+  const withWorkspaceContext = useCallback((route: string) => appendQuery(route, { workspaceId: effectiveWorkspaceId }), [effectiveWorkspaceId])
 
   const fetchWorkspaces = useCallback(async (port: number) => {
     const response = await fetch(`http://127.0.0.1:${port}/api/workspaces`)
@@ -353,27 +527,35 @@ export function Dashboard() {
       setApiPort(port)
       try {
         await Promise.all([fetchWorkspaces(port), fetchDashboard(port)])
+        
+        const setupResponse = await fetch(`http://127.0.0.1:${port}/api/setup/status?workspaceId=${selectedWorkspaceId}`)
+        const setupData = await setupResponse.json()
+        if (!setupData.setupCompleted) {
+          setShowSetupBanner(true)
+        }
       } catch (currentError) {
         setError(currentError instanceof Error ? currentError.message : String(currentError))
       } finally {
         setLoading(false)
       }
     })
-  }, [fetchDashboard, fetchWorkspaces])
+  }, [fetchDashboard, fetchWorkspaces, selectedWorkspaceId])
 
   useEffect(() => {
     if (!apiPort || !autoRefreshEnabled) return
     const timer = window.setInterval(() => {
       void fetchDashboard(apiPort, { silent: true }).catch(currentError => {
-        setStatusMessage(`自动刷新失败：${currentError instanceof Error ? currentError.message : String(currentError)}`)
+        setStatusMessage(t('dashboard:messages.autoRefreshFailed', {
+          error: currentError instanceof Error ? currentError.message : String(currentError)
+        }))
       })
     }, 30000)
 
     return () => window.clearInterval(timer)
-  }, [apiPort, autoRefreshEnabled, fetchDashboard])
+  }, [apiPort, autoRefreshEnabled, fetchDashboard, t])
 
   useEffect(() => {
-    localStorage.setItem('soloforge-dashboard-mode', workspaceMode)
+    writeLocalStorage('soloforge-dashboard-mode', workspaceMode)
   }, [workspaceMode])
 
   const refreshAll = async () => {
@@ -382,11 +564,35 @@ export function Dashboard() {
     setStatusMessage(null)
     try {
       await Promise.all([fetchWorkspaces(apiPort), fetchDashboard(apiPort)])
-      setStatusMessage(`已刷新 Dashboard · ${new Date().toLocaleTimeString('zh-CN')}`)
+      setStatusMessage(t('dashboard:messages.refreshed', {
+        time: new Date().toLocaleTimeString('zh-CN')
+      }))
     } catch (currentError) {
-      setError(currentError instanceof Error ? currentError.message : String(currentError))
+      setError(getErrorMessage(currentError))
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  const handleSkipSetup = async () => {
+    if (!apiPort) return
+    try {
+      await fetch(`http://127.0.0.1:${apiPort}/api/audit-logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: selectedWorkspaceId,
+          actor: 'user',
+          action: 'SETUP_SKIPPED',
+          tool: 'setup-wizard',
+          request: JSON.stringify({ timestamp: new Date().toISOString() }),
+          response: JSON.stringify({ success: true })
+        })
+      })
+      setShowSetupBanner(false)
+    } catch (err) {
+      console.error('Failed to log setup skip:', err)
+      setShowSetupBanner(false)
     }
   }
 
@@ -395,7 +601,7 @@ export function Dashboard() {
     setWorkspaceMode(nextMode)
     if (nextWorkspaceId) {
       setSelectedWorkspaceId(nextWorkspaceId)
-      localStorage.setItem('soloforge-current-workspace', nextWorkspaceId)
+      writeLocalStorage('soloforge-current-workspace', nextWorkspaceId)
     }
     if (!apiPort) return
     setRefreshing(true)
@@ -429,7 +635,7 @@ export function Dashboard() {
 
   const runDoctorCheck = async () => {
     if (!apiPort || !selectedWorkspaceId) return
-    setStatusMessage('正在发起 Doctor Check...')
+    setStatusMessage(t('dashboard:messages.runningDoctorCheck'))
     try {
       const response = await fetch(`http://127.0.0.1:${apiPort}/api/doctor/run`, {
         method: 'POST',
@@ -440,16 +646,18 @@ export function Dashboard() {
       if (!json.success) {
         throw new Error(json.error)
       }
-      setStatusMessage('Doctor Check 已触发，正在跳转诊断中心。')
-      navigate('/doctor')
+      setStatusMessage(t('dashboard:messages.doctorCheckTriggered'))
+      navigate(withWorkspaceContext('/health-monitoring?tab=doctor'))
     } catch (currentError) {
-      setStatusMessage(`Doctor Check 触发失败：${currentError instanceof Error ? currentError.message : String(currentError)}`)
+      setStatusMessage(t('dashboard:messages.doctorCheckFailed', {
+        error: getErrorMessage(currentError)
+      }))
     }
   }
 
   const syncActual = async () => {
     if (!apiPort || !selectedWorkspaceId) return
-    setStatusMessage('正在同步 Actual Snapshot...')
+    setStatusMessage(t('dashboard:messages.syncingActual'))
     try {
       const response = await fetch(`http://127.0.0.1:${apiPort}/api/workspaces/${encodeURIComponent(selectedWorkspaceId)}/snapshots/actual`, {
         method: 'POST'
@@ -458,16 +666,18 @@ export function Dashboard() {
       if (!json.success) {
         throw new Error(json.error)
       }
-      setStatusMessage('Actual Snapshot 已同步。')
+      setStatusMessage(t('dashboard:messages.actualSynced'))
       await refreshAll()
     } catch (currentError) {
-      setStatusMessage(`同步 Actual 失败：${currentError instanceof Error ? currentError.message : String(currentError)}`)
+      setStatusMessage(t('dashboard:messages.syncActualFailed', {
+        error: getErrorMessage(currentError)
+      }))
     }
   }
 
   const createReconcilePlan = async () => {
     if (!apiPort || !selectedWorkspaceId) return
-    setStatusMessage('正在计算 Drift 并生成 Reconcile 入口...')
+    setStatusMessage(t('dashboard:messages.computingDrift'))
     try {
       const response = await fetch(`http://127.0.0.1:${apiPort}/api/workspaces/${encodeURIComponent(selectedWorkspaceId)}/drift/compute`, {
         method: 'POST'
@@ -476,10 +686,12 @@ export function Dashboard() {
       if (!json.success) {
         throw new Error(json.error)
       }
-      setStatusMessage('Drift 已重新计算，请在诊断中心生成变更计划。')
-      navigate('/doctor')
+      setStatusMessage(t('dashboard:messages.driftComputed'))
+      navigate(withWorkspaceContext('/health-monitoring?tab=doctor'))
     } catch (currentError) {
-      setStatusMessage(`生成 Reconcile 入口失败：${currentError instanceof Error ? currentError.message : String(currentError)}`)
+      setStatusMessage(t('dashboard:messages.reconcilePlanFailed', {
+        error: getErrorMessage(currentError)
+      }))
     }
   }
 
@@ -490,63 +702,59 @@ export function Dashboard() {
     disabled?: boolean
   }> = [
     {
-      label: 'Sync Actual',
-      description: '同步实际状态快照',
+      label: t('dashboard:quickActions.syncActual'),
+      description: t('dashboard:quickActions.syncActualDesc'),
       onClick: () => { void syncActual() },
       disabled: workspaceMode !== 'workspace'
     },
     {
-      label: 'Run Doctor Check',
-      description: '发起当前工作区诊断',
+      label: t('dashboard:quickActions.runDoctorCheck'),
+      description: t('dashboard:quickActions.runDoctorCheckDesc'),
       onClick: () => { void runDoctorCheck() },
       disabled: workspaceMode !== 'workspace'
     },
     {
-      label: 'Create Reconcile Plan',
-      description: '重算 Drift 并进入收敛链路',
+      label: t('dashboard:quickActions.createReconcilePlan'),
+      description: t('dashboard:quickActions.createReconcilePlanDesc'),
       onClick: () => { void createReconcilePlan() },
       disabled: workspaceMode !== 'workspace'
     },
     {
-      label: 'Open Pending Approvals',
-      description: '查看待审批事项',
-      onClick: () => navigate('/approvals')
+      label: t('dashboard:quickActions.openPendingApprovals'),
+      description: t('dashboard:quickActions.openPendingApprovalsDesc'),
+      onClick: () => navigate(withWorkspaceContext('/approvals?status=PENDING'))
     },
     {
-      label: 'View Offline Agents',
-      description: '查看离线 Agent',
-      onClick: () => navigate('/host-agents')
+      label: t('dashboard:quickActions.viewOfflineAgents'),
+      description: t('dashboard:quickActions.viewOfflineAgentsDesc'),
+      onClick: () => navigate(withWorkspaceContext('/host-agents?status=OFFLINE'))
     },
     {
-      label: 'View Failed Upgrades',
-      description: '查看失败升级',
-      onClick: () => navigate('/upgrade-plans')
+      label: t('dashboard:quickActions.viewFailedUpgrades'),
+      description: t('dashboard:quickActions.viewFailedUpgradesDesc'),
+      onClick: () => navigate(withWorkspaceContext('/upgrade-plans?status=FAILED'))
     },
     {
-      label: 'New Deployment Target',
-      description: '进入新建部署目标',
-      onClick: () => navigate('/deployments/new')
+      label: t('dashboard:quickActions.newDeploymentTarget'),
+      description: t('dashboard:quickActions.newDeploymentTargetDesc'),
+      onClick: () => navigate(withWorkspaceContext('/deployments/new'))
     },
     {
-      label: 'Bootstrap Host Agent',
-      description: '进入 Agent 引导向导',
-      onClick: () => navigate('/host-agents/new')
+      label: t('dashboard:quickActions.bootstrapHostAgent'),
+      description: t('dashboard:quickActions.bootstrapHostAgentDesc'),
+      onClick: () => navigate(withWorkspaceContext('/host-agents/new'))
     }
   ]
 
   if (loading) {
-    return (
-      <div data-testid="dashboard-loading" className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-[hsl(var(--primary))] border-t-transparent"></div>
-      </div>
-    )
+    return <LoadingState message={t('dashboard:messages.loading')} />
   }
 
   return (
     <div data-testid="dashboard-page" className="space-y-6">
       <PageHeader
-        title="总控首页"
-        description="统一查看 Workspace、Target、Alerts、Drift、Approvals、Operations、Host Agents、Upgrade 与 Activity Feed 的当前运行态。"
+        title={t('dashboard:title')}
+        description={t('dashboard:description')}
         actions={
           <>
             <button
@@ -555,16 +763,11 @@ export function Dashboard() {
               className="rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
               type="button"
             >
-              {refreshing ? '刷新中…' : '手动刷新'}
+              {refreshing ? t('dashboard:actions.refreshing') : t('dashboard:actions.refresh')}
             </button>
             <label className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] shadow-workshop-sm">
-              <input
-                data-testid="dashboard-auto-refresh-toggle"
-                type="checkbox"
-                checked={autoRefreshEnabled}
-                onChange={(event) => setAutoRefreshEnabled(event.target.checked)}
-              />
-              30s 自动刷新
+              <ThemeCheckbox data-testid="dashboard-auto-refresh-toggle" checked={autoRefreshEnabled} onChange={(event) => setAutoRefreshEnabled(event.target.checked)} />
+              {t('dashboard:actions.autoRefresh')}
             </label>
           </>
         }
@@ -574,7 +777,7 @@ export function Dashboard() {
         <div className="space-y-2">
           {error && (
             <div data-testid="dashboard-error-banner" className="rounded-workshop-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.1)] p-3 text-sm text-[hsl(var(--destructive))]">
-              Dashboard 加载失败：{error}
+              {t('dashboard:messages.loadFailed', { error })}
             </div>
           )}
           {statusMessage && (
@@ -585,17 +788,41 @@ export function Dashboard() {
         </div>
       )}
 
-      <SectionCard title="Global Overview" description="总控首页支持全局模式与当前 Workspace 模式，切换后所有板块同步过滤。">
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2.2fr)_minmax(320px,1fr)] gap-6">
-          <div data-testid="dashboard-global-overview" className="space-y-4">
-            <div data-testid="dashboard-workspace-controls" className="flex flex-wrap items-center gap-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
+      {showSetupBanner && (
+        <SectionCard title={t('dashboard:setupBanner.title')} className="border-l-4 border-[hsl(var(--google-blue))]">
+          <div className="space-y-4">
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+              {t('dashboard:setupBanner.description')}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => navigate('/setup/wizard')}
+                className="rounded-full bg-[hsl(var(--primary))] px-6 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
+              >
+                {t('dashboard:setupBanner.startSetup')}
+              </button>
+              <button
+                onClick={() => void handleSkipSetup()}
+                className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
+              >
+                {t('dashboard:setupBanner.skipSetup')}
+              </button>
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
+      <SectionCard title={t('dashboard:sections.globalOverview')} description={t('dashboard:sections.globalOverviewDesc')}>
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2.2fr)_minmax(320px,1fr)] xl:items-stretch">
+          <div data-testid="dashboard-global-overview" className="space-y-4 xl:grid xl:h-full xl:grid-rows-[auto_minmax(0,1fr)] xl:gap-4 xl:space-y-0">
+            <div data-testid="dashboard-workspace-controls" className="grid grid-cols-1 gap-3 rounded-workshop-lg sm:grid-cols-[auto_auto_minmax(16rem,1fr)] sm:items-center border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
               <button
                 data-testid="dashboard-workspace-mode-global"
                 type="button"
                 onClick={() => void switchWorkspace('global')}
                 className={`rounded-full px-4 py-2.5 text-sm font-medium border transition-colors ${workspaceMode === 'global' ? 'border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]'}`}
               >
-                全局模式
+                {t('dashboard:workspace.globalMode')}
               </button>
               <button
                 data-testid="dashboard-workspace-mode-current"
@@ -603,30 +830,41 @@ export function Dashboard() {
                 onClick={() => void switchWorkspace('workspace')}
                 className={`rounded-full px-4 py-2.5 text-sm font-medium border transition-colors ${workspaceMode === 'workspace' ? 'border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]'}`}
               >
-                当前 Workspace
+                {t('dashboard:workspace.currentMode')}
               </button>
-              <select
+              <ThemeSelect
                 data-testid="dashboard-workspace-switcher"
                 value={selectedWorkspaceId}
                 onChange={(event) => void switchWorkspace('workspace', event.target.value)}
-                className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
+                fieldSize="lg"
+                fieldShape="pill"
+                className="min-w-[14rem]"
               >
                 {workspaces.map(workspace => (
                   <option key={workspace.id} value={workspace.id}>
-                    {workspace.name} · {workspace.envType}
+                    {getWorkspaceDisplayName(t, workspace.name)} · {t(envTypeMap[workspace.envType] || workspace.envType)}
                   </option>
                 ))}
-              </select>
+              </ThemeSelect>
             </div>
 
-            <div data-testid="dashboard-overview-cards" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div data-testid="dashboard-overview-cards" className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:h-full xl:auto-rows-fr xl:grid-cols-2">
               {overviewCards.map(card => (
-                <Link key={card.key} to={card.route} data-testid={`dashboard-overview-card-${card.key}`} className="block">
-                  <SectionCard className="!p-0 h-full transition-colors hover:border-[hsl(var(--google-blue)_/_0.18)] hover:shadow-workshop-md">
-                    <div className="px-5 py-4 space-y-2">
-                      <div className="text-sm text-[hsl(var(--muted-foreground))]">{card.title}</div>
-                      <div className="text-3xl font-bold text-[hsl(var(--foreground))]">{card.value}</div>
-                      <div className="text-xs text-[hsl(var(--muted-foreground))]">{card.subtitle}</div>
+                <Link
+                  key={card.key}
+                  to={withWorkspaceContext(card.route)}
+                  data-testid={`dashboard-overview-card-${card.key}`}
+                  className="group block"
+                  title={card.subtitle}
+                  aria-label={`${card.title} ${card.subtitle}`}
+                >
+                  <SectionCard className="relative h-full !p-0 overflow-hidden transition-colors group-hover:border-[hsl(var(--google-blue)_/_0.18)] group-hover:bg-[hsl(var(--accent)_/_0.32)]">
+                    <div className={`absolute inset-y-4 left-0 w-1 rounded-r-full ${getOverviewCardAccentClass(card.key)}`} />
+                    <div className="flex min-h-[5.75rem] items-start justify-between gap-4 px-4 py-3 pl-5 xl:min-h-full xl:px-5 xl:py-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-base font-semibold leading-7 text-[hsl(var(--foreground))] break-words">{card.title}</div>
+                      </div>
+                      <div className="shrink-0 pt-1 text-2xl font-bold leading-none tracking-tight text-[hsl(var(--foreground))] tabular-nums xl:text-[2rem]">{card.value}</div>
                     </div>
                   </SectionCard>
                 </Link>
@@ -634,27 +872,31 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div data-testid="dashboard-health-score" className="space-y-4 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-workshop-sm">
+          <div data-testid="dashboard-health-score" className="space-y-4 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-workshop-sm xl:h-full">
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-sm text-[hsl(var(--muted-foreground))]">Dashboard Health Score</div>
-                <div className={`text-4xl font-bold ${dashboard ? getHealthScoreClass(dashboard.healthScore.label) : ''}`}>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-[hsl(var(--muted-foreground))]">{t('dashboard:healthScore.title')}</div>
+                <div className={`mt-1 text-4xl font-bold leading-none ${dashboard ? getHealthScoreClass(dashboard.healthScore.label) : ''}`}>
                   {dashboard?.healthScore.score ?? 0}
                 </div>
-                <div className="text-sm font-medium text-[hsl(var(--foreground))] mt-1">
-                  {dashboard ? getStatusLabel(dashboard.healthScore.label) : '—'}
+                <div className="mt-2 text-sm font-medium text-[hsl(var(--foreground))]">
+                  {dashboard ? getStatusLabel(t, dashboard.healthScore.label) : '—'}
                 </div>
               </div>
-              <div className="text-xs text-[hsl(var(--muted-foreground))] max-w-[180px]">
+              <div className="max-w-[180px] text-xs leading-5 text-[hsl(var(--muted-foreground))]">
                 {dashboard?.healthScore.summary}
               </div>
             </div>
             <div className="space-y-2">
               {dashboard?.healthScore.factors.map(factor => (
-                  <div key={factor.key} className="rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.52)] p-2.5 text-xs text-[hsl(var(--muted-foreground))]">
-                  <div className="font-medium text-[hsl(var(--foreground))]">{factor.label}</div>
-                  <div>权重 {factor.weight} · 扣分 {factor.penalty}</div>
-                  <div className="mt-1">{factor.description}</div>
+                <div key={factor.key} className="rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1 font-medium text-[hsl(var(--foreground))]">{factor.label}</div>
+                    <div className="shrink-0 whitespace-nowrap text-[11px] text-[hsl(var(--muted-foreground))]">
+                      {t('dashboard:healthScore.factorWeight', { weight: factor.weight, penalty: factor.penalty })}
+                    </div>
+                  </div>
+                  <div className="mt-1 line-clamp-2 leading-5">{factor.description}</div>
                 </div>
               ))}
             </div>
@@ -662,20 +904,40 @@ export function Dashboard() {
         </div>
       </SectionCard>
 
+      <SectionCard title={t('dashboard:sections.recommendedActions')} description={t('dashboard:sections.recommendedActionsDesc')}>
+        <div data-testid="dashboard-recommended-actions" className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {recommendedActions.map(action => (
+            <button
+              key={action.key}
+              data-testid={`dashboard-recommended-action-${action.key}`}
+              type="button"
+              onClick={() => navigate(withWorkspaceContext(action.route))}
+              className={`min-w-0 flex h-full flex-col rounded-workshop-lg border p-4 text-left shadow-workshop-sm transition-colors duration-200 hover:bg-[hsl(var(--accent)_/_0.62)] ${getRecommendedActionClass(action.priority)}`}
+            >
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
+                {t(`dashboard:recommendedActions.priority.${action.priority}`)}
+              </div>
+              <div className="mb-3 text-sm font-semibold leading-5 text-[hsl(var(--foreground))] [overflow-wrap:anywhere]">{action.title}</div>
+              <div className="text-xs leading-5 text-[hsl(var(--muted-foreground))] [overflow-wrap:anywhere]">{action.description}</div>
+            </button>
+          ))}
+        </div>
+      </SectionCard>
+
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-6">
-        <SectionCard title="Critical Issues" description="按优先级收敛最重要的风险项，默认仅展示前 10 条。">
+        <SectionCard title={t('dashboard:sections.criticalIssues')} description={t('dashboard:sections.criticalIssuesDesc')}>
           <div data-testid="dashboard-critical-issues" className="space-y-3">
             {dashboard?.criticalIssues.length ? dashboard.criticalIssues.map(issue => (
-              <button key={issue.id} data-testid={`dashboard-critical-issue-${issue.id}`} type="button" onClick={() => setSelectedIssueId(issue.id)} className="w-full rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 text-left shadow-workshop-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]">
+              <div key={issue.id} data-testid={`dashboard-critical-issue-${issue.id}`} className="w-full rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(issue.severity)}`}>{issue.issueType}</span>
+                        <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(issue.severity)}`}>{getIssueTypeLabel(t, issue.issueType)}</span>
                       <span className="text-xs text-[hsl(var(--muted-foreground))]">{issue.workspaceName}</span>
                       {issue.targetName && <span className="text-xs text-[hsl(var(--muted-foreground))]">{issue.targetName}</span>}
                     </div>
                     <div className="mt-2 text-sm font-semibold text-[hsl(var(--foreground))]">{issue.summary}</div>
-                    <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">最近发生：{formatDateTime(issue.lastOccurredAt)}</div>
+                    <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{t('dashboard:criticalIssues.lastOccurred', { time: formatDateTime(issue.lastOccurredAt) })}</div>
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
                     {issue.actions.map(action => (
@@ -683,7 +945,10 @@ export function Dashboard() {
                         key={`${issue.id}-${action.label}`}
                         data-testid={`dashboard-critical-action-${issue.id}`}
                         type="button"
-                        onClick={() => navigate(action.route)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(withWorkspaceContext(action.route))
+                        }}
                          className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.7)] px-3 py-1.5 text-xs text-[hsl(var(--foreground))] transition-colors duration-200 hover:bg-[hsl(var(--accent))]"
                        >
                         {action.label}
@@ -691,12 +956,12 @@ export function Dashboard() {
                     ))}
                   </div>
                 </div>
-              </button>
-            )) : <div data-testid="dashboard-critical-issues-empty" className="text-sm text-[hsl(var(--muted-foreground))]">当前没有关键风险项。</div>}
+              </div>
+            )) : <div data-testid="dashboard-critical-issues-empty" className="text-sm text-[hsl(var(--muted-foreground))]">{t('dashboard:criticalIssues.empty')}</div>}
           </div>
         </SectionCard>
 
-        <SectionCard title="Quick Actions" description="Dashboard 只触发安全入口动作；高危执行仍走原有审批与链路。">
+        <SectionCard title={t('dashboard:sections.quickActions')} description={t('dashboard:sections.quickActionsDesc')}>
           <div data-testid="dashboard-quick-actions" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {quickActions.map(action => (
               <button
@@ -715,22 +980,22 @@ export function Dashboard() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Runtime Status" description="统一展示 Operations、Host Agents、Deployment、Auto-Remediation 与整体趋势。">
+      <SectionCard title={t('dashboard:sections.runtimeStatus')} description={t('dashboard:sections.runtimeStatusDesc')}>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div className="space-y-4">
             <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-[hsl(var(--foreground))]">Operations Snapshot</div>
-                  <div className="text-xs text-[hsl(var(--muted-foreground))]">关键动作执行态与近 24h / 7d 趋势</div>
+                  <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('dashboard:runtime.operationsSnapshot')}</div>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))]">{t('dashboard:runtime.operationsSnapshotDesc')}</div>
                 </div>
-                <Link to="/operations" className="text-xs text-[hsl(var(--primary))]">查看全部</Link>
+                <Link to="/operations" className="text-xs text-[hsl(var(--primary))]">{t('common:buttons.viewAll')}</Link>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>运行中：<span className="font-semibold">{dashboard?.runtime.operations.running ?? 0}</span></div>
-                <div>待审批：<span className="font-semibold">{dashboard?.runtime.operations.waitingApproval ?? 0}</span></div>
-                <div>24h 成功 / 失败：<span className="font-semibold">{dashboard?.runtime.operations.last24hSucceeded ?? 0} / {dashboard?.runtime.operations.last24hFailed ?? 0}</span></div>
-                <div>7d 成功 / 失败：<span className="font-semibold">{dashboard?.runtime.operations.last7dSucceeded ?? 0} / {dashboard?.runtime.operations.last7dFailed ?? 0}</span></div>
+                <div>{t('dashboard:runtime.running')}：<span className="font-semibold">{dashboard?.runtime.operations.running ?? 0}</span></div>
+                <div>{t('dashboard:runtime.waitingApproval')}：<span className="font-semibold">{dashboard?.runtime.operations.waitingApproval ?? 0}</span></div>
+                <div>{t('dashboard:runtime.last24hSuccessFail')}：<span className="font-semibold">{dashboard?.runtime.operations.last24hSucceeded ?? 0} / {dashboard?.runtime.operations.last24hFailed ?? 0}</span></div>
+                <div>{t('dashboard:runtime.last7dSuccessFail')}：<span className="font-semibold">{dashboard?.runtime.operations.last7dSucceeded ?? 0} / {dashboard?.runtime.operations.last7dFailed ?? 0}</span></div>
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.operations.recent.map(operation => (
@@ -739,7 +1004,7 @@ export function Dashboard() {
                       <div className="font-medium text-[hsl(var(--foreground))]">{operation.title}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{operation.type} · {formatDateTime(operation.updatedAt)}</div>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(operation.status === 'FAILED' ? 'FAILED' : operation.status)}`}>{operation.status}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(operation.status === 'FAILED' ? 'FAILED' : operation.status)}`}>{getStatusText(t, operation.status)}</span>
                   </div>
                 ))}
               </div>
@@ -748,27 +1013,27 @@ export function Dashboard() {
             <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-[hsl(var(--foreground))]">Host Agent Health</div>
-                  <div className="text-xs text-[hsl(var(--muted-foreground))]">在线 / 离线 / 心跳异常摘要</div>
+                  <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('dashboard:runtime.hostAgentHealth')}</div>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))]">{t('dashboard:runtime.hostAgentHealthDesc')}</div>
                 </div>
-                <Link to="/host-agents" className="text-xs text-[hsl(var(--primary))]">查看全部</Link>
+                <Link to="/host-agents" className="text-xs text-[hsl(var(--primary))]">{t('common:buttons.viewAll')}</Link>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>Online：<span className="font-semibold">{dashboard?.runtime.hostAgents.online ?? 0}</span></div>
-                <div>Degraded：<span className="font-semibold">{dashboard?.runtime.hostAgents.degraded ?? 0}</span></div>
-                <div>Offline：<span className="font-semibold">{dashboard?.runtime.hostAgents.offline ?? 0}</span></div>
-                <div>异常心跳：<span className="font-semibold">{dashboard?.runtime.hostAgents.recentHeartbeatAnomalies ?? 0}</span></div>
+                <div>{t('dashboard:runtime.online')}：<span className="font-semibold">{dashboard?.runtime.hostAgents.online ?? 0}</span></div>
+                <div>{t('dashboard:runtime.degraded')}：<span className="font-semibold">{dashboard?.runtime.hostAgents.degraded ?? 0}</span></div>
+                <div>{t('dashboard:runtime.offline')}：<span className="font-semibold">{dashboard?.runtime.hostAgents.offline ?? 0}</span></div>
+                <div>{t('dashboard:runtime.heartbeatAnomalies')}：<span className="font-semibold">{dashboard?.runtime.hostAgents.recentHeartbeatAnomalies ?? 0}</span></div>
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.hostAgents.recentAnomalies.length ? dashboard.runtime.hostAgents.recentAnomalies.map(agent => (
                   <div key={agent.id} className="flex items-center justify-between gap-3 rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
                     <div>
                       <div className="font-medium text-[hsl(var(--foreground))]">{agent.name}</div>
-                      <div className="text-xs text-[hsl(var(--muted-foreground))]">{agent.lastHeartbeatAt ? formatDateTime(agent.lastHeartbeatAt) : '从未心跳'}</div>
+                      <div className="text-xs text-[hsl(var(--muted-foreground))]">{agent.lastHeartbeatAt ? formatDateTime(agent.lastHeartbeatAt) : t('dashboard:runtime.neverHeartbeat')}</div>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(agent.status)}`}>{agent.status}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(agent.status)}`}>{getStatusText(t, agent.status)}</span>
                   </div>
-                )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">没有心跳异常 Agent。</div>}
+                )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('dashboard:runtime.noHeartbeatAnomalies')}</div>}
               </div>
             </div>
           </div>
@@ -777,15 +1042,15 @@ export function Dashboard() {
             <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-[hsl(var(--foreground))]">Deployment Status</div>
-                  <div className="text-xs text-[hsl(var(--muted-foreground))]">Target 运行状态与最近部署结果</div>
+                  <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('dashboard:runtime.deploymentStatus')}</div>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))]">{t('dashboard:runtime.deploymentStatusDesc')}</div>
                 </div>
-                <Link to="/deployments" className="text-xs text-[hsl(var(--primary))]">查看全部</Link>
+                <Link to="/deployments" className="text-xs text-[hsl(var(--primary))]">{t('common:buttons.viewAll')}</Link>
               </div>
               <div className="grid grid-cols-3 gap-3 text-sm">
-                <div>Healthy：<span className="font-semibold">{dashboard?.runtime.deployments.healthy ?? 0}</span></div>
-                <div>Degraded：<span className="font-semibold">{dashboard?.runtime.deployments.degraded ?? 0}</span></div>
-                <div>Unreachable：<span className="font-semibold">{dashboard?.runtime.deployments.unreachable ?? 0}</span></div>
+                <div>{t('dashboard:runtime.healthy')}：<span className="font-semibold">{dashboard?.runtime.deployments.healthy ?? 0}</span></div>
+                <div>{t('dashboard:runtime.degraded')}：<span className="font-semibold">{dashboard?.runtime.deployments.degraded ?? 0}</span></div>
+                <div>{t('dashboard:runtime.unreachable')}：<span className="font-semibold">{dashboard?.runtime.deployments.unreachable ?? 0}</span></div>
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.deployments.recentJobs.map(job => (
@@ -794,7 +1059,7 @@ export function Dashboard() {
                       <div className="font-medium text-[hsl(var(--foreground))]">{job.targetName}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{job.type} · {formatDateTime(job.createdAt)}</div>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(job.status === 'FAILED' ? 'FAILED' : job.status)}`}>{job.status}</span>
+                     <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(job.status === 'FAILED' ? 'FAILED' : job.status)}`}>{getStatusText(t, job.status)}</span>
                   </div>
                 ))}
               </div>
@@ -803,16 +1068,16 @@ export function Dashboard() {
             <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-[hsl(var(--foreground))]">Auto-Remediation Snapshot</div>
-                  <div className="text-xs text-[hsl(var(--muted-foreground))]">基于现有 DOCTOR_FIX / 修复链路聚合今日运行态</div>
+                  <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('dashboard:runtime.autoRemediationSnapshot')}</div>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))]">{t('dashboard:runtime.autoRemediationSnapshotDesc')}</div>
                 </div>
-                <Link to="/operations" className="text-xs text-[hsl(var(--primary))]">查看链路</Link>
+                <Link to="/operations" className="text-xs text-[hsl(var(--primary))]">{t('dashboard:runtime.viewChain')}</Link>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>今日总数：<span className="font-semibold">{dashboard?.runtime.remediation.todayTotal ?? 0}</span></div>
-                <div>Running：<span className="font-semibold">{dashboard?.runtime.remediation.running ?? 0}</span></div>
-                <div>Blocked：<span className="font-semibold">{dashboard?.runtime.remediation.blocked ?? 0}</span></div>
-                <div>Failed / Succeeded：<span className="font-semibold">{dashboard?.runtime.remediation.failed ?? 0} / {dashboard?.runtime.remediation.succeeded ?? 0}</span></div>
+                <div>{t('dashboard:runtime.todayTotal')}：<span className="font-semibold">{dashboard?.runtime.remediation.todayTotal ?? 0}</span></div>
+                <div>{t('dashboard:runtime.running')}：<span className="font-semibold">{dashboard?.runtime.remediation.running ?? 0}</span></div>
+                <div>{t('dashboard:runtime.blocked')}：<span className="font-semibold">{dashboard?.runtime.remediation.blocked ?? 0}</span></div>
+                <div>{t('dashboard:runtime.failedSucceeded')}：<span className="font-semibold">{dashboard?.runtime.remediation.failed ?? 0} / {dashboard?.runtime.remediation.succeeded ?? 0}</span></div>
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.remediation.recent.length ? dashboard.runtime.remediation.recent.map(item => (
@@ -821,12 +1086,15 @@ export function Dashboard() {
                       <div className="font-medium text-[hsl(var(--foreground))]">{item.title}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{formatDateTime(item.updatedAt)}</div>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(item.status === 'FAILED' ? 'FAILED' : item.status)}`}>{item.status}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(item.status === 'FAILED' ? 'FAILED' : item.status)}`}>{getStatusText(t, item.status)}</span>
                   </div>
-                )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">当前没有自动修复链路记录。</div>}
+                )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('dashboard:runtime.noRemediationRecords')}</div>}
               </div>
               <div className="text-xs text-[hsl(var(--muted-foreground))] border-t border-[hsl(var(--border))] pt-3">
-                CRITICAL 事件趋势：24h {dashboard?.runtime.trends.criticalEvents24h ?? 0} · 7d {dashboard?.runtime.trends.criticalEvents7d ?? 0}
+                {t('dashboard:runtime.criticalEventsTrend', {
+                  events24h: dashboard?.runtime.trends.criticalEvents24h ?? 0,
+                  events7d: dashboard?.runtime.trends.criticalEvents7d ?? 0
+                })}
               </div>
             </div>
           </div>
@@ -834,7 +1102,7 @@ export function Dashboard() {
       </SectionCard>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6">
-      <SectionCard title="Pending Actions" description="待审批、待变更、待升级、待收敛与人工介入事项。">
+      <SectionCard title={t('dashboard:sections.pendingActions')} description={t('dashboard:sections.pendingActionsDesc')}>
           <div data-testid="dashboard-pending-actions" className="space-y-3">
             {dashboard?.pendingActions.length ? dashboard.pendingActions.map(item => (
               <button
@@ -847,43 +1115,47 @@ export function Dashboard() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-2.5 py-1 text-xs">{item.actionType}</span>
+                      <span className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-2.5 py-1 text-xs">{getPendingActionLabel(t, item.actionType)}</span>
                       <span className="text-xs text-[hsl(var(--muted-foreground))]">{item.workspaceName}</span>
                     </div>
                     <div className="mt-2 text-sm font-semibold text-[hsl(var(--foreground))]">{item.title}</div>
                     <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{item.summary}</div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-xs font-medium text-[hsl(var(--foreground))]">{item.status}</div>
+                    <div className="text-xs font-medium text-[hsl(var(--foreground))]">{getStatusText(t, item.status)}</div>
                     <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{formatDateTime(item.createdAt)}</div>
                   </div>
                 </div>
               </button>
-            )) : <div data-testid="dashboard-pending-actions-empty" className="text-sm text-[hsl(var(--muted-foreground))]">当前没有待办事项。</div>}
+            )) : <div data-testid="dashboard-pending-actions-empty" className="text-sm text-[hsl(var(--muted-foreground))]">{t('dashboard:pendingActions.empty')}</div>}
           </div>
         </SectionCard>
 
-        <SectionCard title="Activity Feed Preview" description="最近事件按时间倒序展示，可按当前 Workspace / severity / source_type 过滤。">
+        <SectionCard title={t('dashboard:sections.activityFeedPreview')} description={t('dashboard:sections.activityFeedPreviewDesc')}>
           <div data-testid="dashboard-activity-feed-preview" className="space-y-4">
             <div className="grid grid-cols-1 gap-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm sm:grid-cols-3">
-              <select
+              <ThemeSelect
                 data-testid="dashboard-activity-severity-filter"
                 value={activitySeverity}
                 onChange={(event) => setActivitySeverity(event.target.value)}
-                className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
+                fieldSize="lg"
+                fieldShape="pill"
+                className="min-w-[14rem]"
               >
-                <option value="">全部严重级别</option>
-                <option value="INFO">INFO</option>
-                <option value="WARN">WARN</option>
-                <option value="ERROR">ERROR</option>
-                <option value="CRITICAL">CRITICAL</option>
-              </select>
-              <input
+                <option value="">{t('dashboard:activityFeed.allSeverity')}</option>
+                <option value="INFO">{getSeverityText(t, 'INFO')}</option>
+                <option value="WARN">{getSeverityText(t, 'WARN')}</option>
+                <option value="ERROR">{getSeverityText(t, 'ERROR')}</option>
+                <option value="CRITICAL">{getSeverityText(t, 'CRITICAL')}</option>
+              </ThemeSelect>
+              <ThemeInput
                 data-testid="dashboard-activity-source-filter"
                 value={activitySourceType}
                 onChange={(event) => setActivitySourceType(event.target.value)}
-                placeholder="source_type"
-                className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
+                placeholder={t('dashboard:activityFeed.sourceTypePlaceholder')}
+                fieldSize="lg"
+                fieldShape="pill"
+                className="min-w-[14rem]"
               />
               <button
                 data-testid="dashboard-activity-apply-filter"
@@ -891,7 +1163,7 @@ export function Dashboard() {
                 onClick={() => void refreshAll()}
                 className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.7)] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] transition-colors duration-200 hover:bg-[hsl(var(--accent))]"
               >
-                应用过滤
+                {t('dashboard:activityFeed.applyFilter')}
               </button>
             </div>
 
@@ -907,7 +1179,7 @@ export function Dashboard() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(item.severity)}`}>{item.severity}</span>
+                        <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(item.severity)}`}>{getSeverityText(t, item.severity)}</span>
                         <span className="text-xs text-[hsl(var(--muted-foreground))]">{item.sourceType}</span>
                         <span className="text-xs text-[hsl(var(--muted-foreground))]">{item.workspaceName}</span>
                       </div>
@@ -917,10 +1189,10 @@ export function Dashboard() {
                         {item.targetName ? `${item.targetName} · ` : ''}{formatDateTime(item.createdAt)}
                       </div>
                     </div>
-                    <div className="shrink-0 rounded-full border border-[hsl(var(--google-blue)_/_0.14)] bg-[hsl(var(--google-blue)_/_0.08)] px-3 py-1 text-xs font-medium text-[hsl(var(--google-blue))]">查看完整流</div>
+                    <div className="shrink-0 rounded-full border border-[hsl(var(--google-blue)_/_0.14)] bg-[hsl(var(--google-blue)_/_0.08)] px-3 py-1 text-xs font-medium text-[hsl(var(--google-blue))]">{t('dashboard:activityFeed.viewFullStream')}</div>
                   </div>
                 </button>
-              )) : <div data-testid="dashboard-activity-empty" className="text-sm text-[hsl(var(--muted-foreground))]">当前筛选条件下暂无事件。</div>}
+              )) : <div data-testid="dashboard-activity-empty" className="text-sm text-[hsl(var(--muted-foreground))]">{t('dashboard:activityFeed.empty')}</div>}
             </div>
           </div>
         </SectionCard>
@@ -932,33 +1204,33 @@ export function Dashboard() {
       <Drawer
         isOpen={!!selectedIssueId}
         onClose={() => setSelectedIssueId(null)}
-        title="Critical Issue Details"
+        title={t('dashboard:drawer.criticalIssueDetails')}
         activeId={selectedIssueId}
         subtitle={selectedIssueId ? `ID: ${selectedIssueId.slice(0, 8)}` : undefined}
       >
         {selectedIssueId && dashboard?.criticalIssues && (() => {
           const issue = dashboard.criticalIssues.find(i => i.id === selectedIssueId)
-          if (!issue) return <div className="text-sm text-[hsl(var(--muted-foreground))]">未找到该问题详情。</div>
+          if (!issue) return <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.issueNotFound')}</div>
           return (
             <div className="space-y-4">
               <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-workshop-sm" data-testid="drawer-issue-summary">
-                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">问题摘要</div>
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.issueSummary')}</div>
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{issue.summary}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
-                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">问题类型</div>
-                  <div className="text-sm font-medium text-[hsl(var(--foreground))]">{issue.issueType}</div>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.issueType')}</div>
+                  <div className="text-sm font-medium text-[hsl(var(--foreground))]">{getIssueTypeLabel(t, issue.issueType)}</div>
                 </div>
                 <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
-                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">严重程度</div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(issue.severity)}`}>{issue.severity}</span>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.severity')}</div>
+                  <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(issue.severity)}`}>{getSeverityText(t, issue.severity)}</span>
                 </div>
               </div>
 
               <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
-                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">关联信息</div>
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.relatedInfo')}</div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-[hsl(var(--muted-foreground))]">Workspace:</span>
@@ -971,14 +1243,14 @@ export function Dashboard() {
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-[hsl(var(--muted-foreground))]">最近发生:</span>
+                    <span className="text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.lastOccurred')}:</span>
                     <span className="font-medium text-[hsl(var(--foreground))]">{formatDateTime(issue.lastOccurredAt)}</span>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-workshop-sm">
-                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">下一步操作</div>
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.nextSteps')}</div>
                 <div className="space-y-2">
                   {issue.actions.map(action => (
                     <button
@@ -986,7 +1258,7 @@ export function Dashboard() {
                       type="button"
                       onClick={() => {
                         setSelectedIssueId(null)
-                        navigate(action.route)
+                     navigate(withWorkspaceContext(action.route))
                       }}
                       className="w-full rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
                       data-testid={`drawer-issue-action-${action.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
@@ -1005,62 +1277,62 @@ export function Dashboard() {
       <Drawer
         isOpen={!!selectedActionId}
         onClose={() => setSelectedActionId(null)}
-        title="Pending Action Details"
+        title={t('dashboard:drawer.pendingActionDetails')}
         activeId={selectedActionId}
         subtitle={selectedActionId ? `ID: ${selectedActionId.slice(0, 8)}` : undefined}
       >
         {selectedActionId && dashboard?.pendingActions && (() => {
           const action = dashboard.pendingActions.find(a => a.id === selectedActionId)
-          if (!action) return <div className="text-sm text-[hsl(var(--muted-foreground))]">未找到该待办事项详情。</div>
+          if (!action) return <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.actionNotFound')}</div>
           return (
             <div className="space-y-4">
               <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-workshop-sm" data-testid="drawer-action-summary">
-                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">待办标题</div>
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.actionTitle')}</div>
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{action.title}</div>
               </div>
 
               <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
-                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">详细说明</div>
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.actionDescription')}</div>
                 <div className="text-sm text-[hsl(var(--foreground))]">{action.summary}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
-                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">动作类型</div>
-                  <div className="text-sm font-medium text-[hsl(var(--foreground))]">{action.actionType}</div>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.actionType')}</div>
+                  <div className="text-sm font-medium text-[hsl(var(--foreground))]">{getPendingActionLabel(t, action.actionType)}</div>
                 </div>
                 <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
-                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">当前状态</div>
-                  <div className="text-sm font-medium text-[hsl(var(--foreground))]">{action.status}</div>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.currentStatus')}</div>
+                  <div className="text-sm font-medium text-[hsl(var(--foreground))]">{getStatusText(t, action.status)}</div>
                 </div>
               </div>
 
               <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
-                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">关联信息</div>
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.relatedInfo')}</div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-[hsl(var(--muted-foreground))]">Workspace:</span>
                     <span className="font-medium text-[hsl(var(--foreground))]">{action.workspaceName}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[hsl(var(--muted-foreground))]">创建时间:</span>
+                    <span className="text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.createdAt')}:</span>
                     <span className="font-medium text-[hsl(var(--foreground))]">{formatDateTime(action.createdAt)}</span>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-workshop-sm">
-                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">跳转到原模块</div>
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.navigateToModule')}</div>
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedActionId(null)
-                    navigate(action.route)
+                    navigate(withWorkspaceContext(action.route))
                   }}
                   className="w-full rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
                   data-testid="drawer-action-navigate"
                 >
-                  前往处理
+                  {t('dashboard:drawer.goToHandle')}
                 </button>
               </div>
             </div>
@@ -1072,41 +1344,41 @@ export function Dashboard() {
       <Drawer
         isOpen={!!selectedActivityId}
         onClose={() => setSelectedActivityId(null)}
-        title="Activity Event Details"
+        title={t('dashboard:drawer.activityEventDetails')}
         activeId={selectedActivityId}
         subtitle={selectedActivityId ? `ID: ${selectedActivityId.slice(0, 8)}` : undefined}
       >
         {selectedActivityId && dashboard?.activityPreview && (() => {
           const activity = dashboard.activityPreview.find(a => a.id === selectedActivityId)
-          if (!activity) return <div className="text-sm text-[hsl(var(--muted-foreground))]">未找到该事件详情。</div>
+          if (!activity) return <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.activityNotFound')}</div>
           return (
             <div className="space-y-4">
               <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-workshop-sm" data-testid="drawer-activity-summary">
-                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">事件标题</div>
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.eventTitle')}</div>
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{activity.title}</div>
               </div>
 
               <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
-                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">事件摘要</div>
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.eventSummary')}</div>
                 <div className="text-sm text-[hsl(var(--foreground))]">{activity.summary}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
-                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">严重程度</div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(activity.severity)}`}>{activity.severity}</span>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.severity')}</div>
+                  <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(activity.severity)}`}>{getSeverityText(t, activity.severity)}</span>
                 </div>
                 <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
-                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">事件类型</div>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.eventType')}</div>
                   <div className="text-sm font-medium text-[hsl(var(--foreground))]">{activity.eventType}</div>
                 </div>
               </div>
 
               <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
-                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">关联信息</div>
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.relatedInfo')}</div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-[hsl(var(--muted-foreground))]">来源类型:</span>
+                    <span className="text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.sourceType')}:</span>
                     <span className="font-medium text-[hsl(var(--foreground))]">{activity.sourceType}</span>
                   </div>
                   <div className="flex justify-between">
@@ -1120,7 +1392,7 @@ export function Dashboard() {
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-[hsl(var(--muted-foreground))]">发生时间:</span>
+                    <span className="text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.occurredAt')}:</span>
                     <span className="font-medium text-[hsl(var(--foreground))]">{formatDateTime(activity.createdAt)}</span>
                   </div>
                   {activity.traceId && (
@@ -1133,17 +1405,17 @@ export function Dashboard() {
               </div>
 
               <div className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-workshop-sm">
-                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">查看完整事件流</div>
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.viewFullEventStream')}</div>
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedActivityId(null)
-                    navigate('/activity-feed')
+                    navigate(withWorkspaceContext('/activity-feed'))
                   }}
                   className="w-full rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
                   data-testid="drawer-activity-navigate"
                 >
-                  前往 Activity Feed
+                  {t('dashboard:drawer.goToActivityFeed')}
                 </button>
               </div>
             </div>

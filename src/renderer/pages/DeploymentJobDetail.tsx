@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
+import { translateEnum } from '../lib/i18n-helpers'
 
 interface DeploymentTargetSummary {
   id: string
@@ -58,6 +62,7 @@ function parseResultMeta(text?: string | null): ParsedDeploymentJobResult | null
 }
 
 export function DeploymentJobDetail() {
+  const { t } = useTranslation(['common'])
   const { id } = useParams<{ id: string }>()
   const [job, setJob] = useState<DeploymentJob | null>(null)
   const [loading, setLoading] = useState(true)
@@ -90,20 +95,21 @@ export function DeploymentJobDetail() {
   }, [id])
 
   if (loading) {
-    return <div className="p-6 text-sm text-[hsl(var(--muted-foreground))]">加载 Deployment Job 中...</div>
+    return <LoadingState message="加载 Deployment Job 中..." />
   }
 
   if (error || !job) {
-    return <div className="p-6 text-sm text-[hsl(var(--destructive))]">{error || 'Deployment Job 不存在'}</div>
+    return <EmptyState message={error || 'Deployment Job 不存在'} tone="danger" />
   }
 
   const parsedResult = parseResultMeta(job.resultJson)
+  const jobStatusText = translateEnum(t, 'operationStatusMap', job.status)
 
   return (
     <div className="p-6 space-y-6">
       <PageHeader
         title={`Deployment Job · ${job.type}`}
-        description={`${job.status} · ${job.target.name}`}
+        description={`${jobStatusText} · ${job.target.name}`}
         actions={
           <div className="flex items-center gap-2">
             <Link to="/deployments" className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
@@ -119,7 +125,7 @@ export function DeploymentJobDetail() {
       <SectionCard title="Deployment Job 概览" description="查看作业的目标、状态与时间信息。">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div><div className="text-[hsl(var(--muted-foreground))]">Job ID</div><div className="font-mono text-[hsl(var(--foreground))]">{job.id}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">状态</div><div className="text-[hsl(var(--foreground))]">{job.status}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">状态</div><div className="text-[hsl(var(--foreground))]">{jobStatusText}</div></div>
           <div><div className="text-[hsl(var(--muted-foreground))]">Target</div><div className="text-[hsl(var(--foreground))]">{job.target.name}</div></div>
           <div><div className="text-[hsl(var(--muted-foreground))]">Trace ID</div><div className="font-mono text-[hsl(var(--foreground))]">{job.traceId}</div></div>
           <div><div className="text-[hsl(var(--muted-foreground))]">创建时间</div><div className="text-[hsl(var(--foreground))]">{new Date(job.createdAt).toLocaleString('zh-CN')}</div></div>

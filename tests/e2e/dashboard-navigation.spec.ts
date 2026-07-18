@@ -8,11 +8,11 @@ test('Dashboard 卡片与关键项可跳转并返回', async ({}, testInfo) => {
     await waitForDashboardReady(context.page)
 
     await context.page.getByTestId('dashboard-overview-card-alerts').click()
-    await expect(context.page).toHaveURL(/#\/alerts/)
+    await expect(context.page).toHaveURL(/#\/(alerts|health-monitoring\?tab=alerts)/)
 
     await openDashboard(context.page)
     await context.page.getByTestId('dashboard-critical-action-issue-alert').click()
-    await expect(context.page).toHaveURL(/#\/alerts/)
+    await expect(context.page).toHaveURL(/#\/(alerts|health-monitoring\?tab=alerts)/)
 
     await openDashboard(context.page)
     await context.page.getByTestId('dashboard-pending-action-pending-upgrade-1').click()

@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { EmptyState } from '../components/ui/EmptyState'
+import { ThemeInput, ThemeSelect } from '../components/ui/FormFields'
 import { EventRecord } from '../components/investigation/types'
 import { eventRowSeverityStyle, severityColor, severityDotColor, sourceTypeColor, SourceTypeIcon, traceCardSeverityStyle } from '../components/investigation/styles'
+import { translateEnum } from '../lib/i18n-helpers'
+import { readWorkspaceId } from '../lib/storage'
 
 interface Workspace {
   id: string
@@ -52,13 +57,14 @@ function summaryEntries(event: EventRecord): Array<{ label: string; value: strin
 }
 
 export function InvestigationTimelinePage() {
+  const { t } = useTranslation('common')
   const navigate = useNavigate()
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [events, setEvents] = useState<EventRecord[]>([])
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [filters, setFilters] = useState({
-    workspaceId: localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
+    workspaceId: readWorkspaceId(),
     targetId: '',
     severity: '',
     sourceType: '',
@@ -177,22 +183,22 @@ export function InvestigationTimelinePage() {
 
       <SectionCard title="过滤器" description="按 Workspace / Target / Severity / Source / Event Type / Trace 过滤调查时间线。">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <select value={filters.workspaceId} onChange={e => setFilters(prev => ({ ...prev, workspaceId: e.target.value }))} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]">
+          <ThemeSelect value={filters.workspaceId} onChange={e => setFilters(prev => ({ ...prev, workspaceId: e.target.value }))} fieldSize="lg" fieldShape="pill">
             {workspaces.map(workspace => (
               <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
             ))}
-          </select>
-          <input value={filters.targetId} onChange={e => setFilters(prev => ({ ...prev, targetId: e.target.value }))} placeholder="Target ID" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]" />
-          <input value={filters.traceId} onChange={e => setFilters(prev => ({ ...prev, traceId: e.target.value }))} placeholder="Trace ID" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]" />
-          <input value={filters.sourceType} onChange={e => setFilters(prev => ({ ...prev, sourceType: e.target.value }))} placeholder="Source Type" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]" />
-          <input value={filters.eventType} onChange={e => setFilters(prev => ({ ...prev, eventType: e.target.value }))} placeholder="Event Type" className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]" />
-          <select value={filters.severity} onChange={e => setFilters(prev => ({ ...prev, severity: e.target.value }))} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]">
+          </ThemeSelect>
+          <ThemeInput value={filters.targetId} onChange={e => setFilters(prev => ({ ...prev, targetId: e.target.value }))} placeholder="Target ID" fieldSize="lg" fieldShape="pill" />
+          <ThemeInput value={filters.traceId} onChange={e => setFilters(prev => ({ ...prev, traceId: e.target.value }))} placeholder="Trace ID" fieldSize="lg" fieldShape="pill" />
+          <ThemeInput value={filters.sourceType} onChange={e => setFilters(prev => ({ ...prev, sourceType: e.target.value }))} placeholder="Source Type" fieldSize="lg" fieldShape="pill" />
+          <ThemeInput value={filters.eventType} onChange={e => setFilters(prev => ({ ...prev, eventType: e.target.value }))} placeholder="Event Type" fieldSize="lg" fieldShape="pill" />
+          <ThemeSelect value={filters.severity} onChange={e => setFilters(prev => ({ ...prev, severity: e.target.value }))} fieldSize="lg" fieldShape="pill">
             <option value="">全部严重级别</option>
-            <option value="INFO">INFO</option>
-            <option value="WARN">WARN</option>
-            <option value="ERROR">ERROR</option>
-            <option value="CRITICAL">CRITICAL</option>
-          </select>
+            <option value="INFO">{translateEnum(t, 'severityMap', 'INFO')}</option>
+            <option value="WARN">{translateEnum(t, 'severityMap', 'WARN')}</option>
+            <option value="ERROR">{translateEnum(t, 'severityMap', 'ERROR')}</option>
+            <option value="CRITICAL">{translateEnum(t, 'severityMap', 'CRITICAL')}</option>
+          </ThemeSelect>
         </div>
       </SectionCard>
 
@@ -248,7 +254,7 @@ export function InvestigationTimelinePage() {
                             <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-md border ${eventRowSeverityStyle(event.severity)}`}>
                               <div>
                                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                                  <span className={`rounded-sm px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase border ${severityColor(event.severity)}`}>{event.severity}</span>
+                                  <span className={`rounded-sm px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase border ${severityColor(event.severity)}`}>{translateEnum(t, 'severityMap', event.severity)}</span>
                                   <span className="text-[11px] font-mono text-[hsl(var(--muted-foreground))]">{event.eventType}</span>
                                 </div>
                                 <div className="text-sm font-medium text-[hsl(var(--foreground))]">{event.title}</div>
@@ -281,7 +287,7 @@ export function InvestigationTimelinePage() {
                 </div>
               </div>
             ))}
-            {groupedByTrace.length === 0 && <div className="text-sm text-[hsl(var(--muted-foreground))]">当前筛选条件下暂无事件。</div>}
+            {groupedByTrace.length === 0 && <EmptyState message="当前筛选条件下暂无事件。" />}
           </div>
         </SectionCard>
       </div>

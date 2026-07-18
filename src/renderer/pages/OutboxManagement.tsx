@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import { getToneByStatus } from '../lib/status-badge'
 
 interface OutboxEvent {
   id: string
@@ -102,21 +106,11 @@ export function OutboxManagement() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PENDING': return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
-      case 'SENDING': return 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]'
-      case 'SUCCEEDED': return 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
-      case 'FAILED': return 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
-      default: return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
-    }
-  }
-
   if (loading) {
     return (
       <div className="p-6">
         <PageHeader title="Outbox 管理" />
-        <p className="text-[hsl(var(--muted-foreground))]">加载中...</p>
+        <LoadingState message="加载 Outbox 事件中..." />
       </div>
     )
   }
@@ -165,9 +159,7 @@ export function OutboxManagement() {
                     </p>
                   )}
                 </div>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusBadge(event.status)}`}>
-                  {event.status}
-                </span>
+                <StatusBadge label={event.status} tone={getToneByStatus(event.status, { SENDING: 'info', SUCCEEDED: 'success', FAILED: 'danger' })} />
               </div>
 
               {event.lastError && (
@@ -189,7 +181,7 @@ export function OutboxManagement() {
           ))}
 
           {events.length === 0 && (
-            <p className="text-[hsl(var(--muted-foreground))] text-sm">暂无 Outbox 事件</p>
+            <EmptyState message="暂无 Outbox 事件" />
           )}
         </div>
       </SectionCard>

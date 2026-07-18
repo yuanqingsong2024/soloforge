@@ -1,4 +1,3 @@
-import { PrismaClient } from '@prisma/client'
 import { v4 as uuidv4 } from 'uuid'
 import { promisify } from 'node:util'
 import { exec as execCallback } from 'node:child_process'
@@ -11,8 +10,8 @@ import { EventBusService } from './event-bus'
 import { DoctorService } from './doctor-service'
 import { DeploymentTemplateFactory, type ServiceOptions, type UpgradeOptions } from './deployment-templates'
 import { SSHExecutor, type SSHConfig } from './ssh-executor'
-
-const prisma = new PrismaClient()
+import { prisma } from './db'
+import { writeAuditLog } from './audit-log-writer'
 const execAsync = promisify(execCallback)
 
 type TargetType = 'LOCAL_HOST' | 'LOCAL_DOCKER' | 'REMOTE_HOST' | 'REMOTE_DOCKER'
@@ -1396,17 +1395,14 @@ export class ReleaseUpgradeService {
   }
 
   private static async writeAuditLog(workspaceId: string, traceId: string, actor: string, action: string, tool: string, request: unknown, response: unknown) {
-    await prisma.auditLog.create({
-      data: {
-        workspaceId,
-        traceId,
-        actor,
-        action,
-        tool,
-        request: JSON.stringify(request),
-        response: JSON.stringify(response),
-        ts: new Date()
-      }
+    await writeAuditLog({
+      workspaceId,
+      traceId,
+      actor,
+      action,
+      tool,
+      request: request,
+      response: response
     })
   }
 

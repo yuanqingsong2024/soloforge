@@ -1,5 +1,6 @@
 import WebSocket from 'ws'
 import { v4 as uuidv4 } from 'uuid'
+import crypto from 'node:crypto'
 
 export interface ConnectionProfile {
   name: string
@@ -12,15 +13,36 @@ export interface ConnectionProfile {
   eventPath?: string
 }
 
+/**
+ * 审计回调类型
+ * OpenClawClient 内部每次远程调用都会触发，调用方注入实现以写入 audit_logs
+ */
+export type OpenClawAuditFn = (input: {
+  action: string
+  request: unknown
+  response: unknown
+  error?: string
+}) => Promise<void>
+
+export interface OpenClawClientOptions extends ConnectionProfile {
+  /** 审计回调（可选）。注入后所有远程调用自动写入审计日志 */
+  audit?: OpenClawAuditFn
+}
+
 export class OpenClawClient {
   private profile: ConnectionProfile
   private ws: WebSocket | null = null
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
   private reconnectDelay = 1000
+  private shouldReconnect = false
+  private readonly audit?: OpenClawAuditFn
 
-  constructor(profile: ConnectionProfile) {
+  constructor(options: OpenClawClientOptions) {
+    // 分离 audit 字段，profile 不含 audit
+    const { audit, ...profile } = options
     this.profile = profile
+    this.audit = audit
   }
 
   async ping(): Promise<{ success: boolean; latency: number; error?: string }> {
@@ -41,24 +63,40 @@ export class OpenClawClient {
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
+        let connected = false
+        const timeout = setTimeout(() => {
+          if (connected) return
+          this.shouldReconnect = false
+          this.ws?.terminate()
+          reject(new Error('连接 OpenClaw WebSocket 超时'))
+        }, 5000)
+
         this.ws = new WebSocket(this.profile.wsUrl, {
           headers: this.getHeaders()
         })
 
         this.ws.on('open', () => {
-          console.log('WebSocket connected')
+          connected = true
+          this.shouldReconnect = true
           this.reconnectAttempts = 0
+          clearTimeout(timeout)
           resolve()
         })
 
         this.ws.on('error', (error) => {
-          console.error('WebSocket error:', error)
-          reject(error)
+          // WS 连接错误走 logger，不打印可能含敏感信息的 error 对象
+          if (!connected) {
+            this.shouldReconnect = false
+            clearTimeout(timeout)
+            reject(error)
+          }
         })
 
         this.ws.on('close', () => {
-          console.log('WebSocket closed')
-          this.handleReconnect()
+          clearTimeout(timeout)
+          if (connected && this.shouldReconnect) {
+            this.handleReconnect()
+          }
         })
 
         this.ws.on('message', (data) => {
@@ -71,6 +109,7 @@ export class OpenClawClient {
   }
 
   disconnect(): void {
+    this.shouldReconnect = false
     if (this.ws) {
       this.ws.close()
       this.ws = null
@@ -94,12 +133,18 @@ export class OpenClawClient {
   private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {}
 
+    // trusted-proxy 模式：不附加客户端凭证，依赖反向代理（OpenResty）的 X-Edge-Token 门禁
+    // 与 token/password 模式互斥
     if (this.profile.authMode === 'token' && this.profile.token) {
       headers['Authorization'] = `Bearer ${this.profile.token}`
     } else if (this.profile.authMode === 'password' && this.profile.password) {
       headers['X-Password'] = this.profile.password
+    } else if (this.profile.authMode === 'trusted-proxy') {
+      // trusted-proxy 模式下客户端不持有业务凭证，仅依赖 edge token（如配置）
+      // 业务层鉴权由 OpenResty 反代完成（AGENTS.md §4/§12）
     }
 
+    // X-Edge-Token 作为第二道门禁，所有模式均可选配
     if (this.profile.edgeToken) {
       headers['X-Edge-Token'] = this.profile.edgeToken
     }
@@ -109,26 +154,26 @@ export class OpenClawClient {
 
   private handleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnect attempts reached')
       return
     }
 
     this.reconnectAttempts++
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
 
-    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
-
     setTimeout(() => {
-      this.connect().catch(console.error)
+      this.connect().catch(() => {
+        // 重连失败静默处理，已达到 maxReconnectAttempts 时自然停止
+      })
     }, delay)
   }
 
   private handleMessage(data: string): void {
     try {
       const message = JSON.parse(data)
-      console.log('Received message:', message)
-    } catch (error) {
-      console.error('Failed to parse message:', error)
+      // 消息内容可能含敏感信息，不打印；如需调试可注入 audit 回调
+      void message
+    } catch {
+      // 消息解析失败静默处理，避免噪音日志
     }
   }
 
@@ -136,18 +181,23 @@ export class OpenClawClient {
    * 获取远端 OpenClaw 配置
    */
   async getConfig(traceId?: string): Promise<unknown> {
+    const resolvedTraceId = traceId || uuidv4()
     const response = await fetch(`${this.profile.baseUrl}/config`, {
       method: 'GET',
       headers: {
         ...this.getHeaders(),
-        ...(traceId ? { 'X-Trace-ID': traceId } : {})
+        'X-Trace-ID': resolvedTraceId
       },
       signal: AbortSignal.timeout(10000)
     })
     if (!response.ok) {
-      throw new Error(`Failed to fetch config: ${response.status} ${response.statusText}`)
+      const error = `Failed to fetch config: ${response.status} ${response.statusText}`
+      await this.emitAudit('GET_CONFIG', { traceId: resolvedTraceId }, null, error)
+      throw new Error(error)
     }
-    return await response.json()
+    const result = await response.json()
+    await this.emitAudit('GET_CONFIG', { traceId: resolvedTraceId }, result)
+    return result
   }
 
   /**
@@ -165,9 +215,13 @@ export class OpenClawClient {
       signal: AbortSignal.timeout(15000)
     })
     if (!response.ok) {
-      throw new Error(`Failed to apply config: ${response.status} ${response.statusText}`)
+      const error = `Failed to apply config: ${response.status} ${response.statusText}`
+      await this.emitAudit('APPLY_CONFIG', { traceId, config }, null, error)
+      throw new Error(error)
     }
-    return await response.json()
+    const result = await response.json()
+    await this.emitAudit('APPLY_CONFIG', { traceId, config }, result)
+    return result
   }
 
   /**
@@ -204,10 +258,14 @@ export class OpenClawClient {
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to send channel message: ${response.status} ${response.statusText}`)
+      const error = `Failed to send channel message: ${response.status} ${response.statusText}`
+      await this.emitAudit('SEND_CHANNEL_MESSAGE', requestBody, null, error)
+      throw new Error(error)
     }
 
-    return await response.json()
+    const result = await response.json()
+    await this.emitAudit('SEND_CHANNEL_MESSAGE', requestBody, result)
+    return result
   }
 
   /**
@@ -236,10 +294,14 @@ export class OpenClawClient {
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to create chat completion: ${response.status} ${response.statusText}`)
+      const error = `Failed to create chat completion: ${response.status} ${response.statusText}`
+      await this.emitAudit('CREATE_CHAT_COMPLETION', { traceId, model: payload.model }, null, error)
+      throw new Error(error)
     }
 
-    return await response.json()
+    const result = await response.json()
+    await this.emitAudit('CREATE_CHAT_COMPLETION', { traceId, model: payload.model }, result)
+    return result
   }
 
   /**
@@ -298,11 +360,31 @@ export class OpenClawClient {
 
   /**
    * 计算配置哈希（用于内容判重）
+   * 修复：使用稳定的深层序列化（排序所有层级的 key），而非仅排序顶层
    */
   private hashConfig(config: any): string {
-    const crypto = require('crypto')
-    const content = JSON.stringify(config, Object.keys(config).sort())
-    return crypto.createHash('sha256').update(content).digest('hex')
+    const stable = this.toStableSorted(config)
+    return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex')
+  }
+
+  /**
+   * 递归将对象/数组的所有层级的 key 排序，生成稳定序列化结构
+   * 解决原 Object.keys(config).sort() 只排序顶层、嵌套对象哈希不稳定的问题
+   */
+  private toStableSorted(value: unknown): unknown {
+    if (value === null || typeof value !== 'object') {
+      return value
+    }
+    if (Array.isArray(value)) {
+      return value.map(item => this.toStableSorted(item))
+    }
+    const obj = value as Record<string, unknown>
+    const sortedKeys = Object.keys(obj).sort()
+    const result: Record<string, unknown> = {}
+    for (const key of sortedKeys) {
+      result[key] = this.toStableSorted(obj[key])
+    }
+    return result
   }
 
   /**
@@ -310,5 +392,28 @@ export class OpenClawClient {
    */
   isConnected(): boolean {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN
+  }
+
+  /**
+   * 内部：触发审计回调
+   * 失败时静默处理，避免审计逻辑影响主流程
+   */
+  private async emitAudit(
+    action: string,
+    request: unknown,
+    response: unknown,
+    error?: string
+  ): Promise<void> {
+    if (!this.audit) return
+    try {
+      await this.audit({
+        action,
+        request,
+        response: error ? { success: false, error } : response,
+        error
+      })
+    } catch {
+      // 审计回调失败静默处理，避免影响业务主流程
+    }
   }
 }

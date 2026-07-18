@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { ThemeCheckbox, ThemeInput, ThemeTextarea } from '../components/ui/FormFields'
+import { readWorkspaceId } from '../lib/storage'
 
 interface ApiSuccess<T> { success: true; data: T }
 interface ApiFailure { success: false; error: string }
@@ -16,7 +18,7 @@ interface MaintenanceWindow {
   notes: string
 }
 
-const DEFAULT_WORKSPACE_ID = localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001'
+const DEFAULT_WORKSPACE_ID = readWorkspaceId()
 
 export function MaintenanceWindowsPage() {
   const [apiPort, setApiPort] = useState<number | null>(null)
@@ -62,11 +64,11 @@ export function MaintenanceWindowsPage() {
       <PageHeader title="Maintenance Windows" description="定义升级执行允许的时间窗口。当前默认支持 weekly:day:HH:mm-HH:mm 规则。" />
       <SectionCard title="新建维护窗口">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input value={form.name} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} placeholder="窗口名称" className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" />
-          <input value={form.timezone} onChange={e => setForm(prev => ({ ...prev, timezone: e.target.value }))} placeholder="时区" className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" />
-          <input value={form.cronOrRule} onChange={e => setForm(prev => ({ ...prev, cronOrRule: e.target.value }))} placeholder="weekly:sun:02:00-04:00" className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" />
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.enabled} onChange={e => setForm(prev => ({ ...prev, enabled: e.target.checked }))} /> 启用</label>
-          <textarea value={form.notes} onChange={e => setForm(prev => ({ ...prev, notes: e.target.value }))} rows={4} className="md:col-span-2 px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" />
+          <ThemeInput value={form.name} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} placeholder="窗口名称" />
+          <ThemeInput value={form.timezone} onChange={e => setForm(prev => ({ ...prev, timezone: e.target.value }))} placeholder="时区" />
+          <ThemeInput value={form.cronOrRule} onChange={e => setForm(prev => ({ ...prev, cronOrRule: e.target.value }))} placeholder="weekly:sun:02:00-04:00" />
+          <label className="flex items-center gap-2 text-sm"><ThemeCheckbox checked={form.enabled} onChange={e => setForm(prev => ({ ...prev, enabled: e.target.checked }))} /> 启用</label>
+          <ThemeTextarea value={form.notes} onChange={e => setForm(prev => ({ ...prev, notes: e.target.value }))} rows={4} className="md:col-span-2" />
         </div>
         <div className="mt-4"><button onClick={saveWindow} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">保存维护窗口</button></div>
       </SectionCard>

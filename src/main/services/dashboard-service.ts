@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from './db'
 
 type DashboardScope = {
   workspaceId?: string
@@ -43,9 +41,13 @@ export interface DashboardCriticalIssue {
     | 'CRITICAL_ALERT'
     | 'CRITICAL_DRIFT'
     | 'FAILED_UPGRADE'
-    | 'FAILED_REMEDIATION'
-    | 'OFFLINE_AGENT'
-    | 'UNREACHABLE_TARGET'
+     | 'FAILED_REMEDIATION'
+     | 'OFFLINE_AGENT'
+     | 'UNREACHABLE_TARGET'
+     | 'FAILED_JOB'
+     | 'OUTBOX_FAILURE'
+     | 'BACKUP_STALE'
+     | 'MIGRATION_ISSUE'
   severity: 'CRITICAL' | 'HIGH'
   workspaceId: string
   workspaceName: string
@@ -222,6 +224,16 @@ function compareVersions(currentVersion: string, nextVersion: string): boolean {
   return false
 }
 
+function safeParseRecord(raw: string | null | undefined): Record<string, unknown> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch {
+    return {}
+  }
+}
+
 async function resolveWorkspaceName(workspaceId?: string): Promise<string | undefined> {
   if (!workspaceId) return undefined
   const workspace = await prisma.workspace.findUnique({
@@ -314,7 +326,7 @@ export class DashboardService {
     const scope = getScopeWhere({ workspaceId })
     const workspaceNames = await loadWorkspaceNameMap({ workspaceId })
 
-    const [criticalAlerts, criticalDrifts, failedUpgradePlans, failedRemediationOps, offlineAgents, unreachableTargets] = await Promise.all([
+    const [criticalAlerts, criticalDrifts, failedUpgradePlans, failedRemediationOps, offlineAgents, unreachableTargets, failedJobs, failedOutboxEvents, latestBackups, migrationRows] = await Promise.all([
       prisma.alert.findMany({
         where: { ...scope, status: 'OPEN', severity: 'CRITICAL' },
         orderBy: { updatedAt: 'desc' },
@@ -352,8 +364,50 @@ export class DashboardService {
         where: { ...scope, status: 'UNREACHABLE' },
         orderBy: { updatedAt: 'desc' },
         take: limit
-      })
+      }),
+      prisma.job.findMany({
+        where: { ...scope, status: 'FAILED' },
+        orderBy: { updatedAt: 'desc' },
+        take: limit,
+        include: { ticket: { select: { title: true } } }
+      }),
+      prisma.outboxEvent.findMany({
+        where: { ...scope, status: 'FAILED' },
+        orderBy: { updatedAt: 'desc' },
+        take: limit
+      }),
+      prisma.auditLog.findMany({
+        where: { ...scope, action: 'BACKUP_EXPORT_HISTORY', tool: 'backup' },
+        orderBy: { ts: 'desc' },
+        take: 50
+      }),
+      prisma.$queryRaw<Array<{ migration_name: string; finished_at: number | string | null; rolled_back_at: number | string | null; started_at: number | string | null }>>`
+        SELECT migration_name, finished_at, rolled_back_at, started_at FROM _prisma_migrations
+      `
     ])
+
+    const latestBackupByWorkspace = new Map<string, Date>()
+    for (const backup of latestBackups) {
+      if (!latestBackupByWorkspace.has(backup.workspaceId)) {
+        latestBackupByWorkspace.set(backup.workspaceId, backup.ts)
+      }
+    }
+    const now = Date.now()
+    const scopedWorkspaceIds = Array.from(workspaceNames.keys())
+    const staleBackupIssues = scopedWorkspaceIds
+      .map(currentWorkspaceId => ({ workspaceId: currentWorkspaceId, lastBackupAt: latestBackupByWorkspace.get(currentWorkspaceId) }))
+      .filter(item => !item.lastBackupAt || now - item.lastBackupAt.getTime() > 7 * 24 * 60 * 60 * 1000)
+
+    const failedMigrations = Array.from(new Map(
+      migrationRows
+        .filter(row => row.finished_at === null && row.rolled_back_at === null)
+        .map(row => [row.migration_name, row])
+    ).values())
+    const rolledBackMigrations = Array.from(new Map(
+      migrationRows
+        .filter(row => row.rolled_back_at !== null)
+        .map(row => [row.migration_name, row])
+    ).values())
 
     const issues: DashboardCriticalIssue[] = [
       ...criticalAlerts.map(alert => ({
@@ -447,6 +501,83 @@ export class DashboardService {
           { label: '进入修复', route: '/doctor' }
         ],
         sortScore: 97
+      })),
+      ...failedJobs.map(job => ({
+        id: job.id,
+        issueType: 'FAILED_JOB' as const,
+        severity: 'HIGH' as const,
+        workspaceId: job.workspaceId,
+        workspaceName: workspaceNames.get(job.workspaceId) || job.workspaceId,
+        summary: `${job.type} Job 执行失败${job.ticket?.title ? `：${job.ticket.title}` : ''}`,
+        lastOccurredAt: job.updatedAt.toISOString(),
+        actions: [
+          { label: '查看工单', route: job.ticketId ? `/tickets/${job.ticketId}` : '/tickets' },
+          { label: '查看事件', route: job.traceId ? `/traces/${job.traceId}` : '/activity-feed' }
+        ],
+        sortScore: 86
+      })),
+      ...failedOutboxEvents.map(event => {
+        const payload = safeParseRecord(event.payload)
+        const exhausted = event.nextRetryAt === null
+        return {
+          id: event.id,
+          issueType: 'OUTBOX_FAILURE' as const,
+          severity: exhausted ? 'CRITICAL' as const : 'HIGH' as const,
+          workspaceId: event.workspaceId,
+          workspaceName: workspaceNames.get(event.workspaceId) || event.workspaceId,
+          summary: exhausted
+            ? `${event.kind} Outbox 事件已耗尽重试`
+            : `${event.kind} Outbox 事件等待重试`,
+          lastOccurredAt: event.updatedAt.toISOString(),
+          actions: [
+            { label: '查看 Outbox', route: '/outbox' },
+            { label: '查看 Trace', route: event.traceId ? `/traces/${event.traceId}` : '/activity-feed' }
+          ],
+          targetId: typeof payload.targetId === 'string' ? payload.targetId : undefined,
+          sortScore: exhausted ? 94 : 82
+        }
+      }),
+      ...staleBackupIssues.map(item => ({
+        id: `backup-${item.workspaceId}`,
+        issueType: 'BACKUP_STALE' as const,
+        severity: item.lastBackupAt ? 'HIGH' as const : 'CRITICAL' as const,
+        workspaceId: item.workspaceId,
+        workspaceName: workspaceNames.get(item.workspaceId) || item.workspaceId,
+        summary: item.lastBackupAt
+          ? `最近备份已超过 7 天：${item.lastBackupAt.toLocaleString('zh-CN')}`
+          : '当前 workspace 尚未创建备份',
+        lastOccurredAt: (item.lastBackupAt || new Date(0)).toISOString(),
+        actions: [
+          { label: '创建备份', route: '/backup' },
+          { label: '运行 Doctor', route: '/doctor' }
+        ],
+        sortScore: item.lastBackupAt ? 70 : 78
+      })),
+      ...failedMigrations.map(row => ({
+        id: `migration-failed-${row.migration_name}`,
+        issueType: 'MIGRATION_ISSUE' as const,
+        severity: 'CRITICAL' as const,
+        workspaceId: workspaceId || 'system',
+        workspaceName: workspaceId ? workspaceNames.get(workspaceId) || workspaceId : 'System',
+        summary: `Prisma migration 失败：${row.migration_name}`,
+        lastOccurredAt: new Date().toISOString(),
+        actions: [
+          { label: '查看 Doctor', route: '/doctor' }
+        ],
+        sortScore: 99
+      })),
+      ...rolledBackMigrations.map(row => ({
+        id: `migration-rolledback-${row.migration_name}`,
+        issueType: 'MIGRATION_ISSUE' as const,
+        severity: 'HIGH' as const,
+        workspaceId: workspaceId || 'system',
+        workspaceName: workspaceId ? workspaceNames.get(workspaceId) || workspaceId : 'System',
+        summary: `Prisma migration 曾被标记回滚：${row.migration_name}`,
+        lastOccurredAt: new Date().toISOString(),
+        actions: [
+          { label: '查看 Doctor', route: '/doctor' }
+        ],
+        sortScore: 74
       }))
     ]
 

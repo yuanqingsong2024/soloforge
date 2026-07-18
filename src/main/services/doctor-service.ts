@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from './db'
 
 /**
  * 诊断发现
@@ -33,52 +31,44 @@ export interface DiagnosticReport {
  */
 export class DoctorService {
   /**
-   * 运行完整诊断
+   * 按检查项范围执行诊断。
+   * checkIds 为空时等同于全量巡检；传入单个检查项时只执行对应检查，便于页面单项重跑。
    */
-  static async runFullDiagnostic(
+  static async runDiagnostics(
     workspaceId: string,
-    createdBy: string
+    createdBy: string,
+    checkIds: string[] = []
   ): Promise<DiagnosticReport> {
+    const requestedChecks = checkIds.length > 0 ? new Set(checkIds) : null
     const findings: DiagnosticFinding[] = []
 
-    // 1. 检查 WS/WSS 连接
-    const wsFindings = await this.checkWebSocketConnection(workspaceId)
-    findings.push(...wsFindings)
+    const collect = async (checkId: string, runner: () => Promise<DiagnosticFinding[]>) => {
+      if (requestedChecks && !requestedChecks.has(checkId)) {
+        return
+      }
+      const rows = await runner()
+      findings.push(...rows)
+    }
 
-    // 2. 检查认证配置
-    const authFindings = await this.checkAuthentication(workspaceId)
-    findings.push(...authFindings)
+    await collect('WS_CONNECTION', () => this.checkWebSocketConnection(workspaceId))
+    await collect('AUTH', () => this.checkAuthentication(workspaceId))
+    await collect('CONFIG_DRIFT', () => this.checkConfigDrift(workspaceId))
+    await collect('HOOKS', () => this.checkHooks(workspaceId))
+    await collect('TRUSTED_PROXIES', () => this.checkTrustedProxies(workspaceId))
+    await collect('DEPLOYMENT_HEALTH', () => this.checkDeploymentTargets(workspaceId))
+    await collect('HOST_AGENT', () => this.checkHostAgents(workspaceId))
+    await collect('BACKUP', () => this.checkBackupFreshness(workspaceId))
+    await collect('OUTBOX', () => this.checkOutboxBacklog(workspaceId))
+    await collect('APPROVAL_BACKLOG', () => this.checkApprovalBacklog())
+    await collect('MIGRATION_STATE', () => this.checkMigrationState())
 
-    // 3. 检查配置漂移
-    const driftFindings = await this.checkConfigDrift(workspaceId)
-    findings.push(...driftFindings)
-
-    // 4. 检查 hooks 配置
-    const hooksFindings = await this.checkHooks(workspaceId)
-    findings.push(...hooksFindings)
-
-    // 5. 检查 trustedProxies 风险
-    const proxiesFindings = await this.checkTrustedProxies(workspaceId)
-    findings.push(...proxiesFindings)
-    // 6. 检查部署目标健康状态
-    const deploymentFindings = await this.checkDeploymentTargets(workspaceId)
-    findings.push(...deploymentFindings)
-
-    // 7. 检查 Host Agent 心跳与绑定情况
-    const hostAgentFindings = await this.checkHostAgents(workspaceId)
-    findings.push(...hostAgentFindings)
-
-    // 计算整体严重程度
     const severity = this.calculateOverallSeverity(findings)
-
-    // 生成摘要
     const summary = this.generateSummary(findings)
 
-    // 保存报告
     const report = await prisma.diagnosticReport.create({
       data: {
         workspaceId,
-        reportType: 'FULL',
+        reportType: requestedChecks && requestedChecks.size === 1 ? 'SINGLE' : 'FULL',
         status: 'COMPLETED',
         findings: JSON.stringify(findings),
         summary,
@@ -91,12 +81,22 @@ export class DoctorService {
       id: report.id,
       workspaceId: report.workspaceId,
       reportType: report.reportType,
-      status: report.status as any,
+      status: report.status as 'RUNNING' | 'COMPLETED' | 'FAILED',
       findings,
       summary: report.summary,
-      severity: report.severity as any,
+      severity: report.severity as 'OK' | 'WARNING' | 'ERROR' | 'CRITICAL',
       createdAt: report.createdAt
     }
+  }
+
+  /**
+   * 运行完整诊断
+   */
+  static async runFullDiagnostic(
+    workspaceId: string,
+    createdBy: string
+  ): Promise<DiagnosticReport> {
+    return this.runDiagnostics(workspaceId, createdBy)
   }
 
   /**
@@ -488,6 +488,209 @@ export class DoctorService {
   }
 
   /**
+   * 检查备份新鲜度
+   */
+  private static async checkBackupFreshness(workspaceId: string): Promise<DiagnosticFinding[]> {
+    const findings: DiagnosticFinding[] = []
+    try {
+      const latestBackup = await prisma.auditLog.findFirst({
+        where: { workspaceId, action: 'BACKUP_EXPORT_HISTORY', tool: 'backup' },
+        orderBy: { ts: 'desc' }
+      })
+
+      if (!latestBackup) {
+        findings.push({
+          category: 'BACKUP',
+          severity: 'WARNING',
+          message: '当前 workspace 尚未创建备份',
+          recommendation: '建议在配置变更、升级或导入前先生成一次备份包'
+        })
+        return findings
+      }
+
+      const ageMs = Date.now() - latestBackup.ts.getTime()
+      const ageHours = Math.floor(ageMs / (60 * 60 * 1000))
+      if (ageMs > 7 * 24 * 60 * 60 * 1000) {
+        findings.push({
+          category: 'BACKUP',
+          severity: 'ERROR',
+          message: `最近一次备份已超过 7 天（约 ${ageHours} 小时）`,
+          details: `最近备份时间: ${latestBackup.ts.toLocaleString('zh-CN')}`,
+          recommendation: '请尽快导出新的 workspace 备份包'
+        })
+      } else if (ageMs > 24 * 60 * 60 * 1000) {
+        findings.push({
+          category: 'BACKUP',
+          severity: 'WARNING',
+          message: `最近一次备份已超过 24 小时（约 ${ageHours} 小时）`,
+          details: `最近备份时间: ${latestBackup.ts.toLocaleString('zh-CN')}`,
+          recommendation: '建议在下一次高危操作前刷新备份'
+        })
+      } else {
+        findings.push({
+          category: 'BACKUP',
+          severity: 'OK',
+          message: '最近 24 小时内存在备份记录',
+          details: `最近备份时间: ${latestBackup.ts.toLocaleString('zh-CN')}`
+        })
+      }
+    } catch (error) {
+      findings.push({
+        category: 'BACKUP',
+        severity: 'ERROR',
+        message: '备份状态检查失败',
+        details: error instanceof Error ? error.message : '未知错误'
+      })
+    }
+    return findings
+  }
+
+  /**
+   * 检查 Outbox 堆积与失败
+   */
+  private static async checkOutboxBacklog(workspaceId: string): Promise<DiagnosticFinding[]> {
+    const findings: DiagnosticFinding[] = []
+    try {
+      const [pending, sending, failed, exhausted] = await Promise.all([
+        prisma.outboxEvent.count({ where: { workspaceId, status: 'PENDING' } }),
+        prisma.outboxEvent.count({ where: { workspaceId, status: 'SENDING' } }),
+        prisma.outboxEvent.count({ where: { workspaceId, status: 'FAILED' } }),
+        prisma.outboxEvent.count({ where: { workspaceId, status: 'FAILED', nextRetryAt: null } })
+      ])
+      const totalBlocked = pending + sending + failed
+
+      if (exhausted > 0) {
+        findings.push({
+          category: 'OUTBOX',
+          severity: 'ERROR',
+          message: `${exhausted} 个 Outbox 事件已耗尽重试`,
+          details: `pending=${pending}, sending=${sending}, failed=${failed}`,
+          recommendation: '请在 Outbox 页面查看失败原因，修复连接或处理器后手动重试'
+        })
+      } else if (failed > 0 || totalBlocked > 20) {
+        findings.push({
+          category: 'OUTBOX',
+          severity: 'WARNING',
+          message: `Outbox 存在待处理或失败事件 ${totalBlocked} 个`,
+          details: `pending=${pending}, sending=${sending}, failed=${failed}`,
+          recommendation: '检查 Outbox 自动重试调度、网络可达性与事件处理器注册状态'
+        })
+      } else {
+        findings.push({
+          category: 'OUTBOX',
+          severity: 'OK',
+          message: 'Outbox 无明显堆积',
+          details: `pending=${pending}, sending=${sending}, failed=${failed}`
+        })
+      }
+    } catch (error) {
+      findings.push({
+        category: 'OUTBOX',
+        severity: 'ERROR',
+        message: 'Outbox 状态检查失败',
+        details: error instanceof Error ? error.message : '未知错误'
+      })
+    }
+    return findings
+  }
+
+  /**
+   * 检查审批积压
+   */
+  private static async checkApprovalBacklog(): Promise<DiagnosticFinding[]> {
+    const findings: DiagnosticFinding[] = []
+    try {
+      const pendingApprovals = await prisma.approval.findMany({
+        where: { status: 'PENDING' },
+        orderBy: { createdAt: 'asc' },
+        take: 100
+      })
+
+      if (pendingApprovals.length === 0) {
+        findings.push({
+          category: 'APPROVAL_BACKLOG',
+          severity: 'OK',
+          message: '暂无待审批事项'
+        })
+        return findings
+      }
+
+      const now = Date.now()
+      const staleCount = pendingApprovals.filter(approval => now - approval.createdAt.getTime() > 24 * 60 * 60 * 1000).length
+      if (staleCount > 0) {
+        findings.push({
+          category: 'APPROVAL_BACKLOG',
+          severity: 'WARNING',
+          message: `${pendingApprovals.length} 个审批待处理，其中 ${staleCount} 个超过 24 小时`,
+          recommendation: '请进入审批中心处理积压审批，避免配置、外发或部署流程长期阻塞'
+        })
+      } else {
+        findings.push({
+          category: 'APPROVAL_BACKLOG',
+          severity: 'WARNING',
+          message: `${pendingApprovals.length} 个审批待处理`,
+          recommendation: '请按优先级处理待审批事项'
+        })
+      }
+    } catch (error) {
+      findings.push({
+        category: 'APPROVAL_BACKLOG',
+        severity: 'ERROR',
+        message: '审批积压检查失败',
+        details: error instanceof Error ? error.message : '未知错误'
+      })
+    }
+    return findings
+  }
+
+  /**
+   * 检查 Prisma 迁移状态
+   */
+  private static async checkMigrationState(): Promise<DiagnosticFinding[]> {
+    const findings: DiagnosticFinding[] = []
+    try {
+      const rows = await prisma.$queryRaw<Array<{ migration_name: string; finished_at: number | string | null; rolled_back_at: number | string | null }>>`
+        SELECT migration_name, finished_at, rolled_back_at FROM _prisma_migrations
+      `
+      const failed = rows.filter(row => row.finished_at === null && row.rolled_back_at === null)
+      const rolledBack = rows.filter(row => row.rolled_back_at !== null)
+
+      if (failed.length > 0) {
+        findings.push({
+          category: 'MIGRATION_STATE',
+          severity: 'CRITICAL',
+          message: `${failed.length} 个 Prisma migration 处于失败状态`,
+          details: failed.map(row => row.migration_name).join(', '),
+          recommendation: '请先修复迁移状态再继续运行构建、种子或业务验证'
+        })
+      } else if (rolledBack.length > 0) {
+        findings.push({
+          category: 'MIGRATION_STATE',
+          severity: 'WARNING',
+          message: `${rolledBack.length} 个 Prisma migration 曾被标记回滚`,
+          details: rolledBack.map(row => row.migration_name).join(', '),
+          recommendation: '请确认这些 migration 已被后续迁移或人工修复覆盖'
+        })
+      } else {
+        findings.push({
+          category: 'MIGRATION_STATE',
+          severity: 'OK',
+          message: `Prisma migration 状态正常（${rows.length} 条记录）`
+        })
+      }
+    } catch (error) {
+      findings.push({
+        category: 'MIGRATION_STATE',
+        severity: 'ERROR',
+        message: 'Prisma migration 状态检查失败',
+        details: error instanceof Error ? error.message : '未知错误',
+        recommendation: '请确认数据库已初始化并存在 _prisma_migrations 表'
+      })
+    }
+    return findings
+  }
+
+  /**
    * 获取诊断历史
    */
   static async getReportHistory(workspaceId: string, limit = 20) {
@@ -512,10 +715,10 @@ export class DoctorService {
       id: report.id,
       workspaceId: report.workspaceId,
       reportType: report.reportType,
-      status: report.status as any,
+      status: report.status as 'RUNNING' | 'COMPLETED' | 'FAILED',
       findings: JSON.parse(report.findings),
       summary: report.summary,
-      severity: report.severity as any,
+      severity: report.severity as 'OK' | 'WARNING' | 'ERROR' | 'CRITICAL',
       createdAt: report.createdAt
     }
   }
@@ -749,4 +952,4 @@ export class DoctorService {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

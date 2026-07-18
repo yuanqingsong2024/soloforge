@@ -9,7 +9,7 @@ test('启动 Electron 后可见 Dashboard 与基础布局', async ({}, testInfo)
     await expect(context.page).toHaveTitle(/SoloForge/i)
     await expect(context.page.getByTestId('app-sidebar')).toBeVisible()
     await expect(context.page.getByTestId('app-topbar')).toBeVisible()
-    await expect(context.page.getByRole('heading', { name: '总控首页' })).toBeVisible()
+    await expect(context.page.getByTestId('dashboard-page')).toBeVisible()
   } finally {
     await closeElectronApp(context)
   }

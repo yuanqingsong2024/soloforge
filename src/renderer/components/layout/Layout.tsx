@@ -1,44 +1,44 @@
 import React from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import { useTheme } from '../../contexts/ThemeContext'
 
-function getTitleContext(pathname: string): { section: string; page: string } {
-  if (pathname === '/') return { section: '工作台', page: '仪表盘' }
-  if (pathname.startsWith('/tickets/')) return { section: '工单', page: '工单详情' }
-  if (pathname.startsWith('/tickets')) return { section: '工单', page: '工单看板' }
-  if (pathname.startsWith('/team')) return { section: '组织', page: '团队管理' }
-  if (pathname.startsWith('/approvals')) return { section: '审批', page: '审批中心' }
-  if (pathname.startsWith('/audit')) return { section: '审计', page: '审计日志' }
-  if (pathname.startsWith('/connection')) return { section: '连接', page: '连接配置' }
-  if (pathname.startsWith('/openclaw-config')) return { section: '连接', page: 'OpenClaw 配置中心' }
-  if (pathname.startsWith('/communications')) return { section: '通讯', page: '通讯设置' }
-  if (pathname.startsWith('/contacts')) return { section: '通讯', page: '联系人' }
-  if (pathname.startsWith('/outbound-messages')) return { section: '通讯', page: '外发消息中心' }
-  if (pathname.startsWith('/outbox')) return { section: '通讯', page: 'Outbox' }
-  if (pathname.startsWith('/backup')) return { section: '数据', page: '备份与恢复' }
-  if (pathname.startsWith('/changes/')) return { section: '变更', page: '变更单详情' }
-  if (pathname.startsWith('/changes')) return { section: '变更', page: '变更单' }
-  if (pathname.startsWith('/doctor')) return { section: '巡检', page: 'Doctor' }
-  if (pathname.startsWith('/activity-feed')) return { section: '运行态', page: 'Activity Feed' }
-  if (pathname.startsWith('/operations')) return { section: '运行态', page: 'Operations' }
-  if (pathname.startsWith('/alerts')) return { section: '运行态', page: 'Alerts' }
-  if (pathname.startsWith('/notification-policies')) return { section: '运行态', page: '通知策略' }
-  if (pathname.startsWith('/doctor-scheduler')) return { section: '运行态', page: 'Doctor 调度器' }
-  if (pathname.startsWith('/releases')) return { section: '发布', page: 'Releases' }
-  if (pathname.startsWith('/upgrade-plans')) return { section: '发布', page: '升级计划' }
-  if (pathname.startsWith('/upgrade-runs')) return { section: '发布', page: '升级执行' }
-  if (pathname.startsWith('/release-policies')) return { section: '发布', page: '发布策略' }
-  if (pathname.startsWith('/maintenance-windows')) return { section: '发布', page: '维护窗口' }
-  if (pathname.startsWith('/host-agents/new')) return { section: '宿主机', page: 'Bootstrap 向导' }
-  if (pathname.startsWith('/host-agents/')) return { section: '宿主机', page: 'Agent 详情' }
-  if (pathname.startsWith('/host-agents')) return { section: '宿主机', page: 'Host Agents' }
-  if (pathname.startsWith('/agent-actions')) return { section: '宿主机', page: 'Agent Actions' }
-  if (pathname.startsWith('/workspace-settings')) return { section: '工作区', page: 'Workspace 设置' }
-  if (pathname.startsWith('/deployments/new')) return { section: '部署', page: '部署向导' }
-  if (pathname.startsWith('/deployments/')) return { section: '部署', page: '部署详情' }
-  if (pathname.startsWith('/deployments')) return { section: '部署', page: '部署管理' }
-  return { section: '工作台', page: '控制中心' }
+function getTitleContext(pathname: string, t: (key: string) => string): { section: string; page: string } {
+  if (pathname === '/') return { section: t('navigation:sections.workspace'), page: t('navigation:pageTitle.dashboard') }
+  if (pathname.startsWith('/tickets/')) return { section: t('navigation:sections.tickets'), page: t('navigation:pageTitle.ticketDetail') }
+  if (pathname.startsWith('/tickets')) return { section: t('navigation:sections.tickets'), page: t('navigation:pageTitle.tickets') }
+  if (pathname.startsWith('/team')) return { section: t('navigation:sections.organization'), page: t('navigation:pageTitle.team') }
+  if (pathname.startsWith('/approvals')) return { section: t('navigation:sections.approval'), page: t('navigation:pageTitle.approvals') }
+  if (pathname.startsWith('/audit')) return { section: t('navigation:sections.audit'), page: t('navigation:pageTitle.audit') }
+  if (pathname.startsWith('/connection')) return { section: t('navigation:sections.connection'), page: t('navigation:pageTitle.connection') }
+  if (pathname.startsWith('/openclaw-config')) return { section: t('navigation:sections.connection'), page: t('navigation:pageTitle.openclawConfig') }
+  if (pathname.startsWith('/communications')) return { section: t('navigation:sections.communications'), page: t('navigation:pageTitle.communications') }
+  if (pathname.startsWith('/contacts')) return { section: t('navigation:sections.communications'), page: t('navigation:pageTitle.contacts') }
+  if (pathname.startsWith('/outbound-messages')) return { section: t('navigation:sections.communications'), page: t('navigation:pageTitle.outboundMessages') }
+  if (pathname.startsWith('/outbox')) return { section: t('navigation:sections.communications'), page: t('navigation:pageTitle.outbox') }
+  if (pathname.startsWith('/backup')) return { section: t('navigation:sections.data'), page: t('navigation:pageTitle.backup') }
+  if (pathname.startsWith('/changes/')) return { section: t('navigation:sections.changes'), page: t('navigation:pageTitle.changeDetail') }
+  if (pathname.startsWith('/changes')) return { section: t('navigation:sections.changes'), page: t('navigation:pageTitle.changes') }
+  if (pathname.startsWith('/health-monitoring')) return { section: t('navigation:sections.inspection'), page: t('navigation:pageTitle.healthMonitoring') }
+  if (pathname.startsWith('/activity-feed')) return { section: t('navigation:sections.runtime'), page: t('navigation:pageTitle.activityFeed') }
+  if (pathname.startsWith('/operations')) return { section: t('navigation:sections.runtime'), page: t('navigation:pageTitle.operations') }
+  if (pathname.startsWith('/notification-policies')) return { section: t('navigation:sections.runtime'), page: t('navigation:pageTitle.notificationPolicies') }
+  if (pathname.startsWith('/releases')) return { section: t('navigation:sections.release'), page: t('navigation:pageTitle.releases') }
+  if (pathname.startsWith('/upgrade-plans')) return { section: t('navigation:sections.release'), page: t('navigation:pageTitle.upgradePlans') }
+  if (pathname.startsWith('/upgrade-runs')) return { section: t('navigation:sections.release'), page: t('navigation:pageTitle.upgradeRuns') }
+  if (pathname.startsWith('/release-policies')) return { section: t('navigation:sections.release'), page: t('navigation:pageTitle.releasePolicies') }
+  if (pathname.startsWith('/maintenance-windows')) return { section: t('navigation:sections.release'), page: t('navigation:pageTitle.maintenanceWindows') }
+  if (pathname.startsWith('/host-agents/new')) return { section: t('navigation:sections.hostAgents'), page: t('navigation:pageTitle.bootstrapWizard') }
+  if (pathname.startsWith('/host-agents/')) return { section: t('navigation:sections.hostAgents'), page: t('navigation:pageTitle.agentDetail') }
+  if (pathname.startsWith('/host-agents')) return { section: t('navigation:sections.hostAgents'), page: t('navigation:pageTitle.hostAgents') }
+  if (pathname.startsWith('/agent-actions')) return { section: t('navigation:sections.hostAgents'), page: t('navigation:pageTitle.agentActions') }
+  if (pathname.startsWith('/workspace-settings')) return { section: t('navigation:sections.workspace'), page: t('navigation:pageTitle.workspaceSettings') }
+  if (pathname.startsWith('/deployments/new')) return { section: t('navigation:sections.deployment'), page: t('navigation:pageTitle.deploymentWizard') }
+  if (pathname.startsWith('/deployments/')) return { section: t('navigation:sections.deployment'), page: t('navigation:pageTitle.deploymentDetail') }
+  if (pathname.startsWith('/deployments')) return { section: t('navigation:sections.deployment'), page: t('navigation:pageTitle.deployments') }
+  return { section: t('navigation:sections.workspace'), page: t('navigation:pageTitle.controlCenter') }
 }
 
 function getTitleContextAction(pathname: string): { backTo: string; id?: string } | null {
@@ -100,11 +100,13 @@ async function resolveDynamicTitle(pathname: string): Promise<string | null> {
 }
 
 function WindowTitleBar() {
+  const { t } = useTranslation(['navigation', 'common'])
+  const { effectiveTheme } = useTheme()
   const [maximized, setMaximized] = React.useState(false)
   const [platform, setPlatform] = React.useState<NodeJS.Platform>('win32')
   const location = useLocation()
   const navigate = useNavigate()
-  const titleContext = React.useMemo(() => getTitleContext(location.pathname), [location.pathname])
+  const titleContext = React.useMemo(() => getTitleContext(location.pathname, t), [location.pathname, t])
   const titleAction = React.useMemo(() => getTitleContextAction(location.pathname), [location.pathname])
   const [dynamicLabel, setDynamicLabel] = React.useState<string | null>(null)
   const [copiedId, setCopiedId] = React.useState(false)
@@ -143,12 +145,26 @@ function WindowTitleBar() {
     }
   }, [location.pathname])
 
+  const handleMinimize = async () => {
+    if (typeof window.electronAPI?.minimizeWindow !== 'function') {
+      return
+    }
+    await window.electronAPI.minimizeWindow()
+  }
+
   const handleToggleMaximize = async () => {
     if (typeof window.electronAPI?.toggleMaximizeWindow !== 'function') {
       return
     }
     const next = await window.electronAPI.toggleMaximizeWindow()
     setMaximized(next)
+  }
+
+  const handleClose = async () => {
+    if (typeof window.electronAPI?.closeWindow !== 'function') {
+      return
+    }
+    await window.electronAPI.closeWindow()
   }
 
   const handleCopyId = async () => {
@@ -160,12 +176,16 @@ function WindowTitleBar() {
 
   const isMac = platform === 'darwin'
   const isLinux = platform === 'linux'
+  const isDarkTheme = effectiveTheme === 'dark'
+  const titleBarClassName = isDarkTheme
+    ? 'border-b border-[hsl(var(--border)_/_0.82)] bg-[linear-gradient(180deg,hsl(var(--card)_/_0.96),hsl(var(--card)_/_0.84))]'
+    : 'border-b border-[hsl(var(--border)_/_0.82)] bg-[linear-gradient(180deg,hsl(var(--card)_/_0.99),hsl(var(--background)_/_0.94))]'
 
   const controls = (
     <div className={`flex items-center ${isMac ? 'gap-2 group' : isLinux ? 'gap-2' : ''}`} style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
       <button
         type="button"
-        onClick={() => void window.electronAPI?.minimizeWindow?.()}
+        onClick={() => void handleMinimize()}
         className={`flex items-center justify-center transition-colors ${
           isMac
             ? 'order-2 h-3 w-3 rounded-full bg-[#ffbd2e] border border-[#e1a325] hover:bg-[#ffbd2e]'
@@ -173,7 +193,7 @@ function WindowTitleBar() {
               ? 'h-6 w-6 rounded-full bg-transparent hover:bg-[hsl(var(--accent))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
               : 'h-8 w-11 hover:bg-[hsl(var(--accent))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
         }`}
-        aria-label="最小化窗口"
+        aria-label={t('common:window.minimize')}
       >
         <span className={`${isMac ? 'opacity-0 group-hover:opacity-100 transition-opacity bg-[#995700] h-[1px] w-2' : 'block bg-current h-px w-2.5'}`} />
       </button>
@@ -187,7 +207,7 @@ function WindowTitleBar() {
               ? 'h-6 w-6 rounded-full bg-transparent hover:bg-[hsl(var(--accent))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
               : 'h-8 w-11 hover:bg-[hsl(var(--accent))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
         }`}
-        aria-label={maximized ? '还原窗口' : '最大化窗口'}
+        aria-label={maximized ? t('common:window.restore') : t('common:window.maximize')}
       >
         {isMac ? (
           <span className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -214,7 +234,7 @@ function WindowTitleBar() {
       </button>
       <button
         type="button"
-        onClick={() => void window.electronAPI?.closeWindow?.()}
+        onClick={() => void handleClose()}
         className={`flex items-center justify-center transition-colors ${
           isMac
             ? 'order-1 h-3 w-3 rounded-full bg-[#ff5f56] border border-[#e0443e] hover:bg-[#ff5f56]'
@@ -222,7 +242,7 @@ function WindowTitleBar() {
               ? 'h-6 w-6 rounded-full bg-transparent hover:bg-[#e81123] text-[hsl(var(--muted-foreground))] hover:text-white'
               : 'h-8 w-11 hover:bg-[#e81123] text-[hsl(var(--muted-foreground))] hover:text-white'
         }`}
-        aria-label="关闭窗口"
+        aria-label={t('common:window.close')}
       >
         {isMac ? (
            <span className="opacity-0 group-hover:opacity-100 transition-opacity relative block h-2 w-2">
@@ -241,32 +261,29 @@ function WindowTitleBar() {
 
   return (
     <div
-      className={`flex h-11 items-center justify-between border-b border-[hsl(var(--border)_/_0.82)] bg-[linear-gradient(180deg,#0d1626,#111827)] text-[hsl(var(--foreground))] ${maximized ? 'px-1.5' : 'px-3'} ${isMac ? 'flex-row-reverse' : ''}`}
+      className={`relative grid min-h-16 grid-cols-[1fr_auto_1fr] items-center gap-y-1 px-3 py-2 text-[hsl(var(--foreground))] ${titleBarClassName} ${maximized ? 'px-1.5' : 'px-3'} ${isMac ? 'grid-cols-[1fr_auto_1fr]' : ''}`}
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      <div className={`flex min-w-0 items-center gap-3 ${isMac ? 'ml-auto mr-3' : ''}`}>
-        <div className="flex h-7 w-7 items-center justify-center rounded-full border border-[hsl(var(--border)_/_0.72)] bg-[radial-gradient(circle_at_top,hsl(var(--card)),hsl(var(--background)_/_0.74))] text-xs font-semibold text-[hsl(var(--foreground))] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
-          SF
+      <div aria-hidden="true" className="pointer-events-none justify-self-start" />
+      <div className="pointer-events-none justify-self-center flex min-w-0 flex-col items-center text-center">
+        <div className="truncate text-[15px] font-semibold leading-none tracking-tight">SoloForge · Team OS</div>
+        <div className="mt-1 truncate text-[10px] leading-none uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
+          {t('navigation:app.desktopControlCenter')}
         </div>
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold">SoloForge · Team OS</div>
-          <div className="truncate text-[10px] uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Desktop Control Center</div>
+        <div className={`mt-1 hidden items-center gap-2 rounded-full border border-[hsl(var(--border)_/_0.68)] bg-[hsl(var(--background)_/_0.5)] px-3 py-1.5 text-[11px] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] xl:flex ${isLinux ? 'opacity-95' : ''}`}>
+          <span className="uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{titleContext.section}</span>
+          <span className="text-[hsl(var(--muted-foreground))]">/</span>
+          <span className="font-medium text-[hsl(var(--foreground))]">{titleContext.page}</span>
+          {dynamicLabel && (
+            <>
+              <span className="text-[hsl(var(--muted-foreground))]">/</span>
+              <span className="max-w-[18rem] truncate text-[hsl(var(--muted-foreground))]">{dynamicLabel}</span>
+            </>
+          )}
         </div>
       </div>
 
-      <div className={`pointer-events-none absolute top-1/2 hidden -translate-y-1/2 xl:flex items-center gap-2 rounded-full border border-[hsl(var(--border)_/_0.68)] bg-[hsl(var(--background)_/_0.5)] px-3 py-1.5 text-[11px] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${isLinux ? 'opacity-95' : ''} left-1/2 -translate-x-1/2`}>
-        <span className="uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{titleContext.section}</span>
-        <span className="text-[hsl(var(--muted-foreground))]">/</span>
-        <span className="font-medium text-[hsl(var(--foreground))]">{titleContext.page}</span>
-        {dynamicLabel && (
-          <>
-            <span className="text-[hsl(var(--muted-foreground))]">/</span>
-            <span className="max-w-[18rem] truncate text-[hsl(var(--muted-foreground))]">{dynamicLabel}</span>
-          </>
-        )}
-      </div>
-
-      <div className={`flex items-center gap-2 ${isMac ? 'mr-auto' : ''}`} style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div className={`pointer-events-auto justify-self-end flex items-center gap-2 pr-1 ${isMac ? 'mr-auto pr-0' : ''}`} style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {titleAction && (
           <div className="hidden items-center gap-1 xl:flex">
             <button
@@ -274,7 +291,7 @@ function WindowTitleBar() {
               onClick={() => navigate(titleAction.backTo)}
               className="rounded-full border border-[hsl(var(--border)_/_0.72)] bg-[hsl(var(--background)_/_0.48)] px-3 py-1.5 text-[11px] font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
             >
-              返回列表
+              {t('common:buttons.backToList')}
             </button>
             {titleAction.id && (
               <button
@@ -282,7 +299,7 @@ function WindowTitleBar() {
                 onClick={() => void handleCopyId()}
                 className="rounded-full border border-[hsl(var(--border)_/_0.72)] bg-[hsl(var(--background)_/_0.48)] px-3 py-1.5 text-[11px] font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
               >
-                {copiedId ? '已复制 ID' : '复制 ID'}
+                {copiedId ? t('common:buttons.idCopied') : t('common:buttons.copyId')}
               </button>
             )}
           </div>
@@ -300,7 +317,7 @@ interface LayoutProps {
 // 主布局组件
 export function Layout({ children }: LayoutProps) {
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
+    <div className="flex h-screen flex-col overflow-hidden bg-[hsl(var(--background))] text-[hsl(var(--foreground))]" style={{ backgroundColor: 'hsl(var(--background))' }}>
       <WindowTitleBar />
       <div className="flex min-h-0 flex-1 overflow-hidden bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
         {/* 侧边栏 - 移动端隐藏 */}
@@ -309,8 +326,10 @@ export function Layout({ children }: LayoutProps) {
         </div>
         {/* 主内容区 */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden md:p-3 md:pl-4">
-          {/* 顶部栏 */}
-          <Topbar />
+          {/* 顶部栏 - 固定在顶部 */}
+          <div className="sticky top-0 z-10">
+            <Topbar />
+          </div>
           {/* 页面内容 - 响应式内边距 */}
           <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
             {children}

@@ -1,0 +1,82 @@
+{
+  "pageTitle": "Tickets",
+  "board": {
+    "title": "Ticket Board",
+    "description": "Move tickets by stage and track progress from inbox to delivery.",
+    "createTicket": "Create Ticket",
+    "enterTitle": "Enter ticket title"
+  },
+  "status": {
+    "inbox": "Inbox",
+    "spec": "Spec",
+    "dev": "Dev",
+    "test": "Test",
+    "delivery": "Delivery",
+    "done": "Done"
+  },
+  "priority": {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "urgent": "Urgent"
+  },
+  "source": {
+    "email": "Email",
+    "slack": "Slack",
+    "manual": "Manual",
+    "api": "API"
+  },
+  "detail": {
+    "title": "Ticket Detail",
+    "basicInfo": "Basic Information",
+    "timeline": "Timeline",
+    "artifacts": "Artifacts",
+    "approvals": "Approvals",
+    "audit": "Audit Logs",
+    "contact": "Contact",
+    "primaryTarget": "Primary Target",
+    "assignee": "Assignee",
+    "tags": "Tags",
+    "noContact": "No Contact",
+    "noTarget": "No Target",
+    "noAssignee": "Unassigned"
+  },
+  "artifacts": {
+    "types": {
+      "prd": "PRD",
+      "plan": "Plan",
+      "codeChange": "Code Change",
+      "testCases": "Test Cases",
+      "deploy": "Deploy",
+      "rollback": "Rollback",
+      "deliveryList": "Delivery List",
+      "clientMsg": "Client Message"
+    },
+    "create": "Create Artifact",
+    "edit": "Edit Artifact",
+    "delete": "Delete Artifact",
+    "version": "Version"
+  },
+  "compose": {
+    "title": "Compose & Send",
+    "selectTemplate": "Select Template",
+    "selectContact": "Select Contact",
+    "selectTarget": "Select Target",
+    "channel": "Channel",
+    "to": "To",
+    "subject": "Subject",
+    "body": "Body",
+    "variables": "Variables",
+    "generateDraft": "Generate Draft",
+    "send": "Send",
+    "noTemplates": "No templates available",
+    "noContacts": "No contacts available",
+    "noTargets": "No targets available"
+  },
+  "pipeline": {
+    "title": "Pipeline",
+    "currentStep": "Current Step",
+    "nextStep": "Next Step",
+    "progress": "Progress"
+  }
+}

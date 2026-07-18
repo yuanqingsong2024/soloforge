@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from './db'
 
 export interface NotificationPolicyFilters {
   workspaceId?: string
@@ -109,4 +107,4 @@ export class NotificationPolicyService {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

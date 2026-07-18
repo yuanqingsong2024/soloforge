@@ -1,0 +1,82 @@
+{
+  "pageTitle": "工单",
+  "board": {
+    "title": "工单看板",
+    "description": "按阶段拖拽推进工单，跟踪从收件箱到交付的闭环进度。",
+    "createTicket": "创建工单",
+    "enterTitle": "请输入工单标题"
+  },
+  "status": {
+    "inbox": "收件箱",
+    "spec": "需求",
+    "dev": "开发",
+    "test": "测试",
+    "delivery": "交付",
+    "done": "完成"
+  },
+  "priority": {
+    "low": "低",
+    "medium": "中",
+    "high": "高",
+    "urgent": "紧急"
+  },
+  "source": {
+    "email": "邮件",
+    "slack": "Slack",
+    "manual": "手动",
+    "api": "API"
+  },
+  "detail": {
+    "title": "工单详情",
+    "basicInfo": "基本信息",
+    "timeline": "时间线",
+    "artifacts": "交付物",
+    "approvals": "审批",
+    "audit": "审计日志",
+    "contact": "联系人",
+    "primaryTarget": "主要目标",
+    "assignee": "负责人",
+    "tags": "标签",
+    "noContact": "无联系人",
+    "noTarget": "无目标",
+    "noAssignee": "未分配"
+  },
+  "artifacts": {
+    "types": {
+      "prd": "需求文档",
+      "plan": "方案",
+      "codeChange": "代码变更",
+      "testCases": "测试用例",
+      "deploy": "部署",
+      "rollback": "回滚",
+      "deliveryList": "交付清单",
+      "clientMsg": "客户消息"
+    },
+    "create": "创建交付物",
+    "edit": "编辑交付物",
+    "delete": "删除交付物",
+    "version": "版本"
+  },
+  "compose": {
+    "title": "撰写与发送",
+    "selectTemplate": "选择模板",
+    "selectContact": "选择联系人",
+    "selectTarget": "选择目标",
+    "channel": "渠道",
+    "to": "收件人",
+    "subject": "主题",
+    "body": "正文",
+    "variables": "变量",
+    "generateDraft": "生成草稿",
+    "send": "发送",
+    "noTemplates": "暂无可用模板",
+    "noContacts": "暂无可用联系人",
+    "noTargets": "暂无可用目标"
+  },
+  "pipeline": {
+    "title": "流水线",
+    "currentStep": "当前步骤",
+    "nextStep": "下一步",
+    "progress": "进度"
+  }
+}

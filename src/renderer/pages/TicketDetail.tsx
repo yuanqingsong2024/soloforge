@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { useErrorMessage, useConfirmMessage, translateEnum } from '../lib/i18n-helpers'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import { ThemeInput, ThemeSelect, ThemeTextarea } from '../components/ui/FormFields'
+import { getToneByStatus } from '../lib/status-badge'
 interface Ticket {
   id: string
   title: string
@@ -139,6 +146,9 @@ type ApiResponse<T> = ApiSuccessResponse<T> | ApiFailResponse
 export function TicketDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation(['tickets', 'common'])
+  const getErrorMessage = useErrorMessage()
+  const getConfirmMessage = useConfirmMessage()
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -264,22 +274,22 @@ export function TicketDetail() {
       const result = await response.json()
       const wrapped = result as ApiResponse<{ needsApproval?: boolean; approvalIds?: string[] }>
       if (!response.ok || !wrapped.success) {
-        throw new Error(wrapped.success ? '推进失败' : wrapped.error)
+        throw new Error(wrapped.success ? t('tickets:detail.pipeline.advanceFailed') : wrapped.error)
       }
       if (wrapped.data.needsApproval) {
-        alert(`需要审批才能推进。审批 ID: ${(wrapped.data.approvalIds || []).join(', ')}`)
+        alert(t('tickets:detail.pipeline.needsApproval', { ids: (wrapped.data.approvalIds || []).join(', ') }))
       } else {
-        alert('Pipeline 推进成功')
+        alert(t('tickets:detail.pipeline.advanceSuccess'))
       }
       fetchPipelineState(apiPort)
       fetchTicket(apiPort)
     } catch (error) {
       console.error('Failed to advance pipeline:', error)
-      alert('推进失败')
+      alert(getErrorMessage(error))
     }
   }
   const handleRollbackPipeline = async () => {
-    if (!apiPort || !confirm('确定要回退到上一步吗？')) return
+    if (!apiPort || !confirm(getConfirmMessage('rollback'))) return
     try {
       const response = await fetch(`http://127.0.0.1:${apiPort}/api/tickets/${id}/pipeline/rollback`, {
         method: 'POST',
@@ -288,14 +298,14 @@ export function TicketDetail() {
       })
       const result = await response.json() as ApiResponse<{ needsApproval?: boolean; approvalIds?: string[] }>
       if (!response.ok || !result.success) {
-        throw new Error(result.success ? '回退失败' : result.error)
+        throw new Error(result.success ? t('tickets:detail.pipeline.rollbackFailed') : result.error)
       }
-      alert('Pipeline 回退成功')
+      alert(t('tickets:detail.pipeline.rollbackSuccess'))
       fetchPipelineState(apiPort)
       fetchTicket(apiPort)
     } catch (error) {
       console.error('Failed to rollback pipeline:', error)
-      alert('回退失败')
+      alert(getErrorMessage(error))
     }
   }
   const handleRetryJob = async (jobId: string) => {
@@ -306,32 +316,13 @@ export function TicketDetail() {
       })
       const result = await response.json() as ApiResponse<Job>
       if (!response.ok || !result.success) {
-        throw new Error(result.success ? '重试失败' : result.error)
+        throw new Error(result.success ? t('tickets:detail.jobs.retryFailed') : result.error)
       }
-      alert('Job 重试已提交')
+      alert(t('tickets:detail.jobs.retrySuccess'))
       fetchJobs(apiPort)
     } catch (error) {
       console.error('Failed to retry job:', error)
-      alert('重试失败')
-    }
-  }
-  const getPipelineStatusBadge = (status: string) => {
-    switch (status) {
-      case 'RUNNING': return 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]'
-      case 'PAUSED': return 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]'
-      case 'COMPLETED': return 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
-      case 'FAILED': return 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
-      default: return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
-    }
-  }
-  const getJobStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PENDING': return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
-      case 'RUNNING': return 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]'
-      case 'SUCCEEDED': return 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
-      case 'FAILED': return 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
-      case 'CANCELED': return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
-      default: return 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
+      alert(getErrorMessage(error))
     }
   }
   const handleAddTag = async () => {
@@ -388,6 +379,21 @@ export function TicketDetail() {
       body: artifact.content.trim()
     })
   }
+
+  const renderListSection = <T,>(params: {
+    title: string
+    items: T[]
+    emptyMessage: string
+    renderItem: (item: T) => JSX.Element
+    testId?: string
+  }) => (
+    <SectionCard title={params.title} testId={params.testId}>
+      <div className="space-y-3">
+        {params.items.map(params.renderItem)}
+        {params.items.length === 0 && <EmptyState message={params.emptyMessage} />}
+      </div>
+    </SectionCard>
+  )
 
   const selectedContact = contacts.find(contact => contact.id === selectedContactId)
   const selectedTemplate = templates.find(template => template.id === selectedTemplateId)
@@ -502,16 +508,14 @@ export function TicketDetail() {
   }
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-[hsl(var(--primary))] border-t-transparent"></div>
-      </div>
+      <LoadingState message="加载工单详情中..." />
     )
   }
   if (!ticket) {
     return (
       <div>
-        <div className="text-center py-12">
-          <p className="text-[hsl(var(--muted-foreground))] mb-4">工单不存在</p>
+        <EmptyState message="工单不存在" className="mb-4" />
+        <div className="text-center">
           <button
             onClick={() => navigate('/tickets')}
             className="text-[hsl(var(--primary))] hover:underline"
@@ -521,36 +525,6 @@ export function TicketDetail() {
         </div>
       </div>
     )
-  }
-  // 状态徽章样式
-  const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, string> = {
-      INBOX: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]',
-      SPEC: 'bg-[hsl(var(--info))] text-[hsl(var(--info-foreground))]',
-      DEV: 'bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))]',
-      TEST: 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]',
-      DELIVERY: 'bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]',
-      DONE: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
-    }
-    return statusMap[status] || statusMap.INBOX
-  }
-  // 优先级徽章样式
-  const getPriorityBadge = (priority: string) => {
-    const priorityMap: Record<string, string> = {
-      LOW: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]',
-      MEDIUM: 'bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))]',
-      HIGH: 'bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]'
-    }
-    return priorityMap[priority] || priorityMap.MEDIUM
-  }
-  // 审批状态徽章样式
-  const getApprovalBadge = (status: string) => {
-    const statusMap: Record<string, string> = {
-      APPROVED: 'bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]',
-      REJECTED: 'bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]',
-      PENDING: 'bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))]'
-    }
-    return statusMap[status] || statusMap.PENDING
   }
   return (
     <div>
@@ -568,19 +542,15 @@ export function TicketDetail() {
         }
       />
       {/* 工单基本信息 */}
-      <SectionCard className="mb-6">
+      <SectionCard className="mb-6" testId="ticket-basic-info-panel">
         <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
           <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-4">
             <span className="text-[hsl(var(--muted-foreground))]">状态：</span>
-            <span className={`ml-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getStatusBadge(ticket.status)}`}>
-              {ticket.status}
-            </span>
+            <StatusBadge label={ticket.status} tone={getToneByStatus(ticket.status, { DONE: 'success', DELIVERY: 'success', TEST: 'info', SPEC: 'info', DEV: 'warning' })} className="ml-2 px-2.5 py-1" />
           </div>
           <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-4">
             <span className="text-[hsl(var(--muted-foreground))]">优先级：</span>
-            <span className={`ml-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getPriorityBadge(ticket.priority)}`}>
-              {ticket.priority}
-            </span>
+            <StatusBadge label={ticket.priority} tone={getToneByStatus(ticket.priority, { HIGH: 'danger', MEDIUM: 'warning', LOW: 'muted' })} className="ml-2 px-2.5 py-1" />
           </div>
           <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
             <span className="text-[hsl(var(--muted-foreground))]">来源：</span>
@@ -621,13 +591,12 @@ export function TicketDetail() {
         <div className="mt-4 pt-4 border-t border-[hsl(var(--border))]">
           <h3 className="font-medium mb-3 text-sm text-[hsl(var(--foreground))]">添加标签</h3>
           <div className="flex gap-2">
-            <select
+            <ThemeSelect
               value={selectedTagId}
               onChange={e => setSelectedTagId(e.target.value)}
-              className="flex-1 rounded-full px-4 py-2.5 text-sm
-                       bg-[hsl(var(--background))] text-[hsl(var(--foreground))]
-                       border border-[hsl(var(--border))]
-                       focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+              fieldSize="lg"
+              fieldShape="pill"
+              className="flex-1"
             >
               <option value="">选择标签...</option>
               {availableTags
@@ -637,7 +606,7 @@ export function TicketDetail() {
                     {tag.name}
                   </option>
                 ))}
-            </select>
+            </ThemeSelect>
             <button
               onClick={handleAddTag}
               disabled={!selectedTagId}
@@ -653,7 +622,7 @@ export function TicketDetail() {
       {/* 双栏布局：交付物 + 审批记录 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 交付物 */}
-        <SectionCard title="交付物">
+        <SectionCard title="交付物" testId="ticket-artifacts-panel">
           <div className="space-y-3 mb-6">
             {ticket.artifacts?.map(artifact => (
               <div key={artifact.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
@@ -678,18 +647,17 @@ export function TicketDetail() {
               </div>
             ))}
             {(!ticket.artifacts || ticket.artifacts.length === 0) && (
-              <p className="text-[hsl(var(--muted-foreground))] text-sm">暂无交付物</p>
+              <EmptyState message="暂无交付物" />
             )}
           </div>
           <div className="pt-4 border-t border-[hsl(var(--border))]">
             <h3 className="font-medium mb-3 text-sm text-[hsl(var(--foreground))]">添加交付物</h3>
-            <select
+            <ThemeSelect
               value={newArtifactType}
               onChange={e => setNewArtifactType(e.target.value)}
-               className="mb-3 w-full rounded-full px-4 py-2.5 text-sm
-                        bg-[hsl(var(--background))] text-[hsl(var(--foreground))]
-                        border border-[hsl(var(--border))]
-                        focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+              fieldSize="lg"
+              fieldShape="pill"
+              className="mb-3 w-full"
             >
               <option value="PRD">PRD</option>
               <option value="PLAN">方案</option>
@@ -699,18 +667,8 @@ export function TicketDetail() {
               <option value="ROLLBACK">回滚</option>
               <option value="DELIVERY_LIST">交付清单</option>
               <option value="CLIENT_MSG">客户沟通</option>
-            </select>
-            <textarea
-              value={newArtifactContent}
-              onChange={e => setNewArtifactContent(e.target.value)}
-              placeholder="内容（支持 Markdown）"
-               className="mb-3 w-full rounded-workshop-lg px-4 py-3 text-sm
-                        bg-[hsl(var(--background))] text-[hsl(var(--foreground))]
-                        border border-[hsl(var(--border))]
-                        placeholder:text-[hsl(var(--muted-foreground))]
-                       focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-              rows={4}
-            />
+            </ThemeSelect>
+            <ThemeTextarea value={newArtifactContent} onChange={e => setNewArtifactContent(e.target.value)} placeholder="内容（支持 Markdown）" fieldSize="lg" fieldShape="soft" className="mb-3 w-full" rows={4} />
             <button
               onClick={handleAddArtifact}
                className="w-full rounded-full px-4 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]
@@ -724,7 +682,7 @@ export function TicketDetail() {
           <div className="pt-4 border-t border-[hsl(var(--border))] mt-4">
             <h3 className="font-medium mb-3 text-sm text-[hsl(var(--foreground))]">Compose & Send（模板外发）</h3>
             <div className="grid grid-cols-1 gap-3 mb-3">
-              <select
+              <ThemeSelect
                 value={selectedContactId}
                 onChange={e => {
                   const nextId = e.target.value
@@ -733,7 +691,8 @@ export function TicketDetail() {
                     handleBindContactToTicket(nextId)
                   }
                 }}
-                className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                fieldSize="lg"
+                fieldShape="pill"
               >
                 <option value="">选择联系人（可选）</option>
                 {contacts.map(contact => (
@@ -741,9 +700,9 @@ export function TicketDetail() {
                     {contact.name}{contact.company ? ` / ${contact.company}` : ''}
                   </option>
                 ))}
-              </select>
+              </ThemeSelect>
 
-              <select
+              <ThemeSelect
                 value={selectedTargetId}
                 onChange={e => {
                   const nextTargetId = e.target.value
@@ -753,7 +712,8 @@ export function TicketDetail() {
                     setOutboundDraft(prev => ({ ...prev, channel: target.channel, to: target.to }))
                   }
                 }}
-                className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                fieldSize="lg"
+                fieldShape="pill"
               >
                 <option value="">选择联系人目标（可选）</option>
                 {(selectedContact?.contactTargets || []).map(target => (
@@ -761,15 +721,16 @@ export function TicketDetail() {
                     {target.displayName} / {target.channel} / {target.toMasked}
                   </option>
                 ))}
-              </select>
+              </ThemeSelect>
 
-              <select
+              <ThemeSelect
                 value={selectedTemplateId}
                 onChange={e => {
                   setSelectedTemplateId(e.target.value)
                   setTemplateVariables({})
                 }}
-                className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                fieldSize="lg"
+                fieldShape="pill"
               >
                 <option value="">选择模板</option>
                 {templates.map(template => (
@@ -777,23 +738,25 @@ export function TicketDetail() {
                     {template.name} / {template.scenario}
                   </option>
                 ))}
-              </select>
+              </ThemeSelect>
 
               {selectedTemplate && (
                 <div className="grid grid-cols-1 gap-2">
                   {Object.entries(selectedTemplate.variablesSchema?.properties || {}).map(([key, schema]) => (
-                    <input
+                    <ThemeInput
                       key={key}
                       value={templateVariables[key] || ''}
                       onChange={e => setTemplateVariables(prev => ({ ...prev, [key]: e.target.value }))}
                       placeholder={schema.title || key}
-                       className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                      fieldSize="lg"
+                      fieldShape="pill"
                     />
                   ))}
                 </div>
               )}
 
               <button
+                data-testid="ticket-render-template-draft"
                 onClick={handleRenderTemplateDraft}
                 disabled={!selectedTemplateId}
                 className="rounded-full px-4 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
@@ -801,19 +764,21 @@ export function TicketDetail() {
                 生成草稿（DRAFT）
               </button>
 
-              {composePreview && (
-                 <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.56)] p-3 shadow-workshop-sm">
+               {composePreview && (
+                  <div data-testid="ticket-template-preview" className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.56)] p-3 shadow-workshop-sm">
                    <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2">模板预览</p>
                    <p className="text-sm font-medium mb-2">主题：{composePreview.subject || '（无）'}</p>
                    <p className="text-sm whitespace-pre-wrap">{composePreview.body}</p>
                 </div>
               )}
 
-              <select
+              <ThemeSelect
+                data-testid="ticket-outbound-channel-select"
                 value={outboundDraft.channel}
                 onChange={e => setOutboundDraft(prev => ({ ...prev, channel: e.target.value }))}
-                 className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
-               >
+                fieldSize="lg"
+                fieldShape="pill"
+              >
                 <option value="slack">slack</option>
                 <option value="telegram">telegram</option>
                 <option value="discord">discord</option>
@@ -821,28 +786,27 @@ export function TicketDetail() {
                 <option value="signal">signal</option>
                 <option value="whatsapp">whatsapp</option>
                 <option value="imessage">imessage</option>
-              </select>
-              <input
+              </ThemeSelect>
+              <ThemeInput
+                data-testid="ticket-outbound-to-input"
                 value={outboundDraft.to}
                 onChange={e => setOutboundDraft(prev => ({ ...prev, to: e.target.value }))}
                 placeholder="收件人 / 频道 ID"
-                className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                fieldSize="lg"
+                fieldShape="pill"
               />
-              <input
+              <ThemeInput
+                data-testid="ticket-outbound-subject-input"
                 value={outboundDraft.subject}
                 onChange={e => setOutboundDraft(prev => ({ ...prev, subject: e.target.value }))}
                 placeholder="主题（可选）"
-                className="rounded-full px-4 py-2.5 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                fieldSize="lg"
+                fieldShape="pill"
               />
-              <textarea
-                value={outboundDraft.body}
-                onChange={e => setOutboundDraft(prev => ({ ...prev, body: e.target.value }))}
-                placeholder="外发正文（支持 Markdown）"
-                rows={6}
-                className="rounded-workshop-lg px-4 py-3 text-sm bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
-              />
+              <ThemeTextarea data-testid="ticket-outbound-body-input" value={outboundDraft.body} onChange={e => setOutboundDraft(prev => ({ ...prev, body: e.target.value }))} placeholder="外发正文（支持 Markdown）" rows={6} fieldSize="lg" fieldShape="soft" />
             </div>
             <button
+              data-testid="ticket-send-outbound"
               onClick={handleSendOutboundDraft}
               disabled={sendingOutbound || !outboundDraft.to.trim() || !outboundDraft.body.trim()}
               className="w-full rounded-full px-4 py-2.5 bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] hover:opacity-90 disabled:opacity-50"
@@ -853,37 +817,34 @@ export function TicketDetail() {
           </div>
         </SectionCard>
         {/* 审批记录 */}
-        <SectionCard title="审批记录">
-          <div className="space-y-3">
-            {ticket.approvals?.map(approval => (
-              <div key={approval.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="font-semibold text-sm text-[hsl(var(--foreground))]">{approval.actionType}</span>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getApprovalBadge(approval.status)}`}>
-                    {approval.status}
-                  </span>
-                </div>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  申请人：{approval.requestedBy}
-                </p>
-                {approval.approvedBy && (
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                    审批人：{approval.approvedBy}
-                  </p>
-                )}
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-3">
-                  {new Date(approval.createdAt).toLocaleString('zh-CN')}
-                </p>
+        {renderListSection({
+          title: '审批记录',
+          items: ticket.approvals || [],
+          emptyMessage: '暂无审批记录',
+          testId: 'ticket-approvals-panel',
+          renderItem: (approval) => (
+            <div key={approval.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+              <div className="flex justify-between items-start mb-2">
+                <span className="font-semibold text-sm text-[hsl(var(--foreground))]">{approval.actionType}</span>
+                <StatusBadge label={approval.status} tone={getToneByStatus(approval.status, { APPROVED: 'success', REJECTED: 'danger', PENDING: 'warning' })} className="px-2.5 py-1" />
               </div>
-            ))}
-            {(!ticket.approvals || ticket.approvals.length === 0) && (
-              <p className="text-[hsl(var(--muted-foreground))] text-sm">暂无审批记录</p>
-            )}
-          </div>
-        </SectionCard>
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                申请人：{approval.requestedBy}
+              </p>
+              {approval.approvedBy && (
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                  审批人：{approval.approvedBy}
+                </p>
+              )}
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-3">
+                {new Date(approval.createdAt).toLocaleString('zh-CN')}
+              </p>
+            </div>
+          )
+        })}
         {/* Pipeline 面板 */}
         {pipelineState && (
-          <SectionCard title="Pipeline 流程">
+          <SectionCard title="Pipeline 流程" testId="ticket-pipeline-panel">
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.52)] p-4">
                 <div>
@@ -894,9 +855,7 @@ export function TicketDetail() {
                     Pipeline: {pipelineState.pipeline.name}
                   </p>
                 </div>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getPipelineStatusBadge(pipelineState.status)}`}>
-                  {pipelineState.status}
-                </span>
+                <StatusBadge label={pipelineState.status} tone={getToneByStatus(pipelineState.status, { RUNNING: 'info', PAUSED: 'warning', COMPLETED: 'success', FAILED: 'danger' })} className="px-2.5 py-1" />
               </div>
               <div className="flex gap-2">
                 <button
@@ -918,51 +877,47 @@ export function TicketDetail() {
           </SectionCard>
         )}
         {/* Jobs 列表 */}
-        <SectionCard title="Jobs 执行记录">
-          <div className="space-y-3">
-            {jobs.map(job => (
-              <div key={job.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <span className="rounded-full border border-[hsl(var(--google-blue)_/_0.14)] bg-[hsl(var(--google-blue)_/_0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--google-blue))]">{job.type}</span>
-                    <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                      {new Date(job.createdAt).toLocaleString('zh-CN')}
-                    </p>
-                  </div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getJobStatusBadge(job.status)}`}>
-                    {job.status}
-                  </span>
+        {renderListSection({
+          title: 'Jobs 执行记录',
+          items: jobs,
+          emptyMessage: '暂无作业记录',
+          renderItem: (job) => (
+            <div key={job.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <span className="rounded-full border border-[hsl(var(--google-blue)_/_0.14)] bg-[hsl(var(--google-blue)_/_0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--google-blue))]">{job.type}</span>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                    {new Date(job.createdAt).toLocaleString('zh-CN')}
+                  </p>
                 </div>
-                {job.logs && (
-                  <div className="mt-2">
-                    <button
-                      onClick={() => setExpandedJobId(expandedJobId === job.id ? null : job.id)}
-                      className="text-xs text-[hsl(var(--primary))] hover:underline"
-                    >
-                      {expandedJobId === job.id ? '隐藏日志' : '查看日志'}
-                    </button>
-                    {expandedJobId === job.id && (
-                      <pre className="mt-2 overflow-x-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-3 text-xs">
-                        {job.logs}
-                      </pre>
-                    )}
-                  </div>
-                )}
-                {job.status === 'FAILED' && (
-                  <button
-                    onClick={() => handleRetryJob(job.id)}
-                    className="mt-2 rounded-full px-3 py-1.5 text-xs font-medium bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] hover:opacity-90"
-                  >
-                    重试
-                  </button>
-                )}
+                <StatusBadge label={translateEnum(t, 'operationStatusMap', job.status)} tone={getToneByStatus(job.status, { RUNNING: 'info', SUCCEEDED: 'success', FAILED: 'danger' })} className="px-2.5 py-1" />
               </div>
-            ))}
-            {jobs.length === 0 && (
-              <p className="text-[hsl(var(--muted-foreground))] text-sm">暂无 Job 记录</p>
-            )}
-          </div>
-        </SectionCard>
+              {job.logs && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => setExpandedJobId(expandedJobId === job.id ? null : job.id)}
+                    className="text-xs text-[hsl(var(--primary))] hover:underline"
+                  >
+                    {expandedJobId === job.id ? '隐藏日志' : '查看日志'}
+                  </button>
+                  {expandedJobId === job.id && (
+                    <pre className="mt-2 overflow-x-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-3 text-xs">
+                      {job.logs}
+                    </pre>
+                  )}
+                </div>
+              )}
+              {job.status === 'FAILED' && (
+                <button
+                  onClick={() => handleRetryJob(job.id)}
+                  className="mt-2 rounded-full px-3 py-1.5 text-xs font-medium bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] hover:opacity-90"
+                >
+                  重试
+                </button>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

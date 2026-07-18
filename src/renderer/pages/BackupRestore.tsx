@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { getApiPort } from '../lib/api'
+import { EmptyState } from '../components/ui/EmptyState'
+import { ThemeCheckbox, ThemeInput, ThemeTextarea } from '../components/ui/FormFields'
+import { readWorkspaceId } from '../lib/storage'
 
 interface BackupPack {
   version: string
@@ -62,10 +65,7 @@ export function BackupRestore() {
   const [targetWorkspaceId, setTargetWorkspaceId] = useState('')
   const [history, setHistory] = useState<BackupHistoryItem[]>([])
 
-  const workspaceId = useMemo(
-    () => localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
-    []
-  )
+  const workspaceId = useMemo(() => readWorkspaceId(), [])
 
   const fetchHistory = async () => {
     try {
@@ -180,12 +180,12 @@ export function BackupRestore() {
             </div>
 
             <label className="flex items-center gap-2 text-sm text-[hsl(var(--foreground))]">
-              <input type="checkbox" checked={includeChangeRequests} onChange={e => setIncludeChangeRequests(e.target.checked)} />
+              <ThemeCheckbox checked={includeChangeRequests} onChange={e => setIncludeChangeRequests(e.target.checked)} />
               包含变更单历史
             </label>
 
             <label className="flex items-center gap-2 text-sm text-[hsl(var(--foreground))]">
-              <input type="checkbox" checked={includeSnapshots} onChange={e => setIncludeSnapshots(e.target.checked)} />
+              <ThemeCheckbox checked={includeSnapshots} onChange={e => setIncludeSnapshots(e.target.checked)} />
               包含最新快照（DESIRED / ACTUAL）
             </label>
 
@@ -207,12 +207,12 @@ export function BackupRestore() {
               </button>
             </div>
 
-            <textarea
+            <ThemeTextarea
               value={exportedPackText}
               onChange={e => setExportedPackText(e.target.value)}
               placeholder="点击“生成备份包”后，这里会出现可复制的备份 JSON。"
               rows={18}
-              className="w-full px-3 py-2 text-xs font-mono rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+              className="text-xs font-mono"
             />
 
             <div className="p-3 bg-[hsl(var(--muted))] rounded-workshop-md">
@@ -228,26 +228,26 @@ export function BackupRestore() {
         <SectionCard title="导入备份包">
           <div className="space-y-4">
             <label className="flex items-center gap-2 text-sm text-[hsl(var(--foreground))]">
-              <input type="checkbox" checked={createNewWorkspace} onChange={e => setCreateNewWorkspace(e.target.checked)} />
+              <ThemeCheckbox checked={createNewWorkspace} onChange={e => setCreateNewWorkspace(e.target.checked)} />
               导入为新 Workspace（推荐）
             </label>
 
             {!createNewWorkspace && (
-              <input
+              <ThemeInput
                 type="text"
                 value={targetWorkspaceId}
                 onChange={e => setTargetWorkspaceId(e.target.value)}
                 placeholder="目标 Workspace ID"
-                className="w-full px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+                className="text-sm"
               />
             )}
 
-            <textarea
+            <ThemeTextarea
               value={importPackText}
               onChange={e => setImportPackText(e.target.value)}
               placeholder="请粘贴导出的备份包 JSON 内容"
               rows={18}
-              className="w-full px-3 py-2 text-xs font-mono rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+              className="text-xs font-mono"
             />
 
             <button
@@ -269,13 +269,13 @@ export function BackupRestore() {
         </SectionCard>
       </div>
 
-      <SectionCard title="备份历史" description="展示当前 Workspace 最近导出的备份记录。" className="mt-6">
+      <SectionCard title="备份历史" description="展示当前 Workspace 最近导出的备份记录。" className="mt-6" testId="backup-history">
         <div className="space-y-3">
           {history.length === 0 ? (
-            <div className="text-sm text-[hsl(var(--muted-foreground))]">暂无备份历史</div>
+            <EmptyState message="暂无备份历史" />
           ) : (
             history.map(item => (
-              <div key={item.id} className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
+              <div key={item.id} data-testid={`backup-history-item-${item.id}`} className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <div>
                     <div className="text-sm font-medium text-[hsl(var(--foreground))]">{item.workspaceName}</div>

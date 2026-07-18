@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import { getToneByStatus } from '../lib/status-badge'
+import { readWorkspaceId } from '../lib/storage'
 
 interface ChangeRequest {
   id: string
@@ -32,7 +37,7 @@ export function Changes() {
   const fetchChangeRequests = async (port: number, status?: string, type?: string) => {
     try {
       setLoading(true)
-      const workspaceId = localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001'
+      const workspaceId = readWorkspaceId()
       const params = new URLSearchParams()
       if (status && status !== 'all') params.append('status', status)
       if (type && type !== 'all') params.append('type', type)
@@ -55,45 +60,62 @@ export function Changes() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; className: string }> = {
-      DRAFT: { label: '草稿', className: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' },
-      PENDING_APPROVAL: { label: '待审批', className: 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]' },
-      APPROVED: { label: '已批准', className: 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]' },
-      APPLYING: { label: '执行中', className: 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]' },
-      APPLIED: { label: '已应用', className: 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]' },
-      FAILED: { label: '失败', className: 'border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]' },
-      ROLLED_BACK: { label: '已回滚', className: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' }
+  const getStatusLabel = (status: string) => {
+    const statusMap: Record<string, string> = {
+      DRAFT: '草稿',
+      PENDING_APPROVAL: '待审批',
+      APPROVED: '已批准',
+      APPLYING: '执行中',
+      APPLIED: '已应用',
+      FAILED: '失败',
+      ROLLED_BACK: '已回滚'
     }
-    const config = statusMap[status] || { label: status, className: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' }
-    return (
-      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${config.className}`}>
-        {config.label}
-      </span>
-    )
+    return statusMap[status] || status
   }
 
-  const getTypeBadge = (type: string) => {
-    const typeMap: Record<string, { label: string; className: string }> = {
-      CONFIG: { label: '配置', className: 'border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]' },
-      POLICY: { label: '策略', className: 'border border-[hsl(268_65%_70%_/_0.2)] bg-[hsl(268_65%_70%_/_0.14)] text-[hsl(268_45%_45%)]' },
-      TOOLS: { label: '工具', className: 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]' },
-      COMMS: { label: '通信', className: 'border border-[hsl(186_70%_55%_/_0.2)] bg-[hsl(186_70%_55%_/_0.14)] text-[hsl(186_70%_32%)]' },
-      MIXED: { label: '混合', className: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' }
+  const getTypeLabel = (type: string) => {
+    const typeMap: Record<string, string> = {
+      CONFIG: '配置',
+      POLICY: '策略',
+      TOOLS: '工具',
+      COMMS: '通信',
+      MIXED: '混合'
     }
-    const config = typeMap[type] || { label: type, className: 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' }
-    return (
-      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${config.className}`}>
-        {config.label}
-      </span>
-    )
+    return typeMap[type] || type
   }
+
+  const renderChangeRequestCard = (cr: ChangeRequest) => (
+    <div key={cr.id} data-testid={`change-request-card-${cr.id}`} className="p-4 hover:bg-[hsl(var(--accent))] transition-colors">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <h3 className="font-medium text-[hsl(var(--foreground))]">
+              {cr.title}
+            </h3>
+            <StatusBadge label={getTypeLabel(cr.type)} tone={getToneByStatus(cr.type, { CONFIG: 'info', TOOLS: 'warning', POLICY: 'success' })} />
+            <StatusBadge label={getStatusLabel(cr.status)} tone={getToneByStatus(cr.status, { APPROVED: 'success', APPLIED: 'success', FAILED: 'danger', APPLYING: 'info', PENDING_APPROVAL: 'warning' })} />
+          </div>
+          <p className="text-sm text-[hsl(var(--muted-foreground))] mb-2">
+            {cr.description}
+          </p>
+          <div className="flex items-center gap-4 text-xs text-[hsl(var(--muted-foreground))]">
+            <span>创建者: {cr.createdBy}</span>
+            <span>创建时间: {new Date(cr.createdAt).toLocaleString('zh-CN')}</span>
+          </div>
+        </div>
+        <button
+          onClick={() => navigate(`/changes/${cr.id}`)}
+          className="ml-4 px-3 py-1 text-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-sm hover:opacity-90 transition-opacity"
+        >
+          查看详情
+        </button>
+      </div>
+    </div>
+  )
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-[hsl(var(--primary))] border-t-transparent"></div>
-      </div>
+      <LoadingState message="加载变更单中..." />
     )
   }
 
@@ -149,39 +171,10 @@ export function Changes() {
       {/* 变更单列表 */}
       <div className="bg-[hsl(var(--card))] rounded-workshop-md shadow-workshop-sm border border-[hsl(var(--border))]">
         {changeRequests.length === 0 ? (
-          <div className="p-8 text-center text-[hsl(var(--muted-foreground))]">
-            暂无变更单
-          </div>
+          <EmptyState message="暂无变更单" className="m-4" />
         ) : (
           <div className="divide-y divide-[hsl(var(--border))]">
-            {changeRequests.map((cr) => (
-              <div key={cr.id} className="p-4 hover:bg-[hsl(var(--accent))] transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-medium text-[hsl(var(--foreground))]">
-                        {cr.title}
-                      </h3>
-                      {getTypeBadge(cr.type)}
-                      {getStatusBadge(cr.status)}
-                    </div>
-                    <p className="text-sm text-[hsl(var(--muted-foreground))] mb-2">
-                      {cr.description}
-                    </p>
-                    <div className="flex items-center gap-4 text-xs text-[hsl(var(--muted-foreground))]">
-                      <span>创建者: {cr.createdBy}</span>
-                      <span>创建时间: {new Date(cr.createdAt).toLocaleString('zh-CN')}</span>
-                    </div>
-                  </div>
-                   <button
-                     onClick={() => navigate(`/changes/${cr.id}`)}
-                     className="ml-4 px-3 py-1 text-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-sm hover:opacity-90 transition-opacity"
-                   >
-                     查看详情
-                  </button>
-                </div>
-              </div>
-            ))}
+            {changeRequests.map(cr => renderChangeRequestCard(cr))}
           </div>
         )}
       </div>

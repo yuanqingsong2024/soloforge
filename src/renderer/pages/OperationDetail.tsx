@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import { translateEnum } from '../lib/i18n-helpers'
 
 interface OperationStep {
   id: string
@@ -55,18 +60,18 @@ interface ApiFailure {
 
 type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 
-function statusClass(status: string): string {
+function getStatusTone(status: string): 'success' | 'danger' | 'info' | 'warning' | 'muted' {
   switch (status) {
     case 'SUCCEEDED':
-      return 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
+      return 'success'
     case 'FAILED':
-      return 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
+      return 'danger'
     case 'RUNNING':
-      return 'border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))]'
+      return 'info'
     case 'WAITING_APPROVAL':
-      return 'border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]'
+      return 'warning'
     default:
-      return 'border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
+      return 'muted'
   }
 }
 
@@ -103,6 +108,7 @@ function parseJsonText(text?: string | null): string {
 }
 
 export function OperationDetail() {
+  const { t } = useTranslation(['common'])
   const { id } = useParams<{ id: string }>()
   const [operation, setOperation] = useState<Operation | null>(null)
   const [loading, setLoading] = useState(true)
@@ -135,80 +141,68 @@ export function OperationDetail() {
   }, [id])
 
   if (loading) {
-    return <div className="p-6 text-sm text-[hsl(var(--muted-foreground))]">加载 Operation 中...</div>
+    return <div className="p-6"><LoadingState message="加载操作详情中..." /></div>
   }
 
   if (error || !operation) {
-    return <div className="p-6 text-sm text-[hsl(var(--destructive))]">{error || 'Operation 不存在'}</div>
+    return <div className="p-6"><EmptyState message={error || '操作任务不存在'} tone="danger" /></div>
   }
 
   const relatedDeploymentJobs = Array.from(new Set(operation.phases.flatMap(phase => phase.steps.map(step => step.deploymentJobId).filter(Boolean) as string[])))
   const relatedChangeRequests = Array.from(new Set(operation.phases.flatMap(phase => phase.steps.map(step => step.changeRequestId).filter(Boolean) as string[])))
   const relatedAlerts = Array.from(new Set(operation.phases.flatMap(phase => phase.steps.map(step => step.alertId).filter(Boolean) as string[])))
 
+  const renderRelatedBox = (
+    title: string,
+    count: number,
+    emptyText: string,
+    items: string[],
+    routePrefix: string
+  ) => (
+    <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
+      <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{title}</div>
+      <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{count}</div>
+      <div className="mt-3 space-y-2">
+        {items.length > 0 ? items.map(item => (
+          <Link key={item} to={`${routePrefix}/${item}`} className="block text-sm text-[hsl(var(--google-blue))] hover:underline">
+            {item}
+          </Link>
+        )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">{emptyText}</div>}
+      </div>
+    </div>
+  )
+
   return (
     <div className="p-6 space-y-6">
       <PageHeader
         title={operation.title || operation.type}
-        description={`${operation.type} · ${operation.status}`}
+        description={`${operation.type} · ${translateEnum(t, 'operationStatusMap', operation.status)}`}
         actions={
           <Link to="/operations" className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
-            返回 Operations
+            返回操作中心
           </Link>
         }
       />
 
-      <SectionCard title="Operation 概览" description="查看当前操作实例的核心元信息。">
+      <SectionCard title="操作概览" description="查看当前操作任务的核心信息与执行状态。">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div><div className="text-[hsl(var(--muted-foreground))]">Workspace</div><div className="font-mono text-[hsl(var(--foreground))]">{operation.workspaceId}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">Target</div><div className="font-mono text-[hsl(var(--foreground))]">{operation.targetId || '—'}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">Trace ID</div><div className="font-mono text-[hsl(var(--foreground))]">{operation.traceId}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">状态</div><span className={`inline-flex px-2 py-0.5 text-xs rounded-full border ${statusClass(operation.status)}`}>{operation.status}</span></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">工作区</div><div className="font-mono text-[hsl(var(--foreground))]">{operation.workspaceId}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">目标环境</div><div className="font-mono text-[hsl(var(--foreground))]">{operation.targetId || '—'}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">链路 ID</div><div className="font-mono text-[hsl(var(--foreground))]">{operation.traceId}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">状态</div><StatusBadge label={translateEnum(t, 'operationStatusMap', operation.status)} tone={getStatusTone(operation.status)} /></div>
           <div className="md:col-span-2"><div className="text-[hsl(var(--muted-foreground))]">摘要</div><div className="text-[hsl(var(--foreground))]">{operation.summary || '暂无摘要'}</div></div>
         </div>
       </SectionCard>
 
-      <SectionCard title="关联对象概览" description="快速查看本次 Operation 牵涉到的 Job、变更单和 Alerts。">
+      <SectionCard title="关联对象概览" description="快速查看本次操作任务关联的部署作业、变更单和告警。">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
-            <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">Deployment Jobs</div>
-            <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{relatedDeploymentJobs.length}</div>
-            <div className="mt-3 space-y-2">
-              {relatedDeploymentJobs.length > 0 ? relatedDeploymentJobs.map(jobId => (
-                <Link key={jobId} to={`/deployment-jobs/${jobId}`} className="block text-sm text-[hsl(var(--google-blue))] hover:underline">
-                  {jobId}
-                </Link>
-              )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">无关联 Deployment Job</div>}
-            </div>
-          </div>
-
-          <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
-            <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">Change Requests</div>
-            <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{relatedChangeRequests.length}</div>
-            <div className="mt-3 space-y-2">
-              {relatedChangeRequests.length > 0 ? relatedChangeRequests.map(changeId => (
-                <Link key={changeId} to={`/changes/${changeId}`} className="block text-sm text-[hsl(var(--google-blue))] hover:underline">
-                  {changeId}
-                </Link>
-              )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">无关联变更单</div>}
-            </div>
-          </div>
-
-          <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
-            <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">Alerts</div>
-            <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{relatedAlerts.length}</div>
-            <div className="mt-3 space-y-2">
-              {relatedAlerts.length > 0 ? relatedAlerts.map(alertId => (
-                <Link key={alertId} to={`/alerts/${alertId}`} className="block text-sm text-[hsl(var(--google-blue))] hover:underline">
-                  {alertId}
-                </Link>
-              )) : <div className="text-sm text-[hsl(var(--muted-foreground))]">无关联 Alert</div>}
-            </div>
-          </div>
+          {renderRelatedBox('部署任务', relatedDeploymentJobs.length, '无关联部署任务', relatedDeploymentJobs, '/deployment-jobs')}
+          {renderRelatedBox('变更单', relatedChangeRequests.length, '无关联变更单', relatedChangeRequests, '/changes')}
+          {renderRelatedBox('告警', relatedAlerts.length, '无关联告警', relatedAlerts, '/alerts')}
         </div>
       </SectionCard>
 
-      <SectionCard title="执行时间线" description="按发生顺序排列的步骤执行流。">
+      <SectionCard title="执行时间线" description="按发生顺序查看本次操作任务的步骤推进过程。">
         <div className="relative pl-4 space-y-6 before:absolute before:inset-y-2 before:left-[11px] before:w-px before:bg-[hsl(var(--border))]">
           {operation.phases.flatMap(phase => 
             phase.steps.map(step => ({ ...step, phaseName: phase.name, phaseOrder: phase.orderNo }))
@@ -228,13 +222,13 @@ export function OperationDetail() {
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 flex items-center gap-2">
                     <span className="font-mono">{step.stepType}</span>
                     {step.deploymentJobId && (
-                      <>· <Link to={`/deployment-jobs/${step.deploymentJobId}`} className="text-[hsl(var(--google-blue))] hover:underline">Job: {step.deploymentJobId.slice(0, 8)}</Link></>
+                    <>· <Link to={`/deployment-jobs/${step.deploymentJobId}`} className="text-[hsl(var(--google-blue))] hover:underline">任务: {step.deploymentJobId.slice(0, 8)}</Link></>
                     )}
                     {step.changeRequestId && (
-                      <>· <Link to={`/changes/${step.changeRequestId}`} className="text-[hsl(var(--google-blue))] hover:underline">CR: {step.changeRequestId.slice(0, 8)}</Link></>
+                    <>· <Link to={`/changes/${step.changeRequestId}`} className="text-[hsl(var(--google-blue))] hover:underline">变更单: {step.changeRequestId.slice(0, 8)}</Link></>
                     )}
                     {step.alertId && (
-                      <>· <Link to={`/alerts/${step.alertId}`} className="text-[hsl(var(--google-blue))] hover:underline">Alert: {step.alertId.slice(0, 8)}</Link></>
+                    <>· <Link to={`/alerts/${step.alertId}`} className="text-[hsl(var(--google-blue))] hover:underline">告警: {step.alertId.slice(0, 8)}</Link></>
                     )}
                   </div>
                 </div>
@@ -248,21 +242,21 @@ export function OperationDetail() {
             </div>
           ))}
           {operation.phases.length === 0 && (
-            <div className="text-sm text-[hsl(var(--muted-foreground))]">暂无执行步骤。</div>
+            <EmptyState message="暂无执行步骤" />
           )}
         </div>
       </SectionCard>
 
-      <SectionCard title="阶段与步骤" description="按 Phase / Step 展示该 Operation 的执行结构与结果。">
+      <SectionCard title="阶段与步骤" description="按阶段与步骤展开执行结构、请求和结果。">
         <div className="space-y-4">
           {operation.phases.map(phase => (
             <div key={phase.id} className="border border-[hsl(var(--border))] rounded-workshop-md overflow-hidden">
               <div className="px-4 py-3 bg-[hsl(var(--muted))] flex items-center justify-between gap-3">
                 <div>
-                  <div className="font-semibold text-[hsl(var(--foreground))]">Phase {phase.orderNo}: {phase.name}</div>
+                  <div className="font-semibold text-[hsl(var(--foreground))]">阶段 {phase.orderNo}: {phase.name}</div>
                   <div className="text-xs text-[hsl(var(--muted-foreground))]">{phase.startedAt ? `开始：${new Date(phase.startedAt).toLocaleString('zh-CN')}` : '未开始'}{phase.endedAt ? ` · 结束：${new Date(phase.endedAt).toLocaleString('zh-CN')}` : ''}</div>
                 </div>
-                <span className={`px-2 py-0.5 text-xs rounded-full border ${statusClass(phase.status)}`}>{phase.status}</span>
+                <StatusBadge label={translateEnum(t, 'operationStatusMap', phase.status)} tone={getStatusTone(phase.status)} />
               </div>
               <div className="divide-y divide-[hsl(var(--border))]">
                 {phase.steps.map(step => (
@@ -274,22 +268,22 @@ export function OperationDetail() {
                           <span>{step.stepType}</span>
                           {step.deploymentJobId && (
                             <Link to={`/deployment-jobs/${step.deploymentJobId}`} className="text-[hsl(var(--google-blue))] hover:underline" onClick={(event) => event.stopPropagation()}>
-                              DeploymentJob: {step.deploymentJobId}
+                              部署任务: {step.deploymentJobId}
                             </Link>
                           )}
                           {step.changeRequestId && (
                             <Link to={`/changes/${step.changeRequestId}`} className="text-[hsl(var(--google-blue))] hover:underline" onClick={(event) => event.stopPropagation()}>
-                              ChangeRequest: {step.changeRequestId}
+                              变更单: {step.changeRequestId}
                             </Link>
                           )}
                           {step.alertId && (
                             <Link to={`/alerts/${step.alertId}`} className="text-[hsl(var(--google-blue))] hover:underline" onClick={(event) => event.stopPropagation()}>
-                              Alert: {step.alertId}
+                              告警: {step.alertId}
                             </Link>
                           )}
                         </div>
                       </div>
-                      <span className={`px-2 py-0.5 text-xs rounded-full border ${statusClass(step.status)}`}>{step.status}</span>
+                       <StatusBadge label={translateEnum(t, 'operationStatusMap', step.status)} tone={getStatusTone(step.status)} />
                     </summary>
                     <div className="px-4 pb-4 space-y-3 bg-[hsl(var(--background))]">
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

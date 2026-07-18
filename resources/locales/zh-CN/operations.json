@@ -1,0 +1,76 @@
+{
+  "title": "统一任务中心",
+  "description": "把操作、Jobs、部署作业、主机代理动作与待同步队列聚合为统一任务视图。",
+  "actions": {
+    "eventRefresh": "事件驱动自动刷新",
+    "refresh": "刷新任务中心"
+  },
+  "filters": {
+    "title": "筛选器",
+    "description": "按 Workspace / Target / 状态 / 类型过滤运行态任务。",
+    "workspacePlaceholder": "工作区 ID",
+    "targetPlaceholder": "目标环境 ID",
+    "statusPlaceholder": "状态，如 RUNNING",
+    "typePlaceholder": "类型，如 UPGRADE",
+    "apply": "应用筛选",
+    "lastEventPollAt": "最近事件检查：{{time}}",
+    "noEventPoll": "尚未进行事件检查"
+  },
+  "unified": {
+    "title": "统一任务视图",
+    "description": "统一展示 Operation、Job、DeploymentJob、AgentAction 与待同步队列，降低底层概念切换成本。",
+    "total": "总数",
+    "running": "执行中",
+    "blocked": "被阻塞",
+    "attention": "需关注",
+    "completed": "已完成",
+    "queued": "其他",
+    "empty": "当前没有可聚合的任务。"
+  },
+  "sources": {
+    "operation": "操作任务",
+    "job": "Job",
+    "deploymentJob": "部署作业",
+    "agentAction": "代理动作",
+    "outbox": "待同步"
+  },
+  "statusGroups": {
+    "running": "执行中",
+    "blocked": "被阻塞",
+    "attention": "需关注",
+    "completed": "已完成",
+    "queued": "其他"
+  },
+  "labels": {
+    "traceId": "链路 ID",
+    "workspace": "工作区",
+    "target": "目标环境"
+  },
+  "details": {
+    "title": "操作详情",
+    "listTitle": "操作任务（{{count}}）",
+    "listDescription": "左侧查看当前工作区的分层操作任务实例。",
+    "empty": "当前没有操作记录。后续告警、部署与恢复流程会逐步汇入这里。",
+    "selectHint": "请选择左侧操作任务查看概览。",
+    "noSummary": "暂无摘要",
+    "executionSummary": "执行摘要",
+    "phaseCount": "阶段数量",
+    "stepCount": "步骤数量",
+    "lastUpdated": "最近更新时间",
+    "phaseTitle": "阶段 {{order}}: {{name}}",
+    "startedAt": "开始：{{time}}",
+    "endedAt": "结束：{{time}}",
+    "notStarted": "未开始",
+    "totalSteps": "步骤总数",
+    "completedSteps": "已完成",
+    "pendingSteps": "待处理"
+  },
+  "taskSources": {
+    "operation": "分阶段操作任务",
+    "job": "后台执行任务",
+    "deploymentJob": "部署相关作业",
+    "agentAction": "主机代理执行动作",
+    "outbox": "等待同步或重试的事件"
+  },
+  "loading": "加载任务中心中..."
+}

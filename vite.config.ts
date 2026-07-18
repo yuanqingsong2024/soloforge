@@ -20,13 +20,12 @@ export default defineConfig({
               output: {
                 banner: 'import { fileURLToPath as __sf_fileURLToPath } from "node:url"; import __sf_path from "node:path"; const __filename = __sf_fileURLToPath(import.meta.url); const __dirname = __sf_path.dirname(__filename);'
               },
-              external: ['electron', '@prisma/client', 'fastify', 'ws']
+              external: ['electron', '@prisma/client', 'fastify', 'ws', 'ssh2', 'dockerode']
             }
           }
         }
       },
       {
-        entry: 'src/preload/index.ts',
         onstart(options) {
           options.reload()
         },
@@ -34,9 +33,13 @@ export default defineConfig({
           build: {
             outDir: 'dist-electron/preload',
             rollupOptions: {
+              input: 'src/preload/index.ts',
               output: {
                 format: 'cjs',
-                entryFileNames: '[name].cjs'
+                inlineDynamicImports: true,
+                entryFileNames: 'index.cjs',
+                chunkFileNames: '[name].cjs',
+                assetFileNames: '[name].[ext]'
               }
             }
           }
@@ -52,5 +55,22 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.DEV': JSON.stringify(process.env.NODE_ENV !== 'production')
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // React 核心库
+          'react-vendor': ['react', 'react-dom'],
+          // 路由库
+          'router': ['react-router-dom'],
+          // 国际化库
+          'i18n': ['i18next', 'react-i18next', 'i18next-http-backend'],
+          // 拖拽库
+          'dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 600
   }
 })

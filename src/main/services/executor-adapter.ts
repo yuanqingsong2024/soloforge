@@ -8,9 +8,7 @@ import { logger } from './logger'
 import { OpenClawClient, ConnectionProfile } from './openclaw-client'
 import { SSHExecutor, SSHConfig, SSHCommandResult } from './ssh-executor'
 import { DockerManager, DockerConfig } from './docker-manager'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from './db'
 
 /**
  * 执行器类型
@@ -407,8 +405,11 @@ export class ExecutorFactory {
         return new DockerExecutorAdapter(config.config, traceId)
       case ExecutorType.HOST_AGENT:
         return new HostAgentExecutorAdapter(config.agentId, traceId)
-      default:
-        throw new Error(`未知的执行器类型: ${(config as any).type}`)
+      default: {
+        // 穷尽检查：此处 config.type 为 never，若新增 ExecutorType 未处理会编译报错
+        const exhaustiveCheck: never = config
+        throw new Error(`未知的执行器类型: ${String(exhaustiveCheck)}`)
+      }
     }
   }
 }

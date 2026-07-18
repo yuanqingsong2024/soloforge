@@ -1,7 +1,3 @@
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
-
 /**
  * 网关配置
  */
@@ -261,4 +257,4 @@ export class GatewayValidator {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

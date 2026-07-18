@@ -1,0 +1,150 @@
+{
+  "pageTitle": "Configuration Center",
+  "selectProfile": "Please select a connection profile",
+  "selectProfileToManage": "Please select a connection profile to manage OpenClaw configuration",
+  "tabs": {
+    "form": "Form Editor",
+    "json": "JSON Editor",
+    "diff": "Diff Comparison",
+    "snapshots": "History Snapshots"
+  },
+  "quickMode": {
+    "title": "Quick Config First",
+    "basicDesc": "Basic mode is active. Prefer form-based configuration and hide Raw JSON entry.",
+    "advancedDesc": "Advanced mode is active. Quick config and Raw JSON are both available.",
+    "expertDesc": "Expert mode is active. All config entry points and low-level editing are visible.",
+    "rawJsonHidden": "Switch to Advanced or Expert mode to use Raw JSON.",
+    "quickConfigTitle": "Quick Configuration Path",
+    "quickConfigDesc": "Prefer this section for common model, hooks, tools policy, and gateway security changes; diff and history snapshots remain below."
+  },
+  "models": {
+    "title": "Models & Routing",
+    "defaultModel": "Default Model",
+    "fallbacks": "Fallbacks (comma separated)",
+    "allowlist": "Allowlist (comma separated)",
+    "providers": "Providers"
+  },
+  "gateway": {
+    "title": "Gateway Security",
+    "authMode": "Auth Mode",
+    "trustedProxies": "Trusted Proxies (one per line, exact IP or /24+ subnet)",
+    "rateLimit": "Rate Limit"
+  },
+  "hooks": {
+    "title": "Hooks",
+    "enabled": "Enable Hooks",
+    "token": "Hooks Token",
+    "path": "Hooks Path",
+    "mappings": "Mappings"
+  },
+  "tools": {
+    "title": "Tools Policy",
+    "defaultPolicy": "Default Policy",
+    "allow": "Allow",
+    "deny": "Deny",
+    "blocklist": "Blocklist (one per line)"
+  },
+  "channels": {
+    "title": "Channels",
+    "enabled": "Enable Channels",
+    "mappings": "Targets Mapping (per line: channel:target)",
+    "hint": "Used to describe channel to communication target mapping, config only, no sensitive credentials."
+  },
+  "actions": {
+    "save": "Save",
+    "apply": "Apply Config",
+    "applying": "Applying...",
+    "rollback": "Rollback",
+    "view": "View",
+    "collapse": "Collapse",
+    "createSnapshot": "Create Snapshot",
+    "loadSnapshot": "Load Snapshot",
+    "compareWithActual": "Compare with Actual"
+  },
+  "diff": {
+    "title": "Configuration Diff",
+    "current": "Current Config (Remote)",
+    "modified": "Modified Config (Local)",
+    "noConfig": "No Config"
+  },
+  "snapshots": {
+    "title": "History Snapshots",
+    "noSnapshots": "No configuration snapshots",
+    "sequence": "Sequence",
+    "hash": "Config Hash",
+    "createdAt": "Created At"
+  },
+  "rateLimit": {
+    "title": "Rate Limit Protection",
+    "remaining": "Remaining Writes",
+    "message": "Max 3 writes per 60 seconds",
+    "retryAfter": "Please retry after {seconds} seconds"
+  },
+  "status": {
+    "loading": "Loading configuration center...",
+    "loadingConfig": "Loading configuration...",
+    "success": "Configuration applied",
+    "pending": "Configuration change requires approval, approval ID: {approvalId}",
+    "rateLimited": "Rate limited",
+    "validationError": "Validation failed: {errors}",
+    "applyFailed": "Apply failed",
+    "rollbackSuccess": "Configuration rolled back",
+    "rollbackPending": "Configuration rollback requires approval, approval ID: {approvalId}",
+    "rollbackFailed": "Rollback failed",
+    "fetchFailed": "Failed to fetch configuration, please connect to OpenClaw first",
+    "connectFirst": "Please connect to OpenClaw in Connection Settings first",
+    "jsonError": "JSON format error"
+  },
+  "confirm": {
+    "rollback": "Are you sure to rollback to this snapshot?"
+  },
+  "approval": {
+    "inlineTitle": "This change is waiting for approval",
+    "applyPending": "Configuration change has been submitted for approval. Approval ID: {{approvalId}}. You can continue tracking the result on this page after approval.",
+    "rollbackPending": "Configuration rollback has been submitted for approval. Approval ID: {{approvalId}}. Return to this page to refresh the result after approval.",
+    "goToApprovals": "Go to Approvals",
+    "dismiss": "Later"
+  },
+  "connection": {
+    "pageTitle": "Connection Management",
+    "noProfiles": "No connection profiles",
+    "newProfile": "+ New Connection",
+    "selectOrCreate": "Please select or create a connection profile",
+    "createTitle": "New Connection",
+    "editTitle": "Edit Connection",
+    "name": "Name",
+    "namePlaceholder": "e.g.: Local Development",
+    "authMode": "Auth Mode",
+    "authModes": {
+      "token": "Token",
+      "password": "Password",
+      "trustedProxy": "Trusted Proxy",
+      "none": "No Auth"
+    },
+    "baseUrl": "Base URL",
+    "wsUrl": "WebSocket URL",
+    "token": "Token",
+    "password": "Password",
+    "edgeToken": "Edge Token",
+    "stored": "Stored",
+    "keepUnchanged": "Leave empty to keep unchanged",
+    "enterToken": "Enter Token",
+    "enterPassword": "Enter Password",
+    "enterEdgeToken": "Enter Edge Token",
+    "saving": "Saving...",
+    "diagnostics": "Connection Diagnostics",
+    "wsStatus": "WebSocket Status",
+    "ping": "Ping Test",
+    "pinging": "Testing...",
+    "connect": "Connect WebSocket",
+    "connecting": "Connecting...",
+    "disconnect": "Disconnect",
+    "pingSuccess": "Ping Successful",
+    "pingFailed": "Ping Failed",
+    "connectFailed": "Connection failed: {error}",
+    "storedCredentials": "Stored Credentials",
+    "notSet": "Not Set",
+    "confirmDelete": "Are you sure to delete this connection profile?"
+    ,"profileLabel": "Connection Profile:"
+  }
+}

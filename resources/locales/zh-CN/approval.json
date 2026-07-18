@@ -1,0 +1,53 @@
+{
+  "pageTitle": "审批中心",
+  "pageDescription": "管理高危动作审批请求",
+  "status": {
+    "pending": "待审批",
+    "approved": "已通过",
+    "rejected": "已拒绝",
+    "canceled": "已取消"
+  },
+  "actionTypes": {
+    "sendExternal": "对外发送",
+    "mergeMain": "合并主干",
+    "deployProd": "生产部署",
+    "exportData": "导出数据",
+    "purchase": "购买操作",
+    "changeConfig": "配置变更",
+    "rotateToken": "轮换 Token",
+    "changePolicy": "策略变更",
+    "changeWorkspaceEnv": "变更工作区环境",
+    "unlockWorkspace": "解锁工作区",
+    "startService": "启动服务",
+    "stopService": "停止服务",
+    "restartService": "重启服务",
+    "upgradeService": "升级服务"
+  },
+  "detail": {
+    "title": "审批详情",
+    "actionType": "动作类型",
+    "requestedBy": "申请人",
+    "approvedBy": "审批人",
+    "reason": "原因",
+    "metadata": "元数据",
+    "relatedTicket": "关联工单",
+    "noTicket": "无关联工单"
+  },
+  "actions": {
+    "approve": "通过",
+    "reject": "拒绝",
+    "cancel": "取消",
+    "viewDetails": "查看详情",
+    "confirmApprove": "确定批准该审批？",
+    "confirmReject": "确定拒绝该审批？"
+  },
+  "filters": {
+    "all": "全部",
+    "pending": "待审批",
+    "approved": "已通过",
+    "rejected": "已拒绝"
+  },
+  "loading": "加载审批中...",
+  "noRecords": "暂无审批记录",
+  "requestContent": "请求内容"
+}

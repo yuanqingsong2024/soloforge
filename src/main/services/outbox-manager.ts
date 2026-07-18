@@ -1,6 +1,6 @@
-import { PrismaClient, type OutboxEvent } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { type OutboxEvent } from '@prisma/client'
+import { prisma } from './db'
+import { writeAuditLog } from './audit-log-writer'
 
 export type OutboxStatus = 'PENDING' | 'SENDING' | 'SUCCEEDED' | 'FAILED'
 
@@ -38,29 +38,6 @@ function toErrorMessage(error: unknown): string {
   return String(error)
 }
 
-async function writeAuditLog(input: {
-  traceId: string
-  ticketId?: string
-  actor?: string
-  action: string
-  tool?: string
-  request: unknown
-  response: unknown
-}): Promise<void> {
-  await prisma.auditLog.create({
-    data: {
-      ticketId: input.ticketId,
-      traceId: input.traceId,
-      actor: input.actor || SERVICE_ACTOR,
-      action: input.action,
-      tool: input.tool,
-      request: safeJsonStringify(input.request, 'AuditLog.request'),
-      response: safeJsonStringify(input.response, 'AuditLog.response'),
-      ts: new Date()
-    }
-  })
-}
-
 export class OutboxManager {
   private static handlers = new Map<string, OutboxHandler>()
   private static timer: NodeJS.Timeout | null = null
@@ -91,6 +68,7 @@ export class OutboxManager {
     })
 
     await writeAuditLog({
+      actor: SERVICE_ACTOR,
       traceId,
       action: 'OUTBOX_ENQUEUED',
       tool: 'outbox',
@@ -163,6 +141,7 @@ export class OutboxManager {
     })
 
     await writeAuditLog({
+      actor: SERVICE_ACTOR,
       traceId: updated.traceId,
       action: 'OUTBOX_MANUAL_RETRY',
       tool: 'outbox',
@@ -186,6 +165,7 @@ export class OutboxManager {
         // 定时任务错误不应导致进程崩溃：记录到审计便于定位
         const traceId = 'scheduler'
         writeAuditLog({
+          actor: SERVICE_ACTOR,
           traceId,
           action: 'OUTBOX_SCHEDULER_ERROR',
           tool: 'outbox',
@@ -249,6 +229,7 @@ export class OutboxManager {
       })
 
       await writeAuditLog({
+        actor: SERVICE_ACTOR,
         traceId: event.traceId,
         action: 'OUTBOX_SUCCEEDED',
         tool: 'outbox',
@@ -278,6 +259,7 @@ export class OutboxManager {
     })
 
     await writeAuditLog({
+      actor: SERVICE_ACTOR,
       traceId: event.traceId,
       action: 'OUTBOX_FAILED',
       tool: 'outbox',
@@ -295,4 +277,4 @@ export class OutboxManager {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

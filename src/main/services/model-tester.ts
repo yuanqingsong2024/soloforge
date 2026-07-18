@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from './db'
 import { resolveWorkspaceOpenClawClient } from './workspace-openclaw'
-
-const prisma = new PrismaClient()
 
 /**
  * 模型测试结果
@@ -275,4 +273,4 @@ export class ModelTester {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

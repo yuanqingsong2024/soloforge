@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { SortableTicketCard } from '../components/SortableTicketCard'
 import { getApiPort } from '../lib/api'
 import { TicketCard } from '../components/TicketCard'
 import { PageHeader } from '../components/ui/PageHeader'
-const STATUSES = [
-  { id: 'INBOX', label: '收件箱', color: 'bg-[hsl(var(--muted))]' },
-  { id: 'SPEC', label: '需求分析', color: 'bg-[hsl(var(--info)/0.1)]' },
-  { id: 'DEV', label: '开发中', color: 'bg-[hsl(var(--warning)/0.1)]' },
-  { id: 'TEST', label: '测试中', color: 'bg-[hsl(var(--primary)/0.1)]' },
-  { id: 'DELIVERY', label: '待交付', color: 'bg-[hsl(var(--success)/0.1)]' },
-  { id: 'DONE', label: '已完成', color: 'bg-[hsl(var(--muted))]' }
+import { LoadingState } from '../components/ui/LoadingState'
+
+const getStatuses = (t: (key: string) => string) => [
+  { id: 'INBOX', label: t('tickets:status.inbox'), color: 'bg-[hsl(var(--muted))]' },
+  { id: 'SPEC', label: t('tickets:status.spec'), color: 'bg-[hsl(var(--info)/0.1)]' },
+  { id: 'DEV', label: t('tickets:status.dev'), color: 'bg-[hsl(var(--warning)/0.1)]' },
+  { id: 'TEST', label: t('tickets:status.test'), color: 'bg-[hsl(var(--primary)/0.1)]' },
+  { id: 'DELIVERY', label: t('tickets:status.delivery'), color: 'bg-[hsl(var(--success)/0.1)]' },
+  { id: 'DONE', label: t('tickets:status.done'), color: 'bg-[hsl(var(--muted))]' }
 ]
 interface Ticket {
   id: string
@@ -24,11 +27,14 @@ interface Ticket {
   createdAt: string
 }
 export function TicketBoard() {
+  const { t } = useTranslation(['tickets', 'common'])
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
+  
+  const STATUSES = getStatuses(t)
   useEffect(() => {
     getApiPort().then(port => {
       setApiPort(port)
@@ -81,7 +87,7 @@ export function TicketBoard() {
   }
   const handleCreateTicket = async () => {
     if (!apiPort) return
-    const title = prompt('工单标题：')
+    const title = prompt(t('tickets:board.enterTitle'))
     if (!title) return
     try {
       const response = await fetch(`http://127.0.0.1:${apiPort}/api/tickets`, {
@@ -107,17 +113,13 @@ export function TicketBoard() {
   }, {} as Record<string, Ticket[]>)
   const activeTicket = activeId ? tickets.find(t => t.id === activeId) : null
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-[hsl(var(--primary))] border-t-transparent"></div>
-      </div>
-    )
+    return <LoadingState message={t('common:loading')} />
   }
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="工单看板"
-        description="拖拽工单卡片以更新状态"
+        title={t('tickets:board.title')}
+        description={t('tickets:board.description')}
         actions={
           <button
             onClick={handleCreateTicket}
@@ -125,7 +127,7 @@ export function TicketBoard() {
                      rounded-workshop-md hover:opacity-90 transition-opacity
                      font-medium text-sm shadow-workshop-sm"
           >
-            + 新建工单
+            {t('tickets:board.createTicket')}
           </button>
         }
       />

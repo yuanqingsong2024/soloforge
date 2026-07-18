@@ -6,11 +6,15 @@ interface SectionCardProps {
   actions?: React.ReactNode
   children: React.ReactNode
   className?: string
+  testId?: string
 }
 // 区块卡片组件
-export function SectionCard({ title, description, actions, children, className = '' }: SectionCardProps) {
+export function SectionCard({ title, description, actions, children, className = '', testId }: SectionCardProps) {
   return (
-    <div className={`animate-fade-in rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm ${className}`}>
+    <div
+      data-testid={testId}
+      className={`animate-fade-in rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm ${className}`}
+    >
       {/* 卡片头部 */}
       {(title || actions) && (
         <div className="border-b border-[hsl(var(--border)_/_0.8)] px-4 py-4 sm:px-6">

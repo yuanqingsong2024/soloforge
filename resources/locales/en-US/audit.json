@@ -1,0 +1,46 @@
+{
+  "pageTitle": "Audit Logs",
+  "pageDescription": "Full-chain operation records and replay",
+  "filters": {
+    "traceId": "Trace ID",
+    "actor": "Actor",
+    "action": "Action",
+    "workspace": "Workspace",
+    "dateRange": "Date Range",
+    "all": "All",
+    "ticketId": "Ticket ID"
+  },
+  "columns": {
+    "timestamp": "Timestamp",
+    "traceId": "Trace ID",
+    "actor": "Actor",
+    "action": "Action",
+    "target": "Target",
+    "result": "Result",
+    "details": "Details"
+  },
+  "actions": {
+    "viewDetails": "View Details",
+    "copyTraceId": "Copy Trace ID",
+    "filterByActor": "Filter by Actor",
+    "filterByAction": "Filter by Action"
+  },
+  "detail": {
+    "title": "Audit Log Details",
+    "basicInfo": "Basic Info",
+    "metadata": "Metadata",
+    "beforeState": "Before",
+    "afterState": "After",
+    "relatedLogs": "Related Logs"
+  },
+  "export": {
+    "title": "Export Audit Logs",
+    "format": "Format",
+    "dateRange": "Date Range",
+    "filters": "Filters"
+  },
+  "noLogs": "No audit logs",
+  "ticketLabel": "Ticket",
+  "requestLabel": "Request",
+  "responseLabel": "Response"
+}

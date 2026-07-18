@@ -1,161 +1,141 @@
 import { test, expect } from '@playwright/test'
+import { apiJson } from './helpers/api'
+import { closeElectronApp, launchElectronApp } from './helpers/electron'
 
 /**
  * E2E 测试：失败重试验证
- * 
- * 验证点：
- * 1. 模拟发送失败场景
- * 2. 验证消息状态变为 FAILED
- * 3. 验证 next_retry_at 字段设置正确
- * 4. 验证 attempts 计数递增
- * 5. 手动重试功能验证
- * 6. 批量重试接口验证
  */
 test.describe('失败重试验证', () => {
-  const apiPort = 13789
+  let context: Awaited<ReturnType<typeof launchElectronApp>> | null = null
 
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
+  test.beforeEach(async ({}, testInfo) => {
+    context = await launchElectronApp(testInfo)
   })
 
-  test('应该能在消息中心查看失败消息', async ({ page }) => {
-    // 1. 导航到消息中心
+  test.afterEach(async () => {
+    if (context) {
+      await closeElectronApp(context)
+      context = null
+    }
+  })
+
+  test('应该能在消息中心查看失败消息', async () => {
+    if (!context) throw new Error('Electron 上下文未初始化')
+    const page = context.page
+
     await page.click('text=消息中心')
     await page.waitForSelector('text=消息中心')
 
-    // 2. 切换到失败 tab
     await page.click('button:has-text("失败")')
-    await page.waitForTimeout(500)
 
-    // 3. 验证失败消息列表（可能为空）
-    const failedMessages = await page.locator('[data-testid="message-card"]').count()
+    const failedSection = page.getByTestId('outbound-message-section-FAILED')
+    await expect(failedSection).toBeVisible()
+
+    const failedMessages = await page.locator('[data-testid^="message-card-"]').count()
     expect(failedMessages).toBeGreaterThanOrEqual(0)
 
-    // 4. 如果有失败消息，验证显示错误信息
     if (failedMessages > 0) {
-      const firstFailed = page.locator('[data-testid="message-card"]').first()
+      const firstFailed = page.locator('[data-testid^="message-card-"]').first()
       await expect(firstFailed).toBeVisible()
-      
-      // 验证包含错误信息或重试按钮
+
       const hasError = await firstFailed.locator('text=错误').or(firstFailed.locator('text=失败')).count() > 0
       const hasRetry = await firstFailed.locator('button:has-text("重试")').count() > 0
-      
+
       expect(hasError || hasRetry).toBeTruthy()
     }
   })
 
-  test('应该能通过 API 验证失败消息的重试字段', async ({ request }) => {
-    // 1. 获取所有失败消息
-    const response = await request.get(`http://127.0.0.1:${apiPort}/api/outbound-messages?status=FAILED`)
-    
-    if (!response.ok()) {
-      test.skip() // API 不可用，跳过
-    }
+  test('应该能通过 API 验证失败消息的重试字段', async () => {
+    if (!context) throw new Error('Electron 上下文未初始化')
+    const page = context.page
 
-    const messages = await response.json()
+    const messages = await apiJson<Array<Record<string, unknown>>>(page, '/api/outbound-messages?status=FAILED')
 
-    // 2. 验证失败消息包含必要字段
     if (messages.length > 0) {
       const failedMsg = messages[0]
-      
+
       expect(failedMsg.status).toBe('FAILED')
       expect(failedMsg.attempts).toBeGreaterThan(0)
       expect(failedMsg.lastError).toBeTruthy()
-      
-      // 验证 next_retry_at 存在（如果仍在重试窗口内）
+
       if (failedMsg.attempts < 8) {
         expect(failedMsg.nextRetryAt).toBeTruthy()
       }
     }
   })
 
-  test('应该能手动重试失败消息', async ({ page }) => {
-    // 1. 导航到消息中心失败 tab
+  test('应该能手动重试失败消息', async () => {
+    if (!context) throw new Error('Electron 上下文未初始化')
+    const page = context.page
+
+    await ensureFailedMessage(page)
+
     await page.click('text=消息中心')
     await page.click('button:has-text("失败")')
-    await page.waitForTimeout(500)
 
-    // 2. 查找重试按钮
-    const retryButton = page.locator('button:has-text("重试")').first()
-    
-    if (await retryButton.count() === 0) {
-      test.skip() // 没有失败消息，跳过
-    }
+    const failedSection = page.getByTestId('outbound-message-section-FAILED')
+    await expect(failedSection).toBeVisible()
 
-    // 3. 点击重试
+    const retryButton = failedSection.getByRole('button', { name: '重试发送' }).first()
+
     await retryButton.click()
-    await page.waitForTimeout(2000)
 
-    // 4. 验证响应（可能成功、失败或需要审批）
-    const hasResponse = await page.locator('text=重试').or(page.locator('text=审批')).or(page.locator('text=失败')).count() > 0
-    expect(hasResponse).toBeTruthy()
+    await expect(failedSection).toBeVisible()
   })
 
-  test('应该能通过 API 手动重试失败消息', async ({ request }) => {
-    // 1. 获取失败消息
-    const listRes = await request.get(`http://127.0.0.1:${apiPort}/api/outbound-messages?status=FAILED`)
-    if (!listRes.ok()) test.skip()
+  test('应该能通过 API 手动重试失败消息', async () => {
+    if (!context) throw new Error('Electron 上下文未初始化')
+    const page = context.page
 
-    const messages = await listRes.json()
+    await ensureFailedMessage(page)
+
+    const messages = await apiJson<Array<{ id: string } & Record<string, unknown>>>(page, '/api/outbound-messages?status=FAILED')
+
+    const failedMsg = messages[0]
+
+    const result = await apiJson<{ status?: string }>(page, `/api/outbound-messages/${failedMsg.id}/retry`, {
+      method: 'POST'
+    })
+
+    expect(result.status).toBeTruthy()
+    expect(['sent', 'blocked', 'deferred', 'skipped']).toContain(result.status)
+  })
+
+  test('应该能验证退避窗口机制', async () => {
+    if (!context) throw new Error('Electron 上下文未初始化')
+    const page = context.page
+
+    const messages = await apiJson<Array<Record<string, unknown>>>(page, '/api/outbound-messages?status=FAILED')
     if (messages.length === 0) test.skip()
 
     const failedMsg = messages[0]
 
-    // 2. 尝试重试
-    const retryRes = await request.post(`http://127.0.0.1:${apiPort}/api/outbound-messages/${failedMsg.id}/retry`)
-    
-    // 3. 验证响应
-    if (retryRes.ok()) {
-      const result = await retryRes.json()
-      expect(result.status).toBeTruthy()
-      expect(['sent', 'blocked', 'deferred', 'skipped']).toContain(result.status)
-    }
-  })
-
-  test('应该能验证退避窗口机制', async ({ request }) => {
-    // 1. 获取失败消息
-    const listRes = await request.get(`http://127.0.0.1:${apiPort}/api/outbound-messages?status=FAILED`)
-    if (!listRes.ok()) test.skip()
-
-    const messages = await listRes.json()
-    if (messages.length === 0) test.skip()
-
-    const failedMsg = messages[0]
-
-    // 2. 如果在退避窗口内，重试应返回 deferred
     if (failedMsg.nextRetryAt) {
       const nextRetryTime = new Date(failedMsg.nextRetryAt).getTime()
       const now = Date.now()
 
       if (nextRetryTime > now) {
-        // 仍在退避窗口内
-        const retryRes = await request.post(`http://127.0.0.1:${apiPort}/api/outbound-messages/${failedMsg.id}/retry`)
-        
-        if (retryRes.ok()) {
-          const result = await retryRes.json()
-          expect(result.status).toBe('deferred')
-          expect(result.nextRetryAt).toBeTruthy()
-        }
+        const result = await apiJson<{ status?: string; nextRetryAt?: string | null }>(page, `/api/outbound-messages/${failedMsg.id}/retry`, {
+          method: 'POST'
+        })
+
+        expect(result.status).toBe('deferred')
+        expect(result.nextRetryAt).toBeTruthy()
       }
     }
   })
 
-  test('应该能验证批量重试接口', async ({ request }) => {
-    // 1. 调用批量重试接口
-    const retryRes = await request.post(`http://127.0.0.1:${apiPort}/api/outbound-messages/retry-due`)
-    
-    if (!retryRes.ok()) {
-      test.skip() // API 不可用
-    }
+  test('应该能验证批量重试接口', async () => {
+    if (!context) throw new Error('Electron 上下文未初始化')
+    const page = context.page
 
-    // 2. 验证响应格式
-    const result = await retryRes.json()
-    expect(result).toHaveProperty('total')
+    const result = await apiJson<{ retriedCount: number; results: Array<{ id: string; status: string }> }>(page, '/api/outbound-messages/retry-due', {
+      method: 'POST'
+    })
+    expect(result).toHaveProperty('retriedCount')
     expect(result).toHaveProperty('results')
     expect(Array.isArray(result.results)).toBeTruthy()
 
-    // 3. 验证每个结果包含必要字段
     if (result.results.length > 0) {
       const firstResult = result.results[0]
       expect(firstResult).toHaveProperty('id')
@@ -164,44 +144,149 @@ test.describe('失败重试验证', () => {
     }
   })
 
-  test('应该能验证最大重试次数限制', async ({ request }) => {
-    // 1. 获取失败消息
-    const listRes = await request.get(`http://127.0.0.1:${apiPort}/api/outbound-messages?status=FAILED`)
-    if (!listRes.ok()) test.skip()
+  test('应该能验证最大重试次数限制', async () => {
+    if (!context) throw new Error('Electron 上下文未初始化')
+    const page = context.page
 
-    const messages = await listRes.json()
-    
-    // 2. 查找达到最大重试次数的消息
-    const maxRetriedMsg = messages.find((msg: any) => msg.attempts >= 8)
+    const messages = await apiJson<Array<{ attempts: number; nextRetryAt?: string | null }>>(page, '/api/outbound-messages?status=FAILED')
+
+    const maxRetriedMsg = messages.find(msg => msg.attempts >= 8)
 
     if (maxRetriedMsg) {
-      // 3. 验证 next_retry_at 为 null（不再重试）
       expect(maxRetriedMsg.nextRetryAt).toBeNull()
     }
   })
 
-  test('应该能在消息详情中查看重试历史', async ({ page }) => {
-    // 1. 导航到消息中心
+  test('应该能在消息详情中查看重试历史', async () => {
+    if (!context) throw new Error('Electron 上下文未初始化')
+    const page = context.page
+
+    await ensureFailedMessage(page)
+
     await page.click('text=消息中心')
     await page.click('button:has-text("失败")')
-    await page.waitForTimeout(500)
 
-    // 2. 查找失败消息
-    const failedCard = page.locator('[data-testid="message-card"]').first()
-    if (await failedCard.count() === 0) test.skip()
+    const failedSection = page.getByTestId('outbound-message-section-FAILED')
+    await expect(failedSection).toBeVisible()
 
-    // 3. 验证显示尝试次数
+    const failedCard = failedSection.locator('[data-testid^="message-card-"]').first()
     const hasAttempts = await failedCard.locator('text=尝试次数').or(failedCard.locator('text=attempts')).count() > 0
-    
+
     if (hasAttempts) {
       await expect(failedCard.locator('text=尝试次数')).toBeVisible()
     }
 
-    // 4. 验证显示下次重试时间
     const hasNextRetry = await failedCard.locator('text=下次重试').or(failedCard.locator('text=next_retry')).count() > 0
-    
+
     if (hasNextRetry) {
       await expect(failedCard.locator('text=下次重试')).toBeVisible()
     }
   })
 })
+
+async function ensureFailedMessage(page: import('@playwright/test').Page): Promise<void> {
+  const existing = await apiJson<Array<{ id: string }>>(page, '/api/outbound-messages?status=FAILED')
+  if (existing.length > 0) {
+    return
+  }
+
+  const profileName = `E2E-Retry-Profile-${Date.now()}`
+  const targetTo = `retry-failed-${Date.now()}`
+  const openclawProfile = await apiJson<{ id: string }>(page, '/api/profiles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: profileName,
+      baseUrl: 'http://127.0.0.1:9',
+      wsUrl: 'ws://127.0.0.1:9',
+      authMode: 'token',
+      token: 'e2e-token'
+    })
+  })
+
+  const commsProfile = await apiJson<{ id: string }>(page, '/api/comms/profiles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: `${profileName}-comms`,
+      provider: 'openclaw',
+      openclawProfileId: openclawProfile.id,
+      enabled: true
+    })
+  })
+
+  const target = await apiJson<{ target: { id: string } }>(page, '/api/comms/targets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      commsProfileId: commsProfile.id,
+      channel: 'slack',
+      to: targetTo,
+      displayName: 'E2E Retry Failed Target',
+      allowlisted: false
+    })
+  })
+
+  await apiJson(page, `/api/comms/targets/${target.target.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ allowlisted: true })
+  })
+
+  const draft = await apiJson<{ id: string }>(page, '/api/outbound-messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      channel: 'slack',
+      to: targetTo,
+      subject: 'E2E Retry Failed',
+      body: '用于生成 FAILED 状态消息',
+      status: 'DRAFT'
+    })
+  })
+
+  const sendResult = await apiJson<{ status: string; approvalId?: string }>(page, `/api/outbound-messages/${draft.id}/send`, {
+    method: 'POST'
+  })
+
+  if (sendResult.status !== 'pending_approval' || !sendResult.approvalId) {
+    throw new Error('未生成审批，无法构造 FAILED 消息')
+  }
+
+  const approvalResponse = await page.evaluate(async ({ approvalId }) => {
+    const params = new URLSearchParams(window.location.search)
+    const portValue = params.get('apiPort')
+    if (!portValue) {
+      throw new Error('无法获取 apiPort')
+    }
+
+    const port = Number(portValue)
+    if (!Number.isFinite(port)) {
+      throw new Error('apiPort 无效')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/approvals/${approvalId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'APPROVED', approvedBy: 'e2e' })
+    })
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      body: await response.text()
+    }
+  }, { approvalId: sendResult.approvalId })
+
+  const currentMessages = await apiJson<Array<{ id: string; status: string; lastError?: string | null }>>(page, '/api/outbound-messages')
+  const currentMessage = currentMessages.find(item => item.id === draft.id)
+
+  if (!approvalResponse.ok && currentMessage?.status !== 'FAILED') {
+    throw new Error(`审批通过接口失败: ${approvalResponse.status} ${approvalResponse.body}; 当前消息状态=${currentMessage?.status || 'missing'}; lastError=${currentMessage?.lastError || 'null'}`)
+  }
+
+  await expect.poll(async () => {
+    const failed = await apiJson<Array<{ id: string; status: string }>>(page, '/api/outbound-messages?status=FAILED')
+    return failed.some(item => item.id === draft.id)
+  }, { timeout: 25000 }).toBe(true)
+}

@@ -1,7 +1,9 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from './db'
+import { app } from 'electron'
 import crypto from 'crypto'
-
-const prisma = new PrismaClient()
+import fs from 'fs'
+import path from 'path'
+import { writeAuditLog } from './audit-log-writer'
 
 /**
  * 备份包
@@ -32,6 +34,17 @@ export interface BackupHistoryItem {
   hash: string
   itemCount: number
   traceId: string | null
+  fileName?: string
+  filePath?: string
+  sizeBytes?: number
+}
+
+interface BackupFileEnvelope {
+  id: string
+  traceId: string
+  fileName: string
+  createdAt: string
+  pack: BackupPack
 }
 
 /**
@@ -50,6 +63,73 @@ export interface ImportResult {
  * 负责配置备份/还原，脱敏处理
  */
 export class BackupManager {
+  private static getBackupRoot(): string {
+    return path.join(app.getPath('userData'), 'backups')
+  }
+
+  private static getWorkspaceBackupDir(workspaceId: string): string {
+    return path.join(this.getBackupRoot(), workspaceId)
+  }
+
+  private static ensureWorkspaceBackupDir(workspaceId: string): string {
+    const dir = this.getWorkspaceBackupDir(workspaceId)
+    fs.mkdirSync(dir, { recursive: true })
+    return dir
+  }
+
+  private static buildBackupFileName(exportedAt: string, hash: string): string {
+    const safeTimestamp = exportedAt.replace(/[:.]/g, '-')
+    return `backup-${safeTimestamp}-${hash.slice(0, 12)}.json`
+  }
+
+  private static persistBackupPack(pack: BackupPack, traceId: string): BackupHistoryItem {
+    const dir = this.ensureWorkspaceBackupDir(pack.workspaceId)
+    const fileName = this.buildBackupFileName(pack.exportedAt, pack.metadata.hash)
+    const filePath = path.join(dir, fileName)
+    const envelope: BackupFileEnvelope = {
+      id: pack.metadata.hash,
+      traceId,
+      fileName,
+      createdAt: new Date().toISOString(),
+      pack
+    }
+    fs.writeFileSync(filePath, JSON.stringify(envelope, null, 2), 'utf-8')
+    const stat = fs.statSync(filePath)
+
+    return {
+      id: pack.metadata.hash,
+      workspaceId: pack.workspaceId,
+      workspaceName: pack.workspaceName,
+      exportedAt: pack.exportedAt,
+      exportedBy: pack.exportedBy,
+      hash: pack.metadata.hash,
+      itemCount: pack.metadata.itemCount,
+      traceId,
+      fileName,
+      filePath,
+      sizeBytes: stat.size
+    }
+  }
+
+  private static readBackupEnvelope(filePath: string): BackupFileEnvelope | null {
+    try {
+      const raw = fs.readFileSync(filePath, 'utf-8')
+      const parsed = JSON.parse(raw) as Partial<BackupFileEnvelope>
+      if (!parsed || typeof parsed !== 'object' || !parsed.pack) return null
+      return parsed as BackupFileEnvelope
+    } catch {
+      return null
+    }
+  }
+
+  private static validateBackupPackHash(pack: BackupPack): boolean {
+    const expectedHash = this.hashBackupPack({
+      ...pack,
+      metadata: { ...pack.metadata, hash: '' }
+    })
+    return pack.metadata.hash === expectedHash
+  }
+
   /**
    * 导出备份包
    */
@@ -137,26 +217,27 @@ export class BackupManager {
 
     // 计算哈希
     backupPack.metadata.hash = this.hashBackupPack(backupPack)
+    const traceId = crypto.randomUUID()
+    const fileItem = this.persistBackupPack(backupPack, traceId)
 
-    await prisma.auditLog.create({
-      data: {
+    await writeAuditLog({
+      workspaceId,
+      traceId,
+      actor: exportedBy,
+      action: 'BACKUP_EXPORT_HISTORY',
+      tool: 'backup',
+      request: {
         workspaceId,
-        traceId: crypto.randomUUID(),
-        actor: exportedBy,
-        action: 'BACKUP_EXPORT_HISTORY',
-        tool: 'backup',
-        request: JSON.stringify({
-          workspaceId,
-          includeChangeRequests,
-          includeSnapshots
-        }),
-        response: JSON.stringify({
-          workspaceName: workspace.name,
-          exportedAt: backupPack.exportedAt,
-          hash: backupPack.metadata.hash,
-          itemCount: backupPack.metadata.itemCount
-        }),
-        ts: new Date(backupPack.exportedAt)
+        includeChangeRequests,
+        includeSnapshots
+      },
+      response: {
+        workspaceName: workspace.name,
+        exportedAt: backupPack.exportedAt,
+        hash: backupPack.metadata.hash,
+        itemCount: backupPack.metadata.itemCount,
+        fileName: fileItem.fileName,
+        sizeBytes: fileItem.sizeBytes
       }
     })
 
@@ -187,11 +268,7 @@ export class BackupManager {
       }
 
       // 校验哈希
-      const expectedHash = this.hashBackupPack({
-        ...backupPack,
-        metadata: { ...backupPack.metadata, hash: '' }
-      })
-      if (backupPack.metadata.hash !== expectedHash) {
+      if (!this.validateBackupPackHash(backupPack)) {
         errors.push('备份包哈希校验失败，文件可能已损坏')
         return { success: false, errors, warnings, credentialsNeeded }
       }
@@ -339,10 +416,14 @@ export class BackupManager {
   }
 
   /**
-   * 列出备份历史（从文件系统或数据库）
-   * TODO: 实现备份包持久化存储
+   * 列出备份历史（优先读取真实备份文件，审计日志仅作为兼容兜底）
    */
   static async listBackups(workspaceId: string): Promise<BackupHistoryItem[]> {
+    const fileItems = this.listBackupFiles(workspaceId)
+    if (fileItems.length > 0) {
+      return fileItems
+    }
+
     const [workspace, rows] = await Promise.all([
       prisma.workspace.findUnique({ where: { id: workspaceId } }),
       prisma.auditLog.findMany({
@@ -374,9 +455,40 @@ export class BackupManager {
             : 'unknown',
         hash: typeof response.hash === 'string' ? response.hash : '',
         itemCount: typeof response.itemCount === 'number' ? response.itemCount : 0,
-        traceId: row.traceId || null
+        traceId: row.traceId || null,
+        fileName: typeof response.fileName === 'string' ? response.fileName : undefined,
+        sizeBytes: typeof response.sizeBytes === 'number' ? response.sizeBytes : undefined
       }
     })
+  }
+
+  private static listBackupFiles(workspaceId: string): BackupHistoryItem[] {
+    const dir = this.getWorkspaceBackupDir(workspaceId)
+    if (!fs.existsSync(dir)) return []
+
+    const items: BackupHistoryItem[] = []
+    for (const fileName of fs.readdirSync(dir)) {
+      if (!fileName.endsWith('.json')) continue
+      const filePath = path.join(dir, fileName)
+      const envelope = this.readBackupEnvelope(filePath)
+      if (!envelope || envelope.pack.workspaceId !== workspaceId) continue
+      const stat = fs.statSync(filePath)
+      items.push({
+        id: envelope.id || envelope.pack.metadata.hash,
+        workspaceId: envelope.pack.workspaceId,
+        workspaceName: envelope.pack.workspaceName,
+        exportedAt: envelope.pack.exportedAt,
+        exportedBy: envelope.pack.exportedBy,
+        hash: envelope.pack.metadata.hash,
+        itemCount: envelope.pack.metadata.itemCount,
+        traceId: envelope.traceId || null,
+        fileName,
+        filePath,
+        sizeBytes: stat.size
+      })
+    }
+
+    return items.sort((left, right) => Date.parse(right.exportedAt) - Date.parse(left.exportedAt))
   }
 
   private static safeJsonParse<T>(raw: string | null | undefined, fallback: T): T {
@@ -389,4 +501,4 @@ export class BackupManager {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

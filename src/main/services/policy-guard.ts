@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from './db'
 import { ApprovalGuard } from './approval-guard'
-
-const prisma = new PrismaClient()
+import { logger } from './logger'
 
 export interface WorkspacePolicy {
   tools_policy: {
@@ -222,12 +221,12 @@ export class PolicyGuard {
 
       const parsed = parseWorkspacePolicy(latest.policyJson)
       if (!parsed) {
-        console.error(`Workspace policy JSON 解析失败（workspaceId=${workspaceId}），已回退默认策略`)
+        logger.error(`Workspace policy JSON 解析失败（workspaceId=${workspaceId}），已回退默认策略`)
         return DEFAULT_POLICY
       }
       return parsed
     } catch (error) {
-      console.error(`读取 workspace policy 失败（workspaceId=${workspaceId}），已回退默认策略:`, error)
+      logger.error(`读取 workspace policy 失败（workspaceId=${workspaceId}），已回退默认策略: ${error instanceof Error ? error.message : String(error)}`)
       return DEFAULT_POLICY
     }
   }

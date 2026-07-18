@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import { useTranslation } from 'react-i18next'
+import { translateEnum } from '../lib/i18n-helpers'
+import { getToneByStatus } from '../lib/status-badge'
 
 interface OutboundMessage {
   id: string
@@ -25,6 +31,7 @@ interface OutboundMessage {
 }
 
 export function OutboundMessageCenter() {
+  const { t } = useTranslation(['common'])
   const [apiPort, setApiPort] = useState<number | null>(null)
   const [messages, setMessages] = useState<OutboundMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -99,24 +106,35 @@ export function OutboundMessageCenter() {
     CANCELED: messages.filter(message => message.status === 'CANCELED')
   }
 
+  const sections: Array<{
+    key: keyof typeof grouped
+    title: string
+    empty: string
+    allowSend?: boolean
+    allowRetry?: boolean
+  }> = [
+    { key: 'DRAFT', title: `草稿 (${grouped.DRAFT.length})`, empty: '暂无草稿消息', allowSend: true },
+    { key: 'PENDING_APPROVAL', title: `待审批 (${grouped.PENDING_APPROVAL.length})`, empty: '暂无待审批消息' },
+    { key: 'SENDING', title: `发送中 (${grouped.SENDING.length})`, empty: '暂无发送中消息' },
+    { key: 'SENT', title: `已发送 (${grouped.SENT.length})`, empty: '暂无已发送消息' },
+    { key: 'FAILED', title: `失败 (${grouped.FAILED.length})`, empty: '暂无失败消息', allowRetry: true },
+    { key: 'CANCELED', title: `已取消 (${grouped.CANCELED.length})`, empty: '暂无已取消消息' }
+  ] as const
+
   const channels = Array.from(new Set(messages.map(item => item.channel)))
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-[hsl(var(--primary))] border-t-transparent" />
-      </div>
-    )
+    return <LoadingState message="加载外发消息中..." />
   }
 
   return (
     <div>
       <PageHeader
-        title="Outbound Message Center"
+        title="外发消息中心"
         description="管理草稿、审批中、已发送与失败重试消息"
       />
 
-      <SectionCard className="mb-6">
+      <SectionCard className="mb-6" testId="outbound-message-filters">
         <div className="flex gap-2 flex-wrap items-center">
           {(['all', 'DRAFT', 'PENDING_APPROVAL', 'SENDING', 'SENT', 'FAILED', 'CANCELED'] as const).map(status => (
             <button
@@ -124,14 +142,14 @@ export function OutboundMessageCenter() {
               onClick={() => setStatusFilter(status)}
               className={`px-3 py-1 text-xs rounded-workshop-md ${statusFilter === status ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}
             >
-              {status === 'all' ? '全部' : status}
+              {status === 'all' ? '全部' : translateEnum(t, 'outboundMessageStatusMap', status)}
             </button>
           ))}
 
           <select
             value={channelFilter}
             onChange={e => setChannelFilter(e.target.value)}
-            className="px-3 py-1 text-xs rounded-workshop-md bg-[hsl(var(--background))] border border-[hsl(var(--border))]"
+            className="px-3 py-1 text-xs rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
           >
             <option value="all">全部渠道</option>
             {channels.map(channel => <option key={channel} value={channel}>{channel}</option>)}
@@ -140,66 +158,27 @@ export function OutboundMessageCenter() {
       </SectionCard>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <SectionCard title={`草稿 (${grouped.DRAFT.length})`}>
-          <div className="space-y-3">
-            {grouped.DRAFT.map(message => (
-              <MessageCard key={message.id} message={message} onSend={handleSend} />
-            ))}
-            {grouped.DRAFT.length === 0 && <EmptyTip text="暂无草稿消息" />}
-          </div>
-        </SectionCard>
-
-        <SectionCard title={`待审批 (${grouped.PENDING_APPROVAL.length})`}>
-          <div className="space-y-3">
-            {grouped.PENDING_APPROVAL.map(message => (
-              <MessageCard key={message.id} message={message} />
-            ))}
-            {grouped.PENDING_APPROVAL.length === 0 && <EmptyTip text="暂无待审批消息" />}
-          </div>
-        </SectionCard>
-
-        <SectionCard title={`发送中 (${grouped.SENDING.length})`}>
-          <div className="space-y-3">
-            {grouped.SENDING.map(message => (
-              <MessageCard key={message.id} message={message} />
-            ))}
-            {grouped.SENDING.length === 0 && <EmptyTip text="暂无发送中消息" />}
-          </div>
-        </SectionCard>
-
-        <SectionCard title={`已发送 (${grouped.SENT.length})`}>
-          <div className="space-y-3">
-            {grouped.SENT.map(message => (
-              <MessageCard key={message.id} message={message} />
-            ))}
-            {grouped.SENT.length === 0 && <EmptyTip text="暂无已发送消息" />}
-          </div>
-        </SectionCard>
-
-        <SectionCard title={`失败 (${grouped.FAILED.length})`}>
-          <div className="space-y-3">
-            {grouped.FAILED.map(message => (
-              <MessageCard key={message.id} message={message} onRetry={handleRetry} />
-            ))}
-            {grouped.FAILED.length === 0 && <EmptyTip text="暂无失败消息" />}
-          </div>
-        </SectionCard>
-
-        <SectionCard title={`已取消 (${grouped.CANCELED.length})`}>
-          <div className="space-y-3">
-            {grouped.CANCELED.map(message => (
-              <MessageCard key={message.id} message={message} />
-            ))}
-            {grouped.CANCELED.length === 0 && <EmptyTip text="暂无已取消消息" />}
-          </div>
-        </SectionCard>
+        {sections.map(section => {
+          const messagesInSection = grouped[section.key]
+          return (
+            <SectionCard key={section.key} title={section.title} testId={`outbound-message-section-${section.key}`}>
+              <div className="space-y-3">
+                {messagesInSection.map(message => (
+                  <MessageCard
+                    key={message.id}
+                    message={message}
+                    onSend={section.allowSend ? handleSend : undefined}
+                    onRetry={section.allowRetry ? handleRetry : undefined}
+                  />
+                ))}
+                {messagesInSection.length === 0 && <EmptyState message={section.empty} />}
+              </div>
+            </SectionCard>
+          )
+        })}
       </div>
     </div>
   )
-}
-
-function EmptyTip({ text }: { text: string }) {
-  return <p className="text-sm text-[hsl(var(--muted-foreground))]">{text}</p>
 }
 
 function MessageCard({
@@ -211,8 +190,9 @@ function MessageCard({
   onSend?: (id: string) => void
   onRetry?: (id: string) => void
 }) {
+  const { t } = useTranslation(['common'])
   return (
-    <div className="p-3 border border-[hsl(var(--border))] rounded-workshop-md">
+    <div data-testid={`message-card-${message.id}`} className="p-3 border border-[hsl(var(--border))] rounded-workshop-md">
       <div className="flex justify-between items-start mb-2 gap-2">
         <div>
           <p className="text-sm font-medium text-[hsl(var(--foreground))]">
@@ -222,9 +202,7 @@ function MessageCard({
             {message.channel} / {message.toMasked || message.to}
           </p>
         </div>
-        <span className="text-xs px-2 py-1 rounded-workshop-md bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
-          {message.status}
-        </span>
+        <StatusBadge label={translateEnum(t, 'outboundMessageStatusMap', message.status)} tone={getToneByStatus(message.status, { APPROVED: 'success', SENT: 'success', FAILED: 'danger', CANCELED: 'danger', SENDING: 'info', PENDING_APPROVAL: 'warning' })} />
       </div>
 
       <p className="text-sm text-[hsl(var(--foreground))] whitespace-pre-wrap mb-2">{message.body}</p>

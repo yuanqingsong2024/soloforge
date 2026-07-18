@@ -1,8 +1,7 @@
+import { prisma } from './db'
 import { create, type Delta } from 'jsondiffpatch'
-import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
 
-const prisma = new PrismaClient()
 const differ = create()
 
 /**
@@ -387,4 +386,4 @@ export class ConfigManager {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

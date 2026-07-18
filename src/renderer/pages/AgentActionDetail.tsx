@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
+import { EmptyState } from '../components/ui/EmptyState'
 
 interface AgentActionLog {
   id: string
@@ -83,11 +85,11 @@ export function AgentActionDetail() {
   }, [id])
 
   if (loading) {
-    return <div className="p-6 text-sm text-[hsl(var(--muted-foreground))]">加载 Agent Action 中...</div>
+    return <LoadingState message="加载 Agent Action 中..." />
   }
 
   if (error || !action) {
-    return <div className="p-6 text-sm text-[hsl(var(--destructive))]">{error || 'Agent Action 不存在'}</div>
+    return <EmptyState message={error || 'Agent Action 不存在'} tone="danger" />
   }
 
   return (

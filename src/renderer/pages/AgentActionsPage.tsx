@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { EmptyState } from '../components/ui/EmptyState'
+import { ThemeInput } from '../components/ui/FormFields'
+import { readWorkspaceId } from '../lib/storage'
 
 interface AgentActionRow {
   id: string
@@ -39,7 +42,7 @@ export function AgentActionsPage() {
   const [rows, setRows] = useState<AgentActionRow[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [filters, setFilters] = useState({
-    workspaceId: localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001',
+    workspaceId: readWorkspaceId(),
     targetId: '',
     hostAgentId: '',
     actionType: '',
@@ -74,12 +77,12 @@ export function AgentActionsPage() {
 
       <SectionCard title="过滤器" description="只看当前关心的 Agent 动作。">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          <input value={filters.workspaceId} onChange={event => setFilters(prev => ({ ...prev, workspaceId: event.target.value }))} className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" placeholder="Workspace ID" />
-          <input value={filters.targetId} onChange={event => setFilters(prev => ({ ...prev, targetId: event.target.value }))} className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" placeholder="Target ID" />
-          <input value={filters.hostAgentId} onChange={event => setFilters(prev => ({ ...prev, hostAgentId: event.target.value }))} className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" placeholder="Agent ID" />
-          <input value={filters.actionType} onChange={event => setFilters(prev => ({ ...prev, actionType: event.target.value }))} className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" placeholder="Action Type" />
+          <ThemeInput value={filters.workspaceId} onChange={event => setFilters(prev => ({ ...prev, workspaceId: event.target.value }))} placeholder="Workspace ID" />
+          <ThemeInput value={filters.targetId} onChange={event => setFilters(prev => ({ ...prev, targetId: event.target.value }))} placeholder="Target ID" />
+          <ThemeInput value={filters.hostAgentId} onChange={event => setFilters(prev => ({ ...prev, hostAgentId: event.target.value }))} placeholder="Agent ID" />
+          <ThemeInput value={filters.actionType} onChange={event => setFilters(prev => ({ ...prev, actionType: event.target.value }))} placeholder="Action Type" />
           <div className="flex gap-2">
-            <input value={filters.status} onChange={event => setFilters(prev => ({ ...prev, status: event.target.value }))} className="flex-1 px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" placeholder="Status" />
+            <ThemeInput value={filters.status} onChange={event => setFilters(prev => ({ ...prev, status: event.target.value }))} placeholder="Status" className="flex-1" />
             <button onClick={() => apiPort && void load(apiPort)} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">刷新</button>
           </div>
         </div>
@@ -112,9 +115,9 @@ export function AgentActionsPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title={selected ? selected.actionType : '动作详情'} description={selected ? `${selected.hostAgent.name} · ${selected.traceId}` : '请选择左侧动作'}>
+        <SectionCard title={selected ? selected.actionType : '动作详情'} description={selected ? `${selected.hostAgent.name} · ${selected.traceId}` : '请选择左侧动作查看详情'}>
           {!selected ? (
-            <div className="text-sm text-[hsl(var(--muted-foreground))]">暂无选中动作。</div>
+            <EmptyState message="暂无选中动作。" />
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">

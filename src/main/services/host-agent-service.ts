@@ -1,10 +1,9 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from './db'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { ApprovalGuard } from './approval-guard'
 import { EventBusService } from './event-bus'
 import { KeychainService } from './keychain'
-
-const prisma = new PrismaClient()
+import { writeAuditLog } from './audit-log-writer'
 
 export type HostAgentStatus = 'ONLINE' | 'OFFLINE' | 'DEGRADED' | 'UNKNOWN' | 'UNREGISTERED'
 export type HostAgentAuthMode = 'TOKEN' | 'MTLS' | 'BOOTSTRAP_SECRET'
@@ -580,23 +579,20 @@ export class HostAgentService {
       }
     })
 
-    await prisma.auditLog.create({
-      data: {
-        workspaceId: registration.workspaceId,
-        traceId: `host-agent-register-${hostAgent.id}`,
-        actor: input.name,
-        action: 'HOST_AGENT_REGISTER',
-        tool: 'host-agent',
-        request: JSON.stringify(maskSensitiveObject({
-          registrationId: registration.id,
-          hostname: input.hostname,
-          osType: input.osType,
-          arch: input.arch,
-          agentVersion: input.agentVersion
-        })),
-        response: JSON.stringify({ hostAgentId: hostAgent.id, authMode: 'TOKEN' }),
-        ts: new Date()
-      }
+    await writeAuditLog({
+      workspaceId: registration.workspaceId,
+      traceId: `host-agent-register-${hostAgent.id}`,
+      actor: input.name,
+      action: 'HOST_AGENT_REGISTER',
+      tool: 'host-agent',
+      request: maskSensitiveObject({
+        registrationId: registration.id,
+        hostname: input.hostname,
+        osType: input.osType,
+        arch: input.arch,
+        agentVersion: input.agentVersion
+        }),
+      response: { hostAgentId: hostAgent.id, authMode: 'TOKEN' }
     })
 
     await EventBusService.emit({
@@ -765,22 +761,19 @@ export class HostAgentService {
       }
     })
 
-    await prisma.auditLog.create({
-      data: {
-        workspaceId: input.workspaceId,
-        traceId: input.traceId,
-        actor: input.actor,
-        action: 'HOST_AGENT_ACTION_CREATED',
-        tool: 'host-agent',
-        request: JSON.stringify(maskSensitiveObject({
-          targetId: input.targetId,
-          hostAgentId: input.hostAgentId,
-          actionType: input.actionType,
-          request: input.request
-        })),
-        response: JSON.stringify({ agentActionId: action.id, status: action.status }),
-        ts: new Date()
-      }
+    await writeAuditLog({
+      workspaceId: input.workspaceId,
+      traceId: input.traceId,
+      actor: input.actor,
+      action: 'HOST_AGENT_ACTION_CREATED',
+      tool: 'host-agent',
+      request: maskSensitiveObject({
+        targetId: input.targetId,
+        hostAgentId: input.hostAgentId,
+        actionType: input.actionType,
+        request: input.request
+        }),
+      response: { agentActionId: action.id, status: action.status }
     })
 
     await EventBusService.emit({
@@ -909,21 +902,18 @@ export class HostAgentService {
       })
     }
 
-    await prisma.auditLog.create({
-      data: {
-        workspaceId: action.workspaceId,
-        traceId: action.traceId,
-        actor: action.hostAgent.name,
-        action: 'HOST_AGENT_ACTION_COMPLETED',
-        tool: 'host-agent',
-        request: JSON.stringify({ agentActionId: action.id, actionType: action.actionType }),
-        response: JSON.stringify(maskSensitiveObject({
-          status: input.status,
-          errorSummary: input.errorSummary || null,
-          result: input.result || null
-        })),
-        ts: new Date()
-      }
+    await writeAuditLog({
+      workspaceId: action.workspaceId,
+      traceId: action.traceId,
+      actor: action.hostAgent.name,
+      action: 'HOST_AGENT_ACTION_COMPLETED',
+      tool: 'host-agent',
+      request: { agentActionId: action.id, actionType: action.actionType },
+      response: maskSensitiveObject({
+        status: input.status,
+        errorSummary: input.errorSummary || null,
+        result: input.result || null
+        })
     })
 
     await EventBusService.emit({
@@ -1002,17 +992,14 @@ export class HostAgentService {
       }
     })
 
-    await prisma.auditLog.create({
-      data: {
-        workspaceId: hostAgent.workspaceId,
-        traceId: `host-agent-revoke-${hostAgentId}`,
-        actor,
-        action: 'HOST_AGENT_REVOKE',
-        tool: 'host-agent',
-        request: JSON.stringify({ hostAgentId }),
-        response: JSON.stringify({ status: revoked.status }),
-        ts: new Date()
-      }
+    await writeAuditLog({
+      workspaceId: hostAgent.workspaceId,
+      traceId: `host-agent-revoke-${hostAgentId}`,
+      actor,
+      action: 'HOST_AGENT_REVOKE',
+      tool: 'host-agent',
+      request: { hostAgentId },
+      response: { status: revoked.status }
     })
 
     await EventBusService.emit({
@@ -1188,4 +1175,4 @@ export class HostAgentService {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

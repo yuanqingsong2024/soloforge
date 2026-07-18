@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { closeElectronApp, launchElectronApp, waitForDashboardReady } from './helpers/electron'
+import { apiJson } from './helpers/api'
 
 test.describe('变更单与备份闭环', () => {
   test('变更单可通过列表进入详情页', async ({}, testInfo) => {
@@ -12,14 +13,10 @@ test.describe('变更单与备份闭环', () => {
         localStorage.setItem('soloforge-current-workspace', '00000000-0000-0000-0000-000000000001')
       })
 
-      const created = await context.page.evaluate(async ({ changeTitle }) => {
-        const params = new URLSearchParams(window.location.search)
-        const portValue = params.get('apiPort')
-        if (!portValue) throw new Error('无法获取 apiPort')
-        const port = Number(portValue)
-        if (!Number.isFinite(port)) throw new Error('apiPort 无效')
-
-        const response = await fetch('http://127.0.0.1:' + port + '/api/workspaces/00000000-0000-0000-0000-000000000001/change-requests', {
+      const created = await apiJson<{ success: boolean; data?: { id: string; title: string }; error?: string }>(
+        context.page,
+        '/api/workspaces/00000000-0000-0000-0000-000000000001/change-requests',
+        {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -31,26 +28,23 @@ test.describe('变更单与备份闭环', () => {
               after: { gateway: { auth: { mode: 'trusted-proxy' } } }
             })
           })
-        })
-        const payload = await response.json() as { success: boolean; data?: { id: string; title: string } ; error?: string }
-        if (!response.ok || !payload.success || !payload.data) {
-          throw new Error(payload.error || '创建变更单失败')
         }
-        return payload.data
-      }, { changeTitle })
+      )
+
+      if (!created.success || !created.data) {
+        throw new Error(created.error || '创建变更单失败')
+      }
 
       await context.page.getByTestId('sidebar-link-changes').click()
       await expect(context.page).toHaveURL(/#\/changes/)
       await expect(context.page.getByRole('heading', { name: '变更单', exact: true })).toBeVisible()
 
-      const targetRow = context.page.locator('div.p-4').filter({
-        has: context.page.getByRole('heading', { name: created.title, exact: true })
-      }).first()
+      const targetRow = context.page.getByTestId(`change-request-card-${created.data.id}`)
 
       await expect(targetRow).toBeVisible({ timeout: 10000 })
       await targetRow.getByRole('button', { name: '查看详情' }).click()
       await expect(context.page).toHaveURL(/#\/changes\//)
-      await expect(context.page.getByRole('heading', { name: created.title })).toBeVisible()
+      await expect(context.page.getByRole('heading', { name: created.data.title })).toBeVisible()
       await expect(context.page.getByText(/变更单详情 · CONFIG · DRAFT/)).toBeVisible()
       await expect(context.page.getByText('Diff 内容', { exact: true })).toBeVisible()
     } finally {
@@ -73,7 +67,7 @@ test.describe('变更单与备份闭环', () => {
       await context.page.getByTestId('sidebar-link-backup').click()
       await expect(context.page).toHaveURL(/#\/backup/)
       await expect(context.page.getByRole('heading', { name: '备份与恢复' })).toBeVisible()
-      await expect(context.page.getByRole('heading', { name: '备份历史' })).toBeVisible()
+      await expect(context.page.getByTestId('backup-history')).toBeVisible()
 
       await context.page.getByRole('button', { name: '生成备份包' }).click()
       const exportTextarea = context.page.locator('textarea').first()

@@ -1,6 +1,6 @@
-import { PrismaClient } from '@prisma/client'
+import { type Approval } from '@prisma/client'
+import { prisma } from './db'
 
-const prisma = new PrismaClient()
 
 export type HighRiskAction =
   | 'SEND_EXTERNAL'
@@ -55,7 +55,7 @@ export class ApprovalGuard {
    */
   static async createApproval(
     actionType: HighRiskAction,
-    payload: any,
+    payload: unknown,
     requestedBy: string,
     ticketId?: string
   ): Promise<string> {
@@ -109,11 +109,49 @@ export class ApprovalGuard {
   }
 
   /**
+   * 执行守卫：断言审批已通过
+   *
+   * 用于二次执行端点（非通过 /api/approvals/:id 触发的端点）在校验后再次确认审批状态。
+   * 校验项：
+   * 1. 审批记录存在
+   * 2. 状态为 APPROVED（PENDING / REJECTED 直接抛错）
+   * 3. actionType 与期望匹配（若提供 expectedActionType）
+   *
+   * 返回审批记录与解析后的 payload（已 JSON.parse）。
+   */
+  static async assertApproved(
+    approvalId: string,
+    expectedActionType?: HighRiskAction
+  ): Promise<{ approval: Approval; payload: unknown }> {
+    const approval = await prisma.approval.findUnique({ where: { id: approvalId } })
+    if (!approval) {
+      throw new Error(`审批记录不存在: ${approvalId}`)
+    }
+    if (approval.status !== 'APPROVED') {
+      throw new Error(`审批未通过，当前状态: ${approval.status}（需为 APPROVED）`)
+    }
+    if (expectedActionType && approval.actionType !== expectedActionType) {
+      throw new Error(
+        `审批动作类型不匹配，期望: ${expectedActionType}，实际: ${approval.actionType}`
+      )
+    }
+
+    let payload: unknown
+    try {
+      payload = JSON.parse(approval.payload)
+    } catch {
+      throw new Error(`审批 payload 解析失败: ${approvalId}`)
+    }
+
+    return { approval, payload }
+  }
+
+  /**
    * 执行受保护的操作
    */
   static async executeProtected<T>(
     action: string,
-    payload: any,
+    payload: unknown,
     requestedBy: string,
     executor: () => Promise<T>,
     ticketId?: string
@@ -136,4 +174,4 @@ export class ApprovalGuard {
   }
 }
 
-export { prisma }
+export { prisma } from './db'

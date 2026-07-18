@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { EmptyState } from '../components/ui/EmptyState'
+import { LoadingState } from '../components/ui/LoadingState'
+import { ThemeCheckbox, ThemeInput, ThemeSelect, ThemeTextarea } from '../components/ui/FormFields'
 
 interface ConnectionProfile {
   id: string
@@ -204,17 +207,13 @@ export function Communications() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-[hsl(var(--primary))] border-t-transparent" />
-      </div>
-    )
+    return <LoadingState message="加载通讯设置中..." />
   }
 
   return (
     <div>
       <PageHeader
-        title="Communications"
+        title="通讯设置"
         description="管理通讯平台映射、允许目标与受控外发测试"
       />
 
@@ -241,36 +240,39 @@ export function Communications() {
               </div>
             ))}
             {commsProfiles.length === 0 && (
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">暂无通讯档案</p>
+              <EmptyState message="暂无通讯档案" />
             )}
           </div>
 
           <div className="pt-4 border-t border-[hsl(var(--border))] space-y-3">
             <h3 className="text-sm font-medium text-[hsl(var(--foreground))]">新增通讯档案</h3>
-            <input
+            <ThemeInput
               value={newProfileName}
               onChange={e => setNewProfileName(e.target.value)}
               placeholder="档案名称"
-              className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
+              fieldSize="lg"
+              fieldShape="pill"
             />
-            <select
+            <ThemeSelect
               value={newProvider}
               onChange={e => setNewProvider(e.target.value as 'openclaw' | 'webhook')}
-              className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
+              fieldSize="lg"
+              fieldShape="pill"
             >
               <option value="openclaw">openclaw</option>
               <option value="webhook">webhook</option>
-            </select>
-            <select
+            </ThemeSelect>
+            <ThemeSelect
               value={newOpenclawProfileId}
               onChange={e => setNewOpenclawProfileId(e.target.value)}
-              className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
+              fieldSize="lg"
+              fieldShape="pill"
             >
               <option value="">选择 OpenClaw 连接档案（可选）</option>
               {connectionProfiles.map(profile => (
                 <option key={profile.id} value={profile.id}>{profile.name}</option>
               ))}
-            </select>
+            </ThemeSelect>
             <button
               onClick={handleCreateCommsProfile}
               className="w-full rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] transition-opacity hover:opacity-90"
@@ -282,10 +284,11 @@ export function Communications() {
 
         <SectionCard title="测试消息（强制走审批）" description="测试发送会先创建草稿，再触发 SEND_EXTERNAL 审批链路">
           <div className="space-y-3">
-            <select
+            <ThemeSelect
               value={selectedTargetId}
               onChange={e => setSelectedTargetId(e.target.value)}
-              className="w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
+              fieldSize="lg"
+              fieldShape="pill"
             >
               <option value="">选择目标</option>
               {targets.map(target => (
@@ -293,13 +296,8 @@ export function Communications() {
                   {target.displayName} ({target.channel} / {target.to})
                 </option>
               ))}
-            </select>
-            <textarea
-              value={testMessageBody}
-              onChange={e => setTestMessageBody(e.target.value)}
-              className="w-full rounded-workshop-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-3 text-sm text-[hsl(var(--foreground))]"
-              rows={6}
-            />
+            </ThemeSelect>
+            <ThemeTextarea value={testMessageBody} onChange={e => setTestMessageBody(e.target.value)} fieldSize="lg" fieldShape="soft" rows={6} />
             <button
               onClick={handleSendTestMessage}
               disabled={!selectedTargetId}
@@ -329,25 +327,21 @@ export function Communications() {
             </div>
           ))}
           {targets.length === 0 && (
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">暂无目标</p>
+            <EmptyState message="暂无目标" />
           )}
         </div>
 
         <div className="pt-4 border-t border-[hsl(var(--border))] grid grid-cols-1 md:grid-cols-2 gap-3">
-          <select
-            value={newTargetProfileId}
-            onChange={e => setNewTargetProfileId(e.target.value)}
-            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
-          >
+          <ThemeSelect value={newTargetProfileId} onChange={e => setNewTargetProfileId(e.target.value)} fieldSize="lg" fieldShape="pill">
             <option value="">选择通讯档案</option>
             {commsProfiles.map(profile => (
               <option key={profile.id} value={profile.id}>{profile.name}</option>
             ))}
-          </select>
-          <select
+          </ThemeSelect>
+          <ThemeSelect
             value={newTargetChannel}
             onChange={e => setNewTargetChannel(e.target.value)}
-            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
+            className="rounded-full px-4 py-2.5 text-sm"
           >
             <option value="slack">slack</option>
             <option value="telegram">telegram</option>
@@ -356,31 +350,27 @@ export function Communications() {
             <option value="signal">signal</option>
             <option value="whatsapp">whatsapp</option>
             <option value="imessage">imessage</option>
-          </select>
-          <input
+          </ThemeSelect>
+          <ThemeInput
             value={newTargetTo}
             onChange={e => setNewTargetTo(e.target.value)}
             placeholder="收件人/频道 ID"
-            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
+            className="rounded-full px-4 py-2.5 text-sm"
           />
-          <input
+          <ThemeInput
             value={newTargetDisplayName}
             onChange={e => setNewTargetDisplayName(e.target.value)}
             placeholder="显示名称"
-            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))]"
+            className="rounded-full px-4 py-2.5 text-sm"
           />
-          <input
+          <ThemeInput
             value={newTargetNotes}
             onChange={e => setNewTargetNotes(e.target.value)}
             placeholder="备注（可选）"
-            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-sm text-[hsl(var(--foreground))] md:col-span-2"
+            className="rounded-full px-4 py-2.5 text-sm md:col-span-2"
           />
           <label className="md:col-span-2 flex items-center gap-2 text-sm text-[hsl(var(--foreground))]">
-            <input
-              type="checkbox"
-              checked={newTargetAllowlisted}
-              onChange={e => setNewTargetAllowlisted(e.target.checked)}
-            />
+            <ThemeCheckbox checked={newTargetAllowlisted} onChange={e => setNewTargetAllowlisted(e.target.checked)} />
             创建时立即加入 allowlist
           </label>
           <button

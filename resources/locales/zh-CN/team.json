@@ -1,0 +1,57 @@
+{
+  "pageTitle": "团队管理",
+  "tabs": {
+    "roles": "岗位",
+    "agents": "员工",
+    "tools": "工具",
+    "authorization": "授权矩阵"
+  },
+  "roles": {
+    "title": "岗位管理",
+    "create": "创建岗位",
+    "edit": "编辑岗位",
+    "delete": "删除岗位",
+    "name": "岗位名称",
+    "description": "描述",
+    "defaultPrompt": "默认提示词",
+    "outputSchema": "输出结构",
+    "riskLevel": "风险等级"
+  },
+  "agents": {
+    "title": "员工管理",
+    "create": "创建员工",
+    "edit": "编辑员工",
+    "delete": "删除员工",
+    "name": "员工名称",
+    "role": "岗位",
+    "model": "模型",
+    "runtime": "运行环境",
+    "enabled": "启用",
+    "disabled": "禁用"
+  },
+  "tools": {
+    "title": "工具管理",
+    "create": "创建工具",
+    "edit": "编辑工具",
+    "delete": "删除工具",
+    "name": "工具名称",
+    "description": "描述",
+    "riskClass": "风险等级",
+    "riskLevels": {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "critical": "严重"
+    }
+  },
+  "authorization": {
+    "title": "授权矩阵",
+    "agent": "员工",
+    "tool": "工具",
+    "granted": "已授权",
+    "denied": "未授权",
+    "grant": "授权",
+    "revoke": "撤销",
+    "minimumPrivilege": "最小权限原则"
+  }
+}

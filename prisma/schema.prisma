@@ -155,6 +155,8 @@ model AuditLog {
   diffId            String?  @map("diff_id")
   request           String // JSON string (masked sensitive fields)
   response          String // JSON string (masked sensitive fields)
+  previousHash      String?  @map("previous_hash") // 前一条 AuditLog 的 currentHash（用于哈希链防篡改）
+  currentHash       String   @map("current_hash") // 当前记录 hash（包含 previousHash + 数据内容）
   ts                DateTime @default(now())
 
   ticket    Ticket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
@@ -167,6 +169,7 @@ model AuditLog {
   @@index([approvalId])
   @@index([outboundMessageId])
   @@index([changeRequestId])
+  @@index([ts])
   @@map("audit_logs")
 }
 
@@ -202,13 +205,13 @@ model ConfigSnapshot {
 model CommsProfile {
   id                String   @id @default(uuid())
   name              String   @unique
-  provider          String // openclaw, webhook
-  openclawProfileId String?  @map("openclaw_profile_id")
+  provider          String // claude-code, webhook
+  claudeCodeProfileId String?  @map("claude_code_profile_id")
   enabled           Boolean  @default(true)
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  openclawProfile ConnectionProfile? @relation(fields: [openclawProfileId], references: [id], onDelete: SetNull)
+  claudeCodeProfile ConnectionProfile? @relation(fields: [claudeCodeProfileId], references: [id], onDelete: SetNull)
   targets         CommsTarget[]
 
   @@index([enabled])
@@ -496,6 +499,7 @@ model Workspace {
   envType           String    @default("DEV") @map("env_type") // DEV, STAGING, PROD
   isReadOnlyDefault Boolean   @default(false) @map("is_read_only_default") // PROD 默认 true
   unlockUntil       DateTime? @map("unlock_until") // 临时解锁到期时间
+  setupCompleted    Boolean   @default(false) @map("setup_completed") // 快速配置向导是否完成
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
@@ -530,6 +534,7 @@ model Workspace {
   deploymentJobs       DeploymentJob[]
   versionCatalogs      VersionCatalog[]
   installedVersions    InstalledVersion[]
+  openClawDetections   OpenClawDetection[]
   upgradePolicies      UpgradePolicy[]
   maintenanceWindows   MaintenanceWindow[]
   upgradePlans         UpgradePlan[]
@@ -702,21 +707,6 @@ model ConfigDraft {
   @@index([category])
   @@index([updatedAt])
   @@map("config_drafts")
-}
-
-model ConfigEditorHistory {
-  id            String   @id @default(uuid())
-  workspaceId   String   @map("workspace_id")
-  draftId       String   @map("draft_id")
-  actionType    String   @map("action_type") // SET_FIELD, ADD_ITEM, REMOVE_ITEM, REORDER_ITEM, RESET_DRAFT
-  actionPayload String   @map("action_payload") // JSON
-  seqNo         Int      @map("seq_no")
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  @@index([workspaceId])
-  @@index([draftId])
-  @@index([seqNo])
-  @@map("config_editor_history")
 }
 
 model DiagnosticReport {
@@ -1243,4 +1233,19 @@ model NotificationPolicy {
   @@index([enabled])
   @@index([templateId])
   @@map("notification_policies")
+}
+
+model OpenClawDetection {
+  id              String   @id @default(uuid())
+  workspaceId     String   @map("workspace_id")
+  detected        Boolean
+  detectionMethod String   @map("detection_method") // port, docker, none
+  detailsJson     String   @map("details_json") // JSON string
+  detectedAt      DateTime @default(now()) @map("detected_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([detectedAt])
+  @@map("openclaw_detections")
 }

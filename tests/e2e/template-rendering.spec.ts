@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { closeElectronApp, launchElectronApp, waitForDashboardReady } from './helpers/electron'
+import { apiJson } from './helpers/api'
 
 test.describe('模板渲染稳定回归', () => {
   test('应该能创建模板并在工单内生成草稿预览', async ({}, testInfo) => {
@@ -10,58 +11,46 @@ test.describe('模板渲染稳定回归', () => {
     try {
       await waitForDashboardReady(context.page)
 
-      const ids = await context.page.evaluate(async ({ templateName, ticketTitle }) => {
-        const params = new URLSearchParams(window.location.search)
-        const portValue = params.get('apiPort')
-        if (!portValue) throw new Error('无法获取 apiPort')
-        const port = Number(portValue)
-        if (!Number.isFinite(port)) throw new Error('apiPort 无效')
-
-        const ticketResponse = await fetch(`http://127.0.0.1:${port}/api/tickets`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: ticketTitle,
-            source: 'e2e',
-            status: 'INBOX',
-            priority: 'MEDIUM',
-            customerMeta: '{}'
-          })
+      const ticket = await apiJson<{ id: string }>(context.page, '/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: ticketTitle,
+          source: 'e2e',
+          status: 'INBOX',
+          priority: 'MEDIUM',
+          customerMeta: '{}'
         })
-        const ticket = await ticketResponse.json() as { id: string }
+      })
 
-        const templateResponse = await fetch(`http://127.0.0.1:${port}/api/message-templates`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: templateName,
-            scenario: 'CUSTOM',
-            contentFormat: 'MARKDOWN',
-            subjectTemplate: '联系 {{contactName}}',
-            bodyTemplate: '你好 {{contactName}}，工单 {{ticketTitle}} 已创建。',
-            variablesSchema: {
-              type: 'object',
-              properties: {
-                contactName: { title: '联系人', type: 'string' },
-                ticketTitle: { title: '工单标题', type: 'string' }
-              }
-            },
-            defaults: {
-              contactName: '默认客户',
-              ticketTitle
-            },
-            enabled: true
-          })
+      const template = await apiJson<{ id: string }>(context.page, '/api/message-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: templateName,
+          scenario: 'CUSTOM',
+          contentFormat: 'MARKDOWN',
+          subjectTemplate: '联系 {{contactName}}',
+          bodyTemplate: '你好 {{contactName}}，工单 {{ticketTitle}} 已创建。',
+          variablesSchema: {
+            type: 'object',
+            properties: {
+              contactName: { title: '联系人', type: 'string' },
+              ticketTitle: { title: '工单标题', type: 'string' }
+            }
+          },
+          defaults: {
+            contactName: '默认客户',
+            ticketTitle
+          },
+          enabled: true
         })
-        const template = await templateResponse.json() as { id: string }
-
-        return { ticketId: ticket.id, templateId: template.id }
-      }, { templateName, ticketTitle })
+      })
 
       await context.page.evaluate((ticketId) => {
         window.location.hash = `#/tickets/${ticketId}`
-      }, ids.ticketId)
-      await expect(context.page).toHaveURL(new RegExp(`#\\/tickets\\/${ids.ticketId}`))
+      }, ticket.id)
+      await expect(context.page).toHaveURL(new RegExp(`#\/tickets\/${ticket.id}`))
 
       await context.page.getByText('Compose & Send').scrollIntoViewIfNeeded()
 

@@ -1,11 +1,29 @@
 # SoloForge（独匠工坊）
 
-SoloForge 是一个 **PC 桌面端（非网页）** 的 AI 员工工作台 / Team OS，用于“一人公司”场景下创建与管理 AI 团队与员工，并与 **OpenClaw（行动网关/调度器）** 联动，实现：
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
+[![License: Commons Clause](https://img.shields.io/badge/License-Clause-red.svg)](LICENSE.md)
+[![Version](https://img.shields.io/badge/version-0.1.0--alpha-blue.svg)](ROADMAP.md)
+[![Discord](https://img.shields.io/badge/Discord-Join-blue?logo=discord)](https://discord.gg/soloforge)
+
+> 🎯 **AI Team OS for One-Person Companies** | 安全优先的 AI 团队协作桌面应用
+
+SoloForge 是一个 **PC 桌面端（非网页）** 的 AI 员工工作台 / Team OS，用于”一人公司”场景下创建与管理 AI 团队与员工，并与 **Claude Code（行动网关/调度器）** 联动，实现：
 
 - **工单闭环**：咨询 → 需求澄清 → 方案 → 开发 → 测试 → 交付 → 复盘  
 - **安全优先**：最小权限 + 强隔离 + 人工手刹（审批） + 全量审计（可回放）
-- **双连接**：同时支持连接 **本地 OpenClaw**（127.0.0.1）与 **远程 OpenClaw（OpenResty 反代 + 域名）**
-- **配置中心**：在客户端配置 OpenClaw 常用项（尤其模型/路由/allowlist、hooks、tools 策略、安全配置）
+- **双连接**：同时支持连接 **本地 Claude Code**（127.0.0.1）与 **远程 Claude Code（OpenResty 反代 + 域名）**
+- **配置中心**：在客户端配置 Claude Code 常用项（尤其模型/路由/allowlist、hooks、tools 策略、安全配置）
+
+---
+
+## ⚡ 快速链接
+
+| 资源 | 链接 |
+|------|------|
+| 📖 **文档** | [ROADMAP.md](ROADMAP.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
+| 💬 **社区** | [Discord](https://discord.gg/soloforge) · [GitHub Issues](https://github.com/soloforge/soloforge/issues) |
+| 📦 **下载** | [Releases](https://github.com/soloforge/soloforge/releases) |
+| 🔐 **安全** | [安全策略](SECURITY.md) · [security@soloforge.dev](mailto:security@soloforge.dev) |
 
 ---
 
@@ -195,6 +213,59 @@ SoloForge 采用 **Workshop OS**（工坊操作台）设计风格：
 - **SectionCard** - 内容区块容器
 - **DataTable** - 数据表格展示
 - **ThemeToggle** - 主题切换按钮
+
+### 表单组件规范
+
+前端表单优先使用共享字段组件，避免在页面里重复拼接 `border/bg/focus/rounded` 等视觉类名。
+
+- **基础字段**：
+  - `ThemeInput`
+  - `ThemeSelect`
+  - `ThemeTextarea`
+  - `ThemeCheckbox`
+  - `ThemeNumberInput`
+- **表单组合**：
+  - `FormField`
+  - `FormLabel`
+  - `FormHint`
+  - `FormError`
+
+推荐使用方式：
+
+```tsx
+<FormField>
+  <FormLabel>连接地址</FormLabel>
+  <ThemeInput
+    value={baseUrl}
+    onChange={e => setBaseUrl(e.target.value)}
+    fieldSize="lg"
+    fieldShape="pill"
+    placeholder="http://127.0.0.1:18789"
+  />
+  <FormHint>本地默认使用 127.0.0.1 回环地址。</FormHint>
+</FormField>
+```
+
+字段参数约定：
+
+- `fieldSize`
+  - `sm`：紧凑筛选、辅助输入
+  - `md`：默认表单尺寸
+  - `lg`：主表单、搜索框、需要更强点击面的输入
+- `fieldShape`
+  - `default`：常规圆角输入
+  - `pill`：胶囊形输入，适合筛选条、搜索条、向导表单
+- `fieldTone`
+  - `default`：通用焦点高亮
+  - `primary`：更强调的 hover / focus 反馈，适合主流程表单
+- `variant`
+  - `ThemeTextarea` 支持 `variant="code"`，用于 JSON、配置片段、清单导入等等宽内容输入
+
+迁移原则：
+
+- 页面里优先只保留布局类：如 `md:col-span-2`、`flex-1`、`w-full`
+- 不要在页面重复写字段的边框、背景、焦点、字号和 padding
+- 如果某个页面需要新的尺寸、外形或交互语义，优先扩展共享组件，再落回页面使用
 
 详细设计规范请参考 [docs/style-guide.md](./docs/style-guide.md)。
 
@@ -1538,24 +1609,47 @@ location / {
 ### ✅ Phase 2: 核心功能（已完成）
 - [x] 审批流程（M3）
 - [x] 审计系统（M4）
-- [x] OpenClaw 连接（M5）
+- [x] Claude Code 连接（M5）
 ### ✅ Phase 3: 高级功能（已完成）
 - [x] 配置中心（M6）
 - [x] 打包（M7）
-### Phase 4: 增强
-- [ ] E2E 测试覆盖
+### ✅ Phase 4: 增强（进行中）
+- [x] E2E 测试覆盖
 - [ ] 多语言支持
 - [ ] 主题切换
 - [ ] 插件系统
 - [ ] 数据导入/导出
+
+详细路线图请查看 [ROADMAP.md](ROADMAP.md)。
+
 ## 贡献指南
+
+欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详细指南。
+
+快速步骤：
 1. Fork 项目
 2. 创建功能分支（`git checkout -b feature/AmazingFeature`）
-3. 提交变更（`git commit -m 'Add some AmazingFeature'`）
+3. 提交变更（`git commit -m 'feat: Add some AmazingFeature'`）
 4. 推送到分支（`git push origin feature/AmazingFeature`）
 5. 创建 Pull Request
+
 ## License
-MIT
+
+本项目采用 **MIT License + Commons Clause** 双许可，详见 [LICENSE.md](LICENSE.md)。
+
+**核心要点：**
+- ✅ 可免费用于个人、教育、内部业务目的
+- ✅ 可修改和再分发（需保留版权声明）
+- ❌ 禁止商业变现（如 SaaS 服务、售卖产品）
+
+商业使用请联系：[contact@soloforge.dev](mailto:contact@soloforge.dev)
+
 ## 联系方式
-- 项目主页：https://github.com/yourusername/soloforge
-- 问题反馈：https://github.com/yourusername/soloforge/issues
+
+| 渠道 | 地址 |
+|------|------|
+| 🌐 **官网** | https://soloforge.dev |
+| 💬 **Discord** | https://discord.gg/soloforge |
+| 🐛 **Bug 反馈** | https://github.com/soloforge/soloforge/issues |
+| 🔐 **安全问题** | security@soloforge.dev |
+| 📧 **邮箱** | contact@soloforge.dev |

@@ -176,6 +176,23 @@ code,
   outline-offset: 2px;
 }
 
+/*
+  表单基线：统一输入控件的主题背景和文字颜色。
+  这样即使页面局部忘记补全样式，也不会出现白底或默认浏览器配色。
+*/
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+}
+
+input:not([type='checkbox']):not([type='radio'])::placeholder,
+textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
 /* 选择文本样式 */
 ::selection {
   background-color: hsl(var(--primary) / 0.22);

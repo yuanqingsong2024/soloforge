@@ -1,0 +1,120 @@
+{
+  "title": "Help Center",
+  "description": "Find key workflows, feature guidance, and quick navigation entry points.",
+  "navigation": {
+    "title": "Navigation"
+  },
+  "sections": {
+    "quickStart": "Quick Start",
+    "tickets": "Ticket Management",
+    "team": "Team Management",
+    "approvals": "Approval Workflow",
+    "config": "Config Center",
+    "deployments": "Deployment Management",
+    "faq": "FAQ",
+    "shortcuts": "Shortcuts"
+  },
+  "quickStart": {
+    "title": "Quick Start",
+    "intro": "Start by configuring connections, team roles, and ticket workflows before enabling inspections, approvals, and deployments.",
+    "step1": "Configure a local or remote OpenClaw connection in Connection Settings.",
+    "step2": "Set up roles, agents, and minimum-permission tool access in Team Management.",
+    "step3": "Use the Ticket Board to process requests and record deliverables.",
+    "step4": "Enable approvals, doctor checks, deployments, and activity tracing as needed."
+  },
+  "tickets": {
+    "title": "Ticket Management",
+    "intro": "Tickets capture the full lifecycle from intake to delivery and serve as the main collaboration container.",
+    "statusFlow": {
+      "title": "Status Flow",
+      "description": "Tickets move through INBOX → SPEC → DEV → TEST → DELIVERY → DONE."
+    },
+    "artifacts": {
+      "title": "Artifacts",
+      "description": "Store plans, code changes, tests, deployment notes, and rollback instructions under each ticket."
+    }
+  },
+  "team": {
+    "title": "Team Management",
+    "intro": "Manage roles, agents, tools, and the authorization matrix while keeping least-privilege boundaries intact.",
+    "roles": {
+      "title": "Roles",
+      "description": "Roles define default prompts, output schemas, and risk levels for downstream agent behavior."
+    },
+    "agents": {
+      "title": "Agents",
+      "description": "Agents are bound to roles, models, and runtimes, and can be enabled or disabled individually."
+    },
+    "tools": {
+      "title": "Tool Access",
+      "description": "Use the authorization matrix to grant only the tools each agent actually needs."
+    }
+  },
+  "approvals": {
+    "title": "Approval Workflow",
+    "intro": "High-risk actions require explicit approval before execution continues.",
+    "highRisk": {
+      "title": "High-Risk Actions",
+      "description": "This includes outbound sending, production deployments, config changes, exports, and token rotation."
+    },
+    "workflow": {
+      "title": "Execution Flow",
+      "description": "The system creates an approval record first, then proceeds with execution and auditing only after approval."
+    }
+  },
+  "config": {
+    "title": "Config Center",
+    "intro": "Manage OpenClaw configuration centrally with diff review, approvals, and rollback support.",
+    "models": {
+      "title": "Models & Routing",
+      "description": "Configure default models, fallbacks, allowlists, and role-specific overrides."
+    },
+    "security": {
+      "title": "Security Settings",
+      "description": "Sensitive fields should stay in the keychain, with special attention to proxies, hooks, and auth policies."
+    }
+  },
+  "deployments": {
+    "title": "Deployment Management",
+    "intro": "Manage the OpenClaw lifecycle across local and remote environments from one place.",
+    "modes": {
+      "title": "Deployment Modes",
+      "description": "Supports local native, local Docker, remote native, and remote Docker targets."
+    },
+    "operations": {
+      "title": "Operations",
+      "description": "Run prechecks, health checks, start, stop, restart, upgrade, and log inspection workflows."
+    }
+  },
+  "faq": {
+    "title": "FAQ",
+    "q1": {
+      "question": "How do I connect to OpenClaw?",
+      "answer": "Open Connection Settings and fill in the endpoint, auth mode, and credentials for a local or remote profile."
+    },
+    "q2": {
+      "question": "How do I create a ticket?",
+      "answer": "Create a new ticket from the Ticket Board and keep requirements, plans, and deliverables updated as it moves forward."
+    },
+    "q3": {
+      "question": "Why do some actions require approval?",
+      "answer": "Outbound communication, production changes, and other risky operations are intentionally gated for safety."
+    },
+    "q4": {
+      "question": "How do I troubleshoot a failed deployment?",
+      "answer": "Start with deployment details, activity feed, alerts, and doctor results, then follow the related trace chain."
+    },
+    "q5": {
+      "question": "How can I inspect the full event chain?",
+      "answer": "Use Activity Feed or Trace Detail to follow operations, alerts, jobs, and related objects by trace_id."
+    }
+  },
+  "shortcuts": {
+    "title": "Shortcuts",
+    "search": "Open global search",
+    "help": "Open help center",
+    "sidebar": "Toggle sidebar",
+    "refresh": "Refresh current page",
+    "close": "Close the current dialog or overlay"
+  }
+}

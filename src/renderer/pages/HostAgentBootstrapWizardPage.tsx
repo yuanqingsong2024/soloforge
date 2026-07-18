@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { ThemeInput, ThemeSelect } from '../components/ui/FormFields'
+import { readWorkspaceId } from '../lib/storage'
 
 interface DeploymentTarget {
   id: string
@@ -25,7 +27,7 @@ type ApiResponse<T> = ApiOk<T> | ApiFail
 export function HostAgentBootstrapWizardPage() {
   const navigate = useNavigate()
   const [apiPort, setApiPort] = useState<number | null>(null)
-  const [workspaceId, setWorkspaceId] = useState(localStorage.getItem('soloforge-current-workspace') || '00000000-0000-0000-0000-000000000001')
+  const [workspaceId, setWorkspaceId] = useState(readWorkspaceId())
   const [targetId, setTargetId] = useState('')
   const [expiresInMinutes, setExpiresInMinutes] = useState('15')
   const [targets, setTargets] = useState<DeploymentTarget[]>([])
@@ -75,14 +77,14 @@ export function HostAgentBootstrapWizardPage() {
 
       <SectionCard title="Step 1 · 绑定 Workspace / Target" description="选择 Agent 所属作用域；不绑定 target 也可先走本地测试模式。">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <input value={workspaceId} onChange={event => setWorkspaceId(event.target.value)} className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" placeholder="Workspace ID" />
-          <select value={targetId} onChange={event => setTargetId(event.target.value)} className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]">
+          <ThemeInput value={workspaceId} onChange={event => setWorkspaceId(event.target.value)} placeholder="Workspace ID" />
+          <ThemeSelect value={targetId} onChange={event => setTargetId(event.target.value)}>
             <option value="">不绑定 target（本地测试）</option>
             {targets.map(target => (
               <option key={target.id} value={target.id}>{target.name} · {target.targetType} · {target.envType}</option>
             ))}
-          </select>
-          <input value={expiresInMinutes} onChange={event => setExpiresInMinutes(event.target.value)} className="px-3 py-2 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]" placeholder="有效期（分钟）" />
+          </ThemeSelect>
+          <ThemeInput value={expiresInMinutes} onChange={event => setExpiresInMinutes(event.target.value)} placeholder="有效期（分钟）" />
         </div>
       </SectionCard>
 

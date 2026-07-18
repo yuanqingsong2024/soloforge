@@ -1,0 +1,57 @@
+{
+  "pageTitle": "Team Management",
+  "tabs": {
+    "roles": "Roles",
+    "agents": "Agents",
+    "tools": "Tools",
+    "authorization": "Authorization Matrix"
+  },
+  "roles": {
+    "title": "Role Management",
+    "create": "Create Role",
+    "edit": "Edit Role",
+    "delete": "Delete Role",
+    "name": "Role Name",
+    "description": "Description",
+    "defaultPrompt": "Default Prompt",
+    "outputSchema": "Output Schema",
+    "riskLevel": "Risk Level"
+  },
+  "agents": {
+    "title": "Agent Management",
+    "create": "Create Agent",
+    "edit": "Edit Agent",
+    "delete": "Delete Agent",
+    "name": "Agent Name",
+    "role": "Role",
+    "model": "Model",
+    "runtime": "Runtime",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "tools": {
+    "title": "Tool Management",
+    "create": "Create Tool",
+    "edit": "Edit Tool",
+    "delete": "Delete Tool",
+    "name": "Tool Name",
+    "description": "Description",
+    "riskClass": "Risk Class",
+    "riskLevels": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    }
+  },
+  "authorization": {
+    "title": "Authorization Matrix",
+    "agent": "Agent",
+    "tool": "Tool",
+    "granted": "Granted",
+    "denied": "Denied",
+    "grant": "Grant",
+    "revoke": "Revoke",
+    "minimumPrivilege": "Minimum Privilege Principle"
+  }
+}

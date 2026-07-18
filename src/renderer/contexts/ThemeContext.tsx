@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { readLocalStorage, writeLocalStorage } from '../lib/storage'
 
 // 主题类型定义
 type Theme = 'light' | 'dark' | 'system'
@@ -23,7 +24,7 @@ function getSystemTheme(): 'light' | 'dark' {
 function getSavedTheme(): Theme {
   if (typeof window === 'undefined') return 'system'
   try {
-    const saved = localStorage.getItem('soloforge-theme')
+    const saved = readLocalStorage('soloforge-theme')
     if (saved === 'light' || saved === 'dark' || saved === 'system') {
       return saved
     }
@@ -37,7 +38,7 @@ function getSavedTheme(): Theme {
 function saveTheme(theme: Theme): void {
   if (typeof window === 'undefined') return
   try {
-    localStorage.setItem('soloforge-theme', theme)
+    writeLocalStorage('soloforge-theme', theme)
   } catch (e) {
     console.error('Failed to save theme to localStorage:', e)
   }

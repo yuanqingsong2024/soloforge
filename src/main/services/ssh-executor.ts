@@ -1,5 +1,6 @@
 import { Client, ConnectConfig } from 'ssh2'
 import { KeychainService } from './keychain'
+import { logger } from './logger'
 
 export interface SSHConfig {
   host: string
@@ -67,12 +68,12 @@ export class SSHExecutor {
         this.client = new Client()
 
         this.client.on('ready', () => {
-          console.log(`SSH 连接成功: ${this.config.host}`)
+          logger.info(`SSH 连接成功: ${this.config.host}`)
           resolve()
         })
 
         this.client.on('error', (err) => {
-          console.error(`SSH 连接错误: ${err.message}`)
+          logger.error(`SSH 连接错误: ${err.message}`)
           reject(err)
         })
 
@@ -203,7 +204,7 @@ export class SSHExecutor {
       this.disconnect()
       return result.success && result.stdout === 'pong'
     } catch (error) {
-      console.error(`SSH ping 失败: ${error}`)
+      logger.error(`SSH ping 失败: ${error instanceof Error ? error.message : String(error)}`)
       return false
     }
   }

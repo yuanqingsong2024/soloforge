@@ -95,16 +95,13 @@ export function ThemeToggle() {
     <button
       onClick={handleToggle}
       data-testid="theme-toggle"
-      className="inline-flex h-11 items-center gap-2 rounded-full border border-[hsl(var(--border)_/_0.72)]
-                 bg-[linear-gradient(180deg,hsl(var(--card)),hsl(var(--background)_/_0.88))] px-3.5 py-2 text-sm font-medium text-[hsl(var(--secondary-foreground))]
-                 shadow-[inset_0_1px_0_rgba(255,255,255,0.42)] transition-colors duration-200 hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[hsl(var(--muted-foreground))] transition-colors duration-200 hover:bg-[hsl(var(--accent)_/_0.48)] hover:text-[hsl(var(--foreground))]"
       title={getLabel()}
       aria-label={getLabel()}
     >
-      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--accent)_/_0.72)] text-[hsl(var(--google-blue))]">
+      <span className="flex items-center justify-center">
         {getIcon()}
       </span>
-      <span className="hidden sm:inline">{getLabel()}</span>
     </button>
   )
 }
