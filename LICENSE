@@ -1,0 +1,52 @@
+# SoloForge 开源许可证
+
+MIT License
+
+Copyright (c) 2026 SoloForge Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## 商业许可证补充条款
+
+### 社区版（免费）
+- ✅ 最多 5 个 Agent
+- ✅ 所有基础功能
+- ✅ 社区支持
+- ❌ 商业用途需购买 License
+
+### 专业版（订阅）
+- 无限 Agent 数量
+- 高级管理功能
+- 优先级技术支持
+- 商业使用授权
+
+### 企业版（订阅）
+- 私有化部署
+- SSO/LDAP 集成
+- 专属客户成功经理
+- SLA 保障
+
+---
+
+## 联系购买
+
+官网：https://soloforge.dev
+邮箱：license@soloforge.dev

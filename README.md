@@ -1,9 +1,7 @@
 # SoloForge（独匠工坊）
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
-[![License: Commons Clause](https://img.shields.io/badge/License-Clause-red.svg)](LICENSE.md)
-[![Version](https://img.shields.io/badge/version-0.1.0--alpha-blue.svg)](ROADMAP.md)
-[![Discord](https://img.shields.io/badge/Discord-Join-blue?logo=discord)](https://discord.gg/soloforge)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0--beta-green.svg)](ROADMAP.md)
 
 > 🎯 **AI Team OS for One-Person Companies** | 安全优先的 AI 团队协作桌面应用
 
@@ -21,7 +19,7 @@ SoloForge 是一个 **PC 桌面端（非网页）** 的 AI 员工工作台 / Tea
 | 资源 | 链接 |
 |------|------|
 | 📖 **文档** | [ROADMAP.md](ROADMAP.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
-| 💬 **社区** | [Discord](https://discord.gg/soloforge) · [GitHub Issues](https://github.com/soloforge/soloforge/issues) |
+| 💰 **定价** | [PRICING.md](PRICING.md) |
 | 📦 **下载** | [Releases](https://github.com/soloforge/soloforge/releases) |
 | 🔐 **安全** | [安全策略](SECURITY.md) · [security@soloforge.dev](mailto:security@soloforge.dev) |
 
@@ -1635,14 +1633,17 @@ location / {
 
 ## License
 
-本项目采用 **MIT License + Commons Clause** 双许可，详见 [LICENSE.md](LICENSE.md)。
+本项目采用 **MIT 许可证**，详见 [LICENSE](LICENSE)。
 
-**核心要点：**
-- ✅ 可免费用于个人、教育、内部业务目的
-- ✅ 可修改和再分发（需保留版权声明）
-- ❌ 禁止商业变现（如 SaaS 服务、售卖产品）
+### 开源 + 订阅模式
 
-商业使用请联系：[contact@soloforge.dev](mailto:contact@soloforge.dev)
+| 版本 | 说明 |
+|------|------|
+| **社区版**（免费） | 最多 5 个 Agent，仅限非商业用途 |
+| **专业版**（订阅） | 无限 Agent，商业授权，¥199/人/月 |
+| **企业版**（定制） | 私有化部署，SSO，SLA 保障 |
+
+详细定价：[PRICING.md](PRICING.md)
 
 ## 联系方式
 
