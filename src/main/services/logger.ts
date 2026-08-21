@@ -5,7 +5,18 @@
 
 import fs from 'fs'
 import path from 'path'
-import { app } from 'electron'
+
+// 检测运行环境，只在 Electron 环境中导入 app
+const isElectron = typeof process !== 'undefined' && process.versions && process.versions.electron
+let electronAppPath: string | null = null
+
+if (isElectron) {
+  import('electron').then(({ app }) => {
+    electronAppPath = app.getPath('userData')
+  }).catch(() => {
+    // Electron 导入失败，使用默认路径
+  })
+}
 
 export enum LogLevel {
   DEBUG = 0,
@@ -61,7 +72,13 @@ class Logger {
 
   private initLogFile(): void {
     try {
-      const logDir = this.config.logDir || path.join(app.getPath('userData'), 'logs')
+      let logDir: string
+      if (isElectron && electronAppPath) {
+        logDir = path.join(electronAppPath, 'logs')
+      } else {
+        // 非 Electron 环境使用当前目录下的 logs 文件夹
+        logDir = path.join(process.cwd(), 'logs')
+      }
 
       if (!fs.existsSync(logDir)) {
         fs.mkdirSync(logDir, { recursive: true })

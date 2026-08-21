@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useErrorMessage } from '../lib/i18n-helpers'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { readLocalStorage, readWorkspaceId, writeLocalStorage } from '../lib/storage'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { ThemeCheckbox, ThemeInput, ThemeSelect } from '../components/ui/FormFields'
 import { Drawer } from '../components/ui/Drawer'
-import { LoadingState } from '../components/ui/LoadingState'
+import { LoadingState, Button } from '../components/ui'
 import { envTypeMap } from '../lib/i18n-enums'
 import { translateEnum } from '../lib/i18n-helpers'
+import { SkipLink, LiveRegion, regionA11y } from '../components/a11y'
 
 interface WorkspaceOption {
   id: string
@@ -170,23 +172,7 @@ interface DashboardPayload {
   healthScore: DashboardHealthScore
 }
 
-interface ApiSuccess<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailure {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
-
 const DEFAULT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000001'
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString('zh-CN')
-}
 
 function getSeverityBadgeClass(severity: string): string {
   switch (severity) {
@@ -458,7 +444,6 @@ export function Dashboard() {
   const { t } = useTranslation(['dashboard', 'common'])
   const getErrorMessage = useErrorMessage()
   
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([])
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
   const [loading, setLoading] = useState(true)
@@ -487,13 +472,12 @@ export function Dashboard() {
   const recommendedActions = useMemo(() => (dashboard ? buildRecommendedActions(t, dashboard) : []), [dashboard, t])
   const withWorkspaceContext = useCallback((route: string) => appendQuery(route, { workspaceId: effectiveWorkspaceId }), [effectiveWorkspaceId])
 
-  const fetchWorkspaces = useCallback(async (port: number) => {
-    const response = await fetch(`http://127.0.0.1:${port}/api/workspaces`)
-    const data = await response.json() as WorkspaceOption[]
+  const fetchWorkspaces = useCallback(async () => {
+    const data = await apiFetch<WorkspaceOption[]>('/api/workspaces')
     setWorkspaces(Array.isArray(data) ? data : [])
   }, [])
 
-  const fetchDashboard = useCallback(async (port: number, options?: { silent?: boolean }) => {
+  const fetchDashboard = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true
     if (!silent) {
       setError(null)
@@ -513,23 +497,20 @@ export function Dashboard() {
     params.set('activityLimit', '8')
     params.set('issueLimit', '10')
 
-    const response = await fetch(`http://127.0.0.1:${port}/api/dashboard?${params.toString()}`)
-    const json = await response.json() as ApiResponse<DashboardPayload>
+    const json = await apiFetch<ApiResponse<DashboardPayload>>(`/api/dashboard?${params.toString()}`)
     if (!json.success) {
       throw new Error(json.error)
     }
 
-    setDashboard(json.data)
+    setDashboard(json.data ?? null)
   }, [activitySeverity, activitySourceType, effectiveWorkspaceId])
 
   useEffect(() => {
-    getApiPort().then(async port => {
-      setApiPort(port)
+    const init = async () => {
       try {
-        await Promise.all([fetchWorkspaces(port), fetchDashboard(port)])
+        await Promise.all([fetchWorkspaces(), fetchDashboard()])
         
-        const setupResponse = await fetch(`http://127.0.0.1:${port}/api/setup/status?workspaceId=${selectedWorkspaceId}`)
-        const setupData = await setupResponse.json()
+        const setupData = await apiFetch<{ setupCompleted: boolean }>(`/api/setup/status?workspaceId=${selectedWorkspaceId}`)
         if (!setupData.setupCompleted) {
           setShowSetupBanner(true)
         }
@@ -538,13 +519,14 @@ export function Dashboard() {
       } finally {
         setLoading(false)
       }
-    })
+    }
+    void init()
   }, [fetchDashboard, fetchWorkspaces, selectedWorkspaceId])
 
   useEffect(() => {
-    if (!apiPort || !autoRefreshEnabled) return
+    if (!autoRefreshEnabled) return
     const timer = window.setInterval(() => {
-      void fetchDashboard(apiPort, { silent: true }).catch(currentError => {
+      void fetchDashboard({ silent: true }).catch(currentError => {
         setStatusMessage(t('dashboard:messages.autoRefreshFailed', {
           error: currentError instanceof Error ? currentError.message : String(currentError)
         }))
@@ -552,18 +534,17 @@ export function Dashboard() {
     }, 30000)
 
     return () => window.clearInterval(timer)
-  }, [apiPort, autoRefreshEnabled, fetchDashboard, t])
+  }, [autoRefreshEnabled, fetchDashboard, t])
 
   useEffect(() => {
     writeLocalStorage('soloforge-dashboard-mode', workspaceMode)
   }, [workspaceMode])
 
   const refreshAll = async () => {
-    if (!apiPort) return
     setRefreshing(true)
     setStatusMessage(null)
     try {
-      await Promise.all([fetchWorkspaces(apiPort), fetchDashboard(apiPort)])
+      await Promise.all([fetchWorkspaces(), fetchDashboard()])
       setStatusMessage(t('dashboard:messages.refreshed', {
         time: new Date().toLocaleTimeString('zh-CN')
       }))
@@ -575,9 +556,8 @@ export function Dashboard() {
   }
 
   const handleSkipSetup = async () => {
-    if (!apiPort) return
     try {
-      await fetch(`http://127.0.0.1:${apiPort}/api/audit-logs`, {
+      await apiFetch('/api/audit-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -603,7 +583,6 @@ export function Dashboard() {
       setSelectedWorkspaceId(nextWorkspaceId)
       writeLocalStorage('soloforge-current-workspace', nextWorkspaceId)
     }
-    if (!apiPort) return
     setRefreshing(true)
     setStatusMessage(null)
     try {
@@ -620,12 +599,11 @@ export function Dashboard() {
       params.set('activityLimit', '8')
       params.set('issueLimit', '10')
 
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/dashboard?${params.toString()}`)
-      const json = await response.json() as ApiResponse<DashboardPayload>
+      const json = await apiFetch<ApiResponse<DashboardPayload>>(`/api/dashboard?${params.toString()}`)
       if (!json.success) {
         throw new Error(json.error)
       }
-      setDashboard(json.data)
+      setDashboard(json.data ?? null)
     } catch (currentError) {
       setError(currentError instanceof Error ? currentError.message : String(currentError))
     } finally {
@@ -634,15 +612,13 @@ export function Dashboard() {
   }
 
   const runDoctorCheck = async () => {
-    if (!apiPort || !selectedWorkspaceId) return
+    if (!selectedWorkspaceId) return
     setStatusMessage(t('dashboard:messages.runningDoctorCheck'))
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/doctor/run`, {
+      const json = await apiFetch<ApiResponse<unknown>>('/api/doctor/run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId: selectedWorkspaceId, createdBy: 'admin' })
       })
-      const json = await response.json() as ApiResponse<unknown>
       if (!json.success) {
         throw new Error(json.error)
       }
@@ -656,13 +632,12 @@ export function Dashboard() {
   }
 
   const syncActual = async () => {
-    if (!apiPort || !selectedWorkspaceId) return
+    if (!selectedWorkspaceId) return
     setStatusMessage(t('dashboard:messages.syncingActual'))
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/workspaces/${encodeURIComponent(selectedWorkspaceId)}/snapshots/actual`, {
+      const json = await apiFetch<ApiResponse<unknown>>(`/api/workspaces/${encodeURIComponent(selectedWorkspaceId)}/snapshots/actual`, {
         method: 'POST'
       })
-      const json = await response.json() as ApiResponse<unknown>
       if (!json.success) {
         throw new Error(json.error)
       }
@@ -676,13 +651,12 @@ export function Dashboard() {
   }
 
   const createReconcilePlan = async () => {
-    if (!apiPort || !selectedWorkspaceId) return
+    if (!selectedWorkspaceId) return
     setStatusMessage(t('dashboard:messages.computingDrift'))
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/workspaces/${encodeURIComponent(selectedWorkspaceId)}/drift/compute`, {
+      const json = await apiFetch<ApiResponse<unknown>>(`/api/workspaces/${encodeURIComponent(selectedWorkspaceId)}/drift/compute`, {
         method: 'POST'
       })
-      const json = await response.json() as ApiResponse<unknown>
       if (!json.success) {
         throw new Error(json.error)
       }
@@ -752,20 +726,22 @@ export function Dashboard() {
 
   return (
     <div data-testid="dashboard-page" className="space-y-6">
+      {/* 跳过链接 - 方便键盘导航用户快速到达主内容 */}
+      <SkipLink to="#dashboard-main">{t('dashboard:a11y.skipToMain')}</SkipLink>
+
+      {/* 实时状态区域 - 通知屏幕阅读器动态更新 */}
+      <LiveRegion politeness="polite">{statusMessage || error || ''}</LiveRegion>
+
+      <main id="dashboard-main" {...regionA11y(t('dashboard:a11y.mainRegion'))}>
       <PageHeader
         title={t('dashboard:title')}
         description={t('dashboard:description')}
         actions={
           <>
-            <button
-              data-testid="dashboard-refresh-button"
-              onClick={() => void refreshAll()}
-              className="rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
-              type="button"
-            >
-              {refreshing ? t('dashboard:actions.refreshing') : t('dashboard:actions.refresh')}
-            </button>
-            <label className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] shadow-workshop-sm">
+            <Button data-testid="dashboard-refresh-button" onClick={() => void refreshAll()} loading={refreshing}>
+              {t('dashboard:actions.refresh')}
+            </Button>
+            <label className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] shadow-sm">
               <ThemeCheckbox data-testid="dashboard-auto-refresh-toggle" checked={autoRefreshEnabled} onChange={(event) => setAutoRefreshEnabled(event.target.checked)} />
               {t('dashboard:actions.autoRefresh')}
             </label>
@@ -776,12 +752,12 @@ export function Dashboard() {
       {(error || statusMessage) && (
         <div className="space-y-2">
           {error && (
-            <div data-testid="dashboard-error-banner" className="rounded-workshop-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.1)] p-3 text-sm text-[hsl(var(--destructive))]">
+            <div data-testid="dashboard-error-banner" className="rounded-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.1)] p-3 text-sm text-[hsl(var(--destructive))]">
               {t('dashboard:messages.loadFailed', { error })}
             </div>
           )}
           {statusMessage && (
-            <div data-testid="dashboard-status-banner" className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.1)] p-3 text-sm text-[hsl(var(--google-blue))]">
+            <div data-testid="dashboard-status-banner" className="rounded-lg border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.1)] p-3 text-sm text-[hsl(var(--google-blue))]">
               {statusMessage}
             </div>
           )}
@@ -795,18 +771,12 @@ export function Dashboard() {
               {t('dashboard:setupBanner.description')}
             </p>
             <div className="flex gap-3">
-              <button
-                onClick={() => navigate('/setup/wizard')}
-                className="rounded-full bg-[hsl(var(--primary))] px-6 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
-              >
+              <Button onClick={() => navigate('/setup/wizard')}>
                 {t('dashboard:setupBanner.startSetup')}
-              </button>
-              <button
-                onClick={() => void handleSkipSetup()}
-                className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
-              >
+              </Button>
+              <Button variant="secondary" onClick={() => void handleSkipSetup()}>
                 {t('dashboard:setupBanner.skipSetup')}
-              </button>
+              </Button>
             </div>
           </div>
         </SectionCard>
@@ -815,7 +785,7 @@ export function Dashboard() {
       <SectionCard title={t('dashboard:sections.globalOverview')} description={t('dashboard:sections.globalOverviewDesc')}>
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2.2fr)_minmax(320px,1fr)] xl:items-stretch">
           <div data-testid="dashboard-global-overview" className="space-y-4 xl:grid xl:h-full xl:grid-rows-[auto_minmax(0,1fr)] xl:gap-4 xl:space-y-0">
-            <div data-testid="dashboard-workspace-controls" className="grid grid-cols-1 gap-3 rounded-workshop-lg sm:grid-cols-[auto_auto_minmax(16rem,1fr)] sm:items-center border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
+            <div data-testid="dashboard-workspace-controls" className="grid grid-cols-1 gap-3 rounded-lg sm:grid-cols-[auto_auto_minmax(16rem,1fr)] sm:items-center border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-sm">
               <button
                 data-testid="dashboard-workspace-mode-global"
                 type="button"
@@ -872,7 +842,7 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div data-testid="dashboard-health-score" className="space-y-4 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-workshop-sm xl:h-full">
+          <div data-testid="dashboard-health-score" className="space-y-4 rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-sm xl:h-full">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium text-[hsl(var(--muted-foreground))]">{t('dashboard:healthScore.title')}</div>
@@ -889,7 +859,7 @@ export function Dashboard() {
             </div>
             <div className="space-y-2">
               {dashboard?.healthScore.factors.map(factor => (
-                <div key={factor.key} className="rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+                <div key={factor.key} className="rounded-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1 font-medium text-[hsl(var(--foreground))]">{factor.label}</div>
                     <div className="shrink-0 whitespace-nowrap text-[11px] text-[hsl(var(--muted-foreground))]">
@@ -912,7 +882,7 @@ export function Dashboard() {
               data-testid={`dashboard-recommended-action-${action.key}`}
               type="button"
               onClick={() => navigate(withWorkspaceContext(action.route))}
-              className={`min-w-0 flex h-full flex-col rounded-workshop-lg border p-4 text-left shadow-workshop-sm transition-colors duration-200 hover:bg-[hsl(var(--accent)_/_0.62)] ${getRecommendedActionClass(action.priority)}`}
+              className={`min-w-0 flex h-full flex-col rounded-lg border p-4 text-left shadow-sm transition-colors duration-200 hover:bg-[hsl(var(--accent)_/_0.62)] ${getRecommendedActionClass(action.priority)}`}
             >
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
                 {t(`dashboard:recommendedActions.priority.${action.priority}`)}
@@ -928,7 +898,7 @@ export function Dashboard() {
         <SectionCard title={t('dashboard:sections.criticalIssues')} description={t('dashboard:sections.criticalIssuesDesc')}>
           <div data-testid="dashboard-critical-issues" className="space-y-3">
             {dashboard?.criticalIssues.length ? dashboard.criticalIssues.map(issue => (
-              <div key={issue.id} data-testid={`dashboard-critical-issue-${issue.id}`} className="w-full rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]">
+              <div key={issue.id} data-testid={`dashboard-critical-issue-${issue.id}`} className="w-full rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -970,7 +940,7 @@ export function Dashboard() {
                 type="button"
                 onClick={action.onClick}
                 disabled={action.disabled}
-                className="text-left rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="text-left rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{action.label}</div>
                 <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{action.description}</div>
@@ -983,7 +953,7 @@ export function Dashboard() {
       <SectionCard title={t('dashboard:sections.runtimeStatus')} description={t('dashboard:sections.runtimeStatusDesc')}>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div className="space-y-4">
-            <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+            <div className="space-y-3 rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('dashboard:runtime.operationsSnapshot')}</div>
@@ -999,7 +969,7 @@ export function Dashboard() {
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.operations.recent.map(operation => (
-                  <div key={operation.id} className="flex items-center justify-between gap-3 rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
+                  <div key={operation.id} className="flex items-center justify-between gap-3 rounded-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
                     <div>
                       <div className="font-medium text-[hsl(var(--foreground))]">{operation.title}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{operation.type} · {formatDateTime(operation.updatedAt)}</div>
@@ -1010,7 +980,7 @@ export function Dashboard() {
               </div>
             </div>
 
-            <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+            <div className="space-y-3 rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('dashboard:runtime.hostAgentHealth')}</div>
@@ -1026,7 +996,7 @@ export function Dashboard() {
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.hostAgents.recentAnomalies.length ? dashboard.runtime.hostAgents.recentAnomalies.map(agent => (
-                  <div key={agent.id} className="flex items-center justify-between gap-3 rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
+                  <div key={agent.id} className="flex items-center justify-between gap-3 rounded-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
                     <div>
                       <div className="font-medium text-[hsl(var(--foreground))]">{agent.name}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{agent.lastHeartbeatAt ? formatDateTime(agent.lastHeartbeatAt) : t('dashboard:runtime.neverHeartbeat')}</div>
@@ -1039,7 +1009,7 @@ export function Dashboard() {
           </div>
 
           <div className="space-y-4">
-            <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+            <div className="space-y-3 rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('dashboard:runtime.deploymentStatus')}</div>
@@ -1054,7 +1024,7 @@ export function Dashboard() {
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.deployments.recentJobs.map(job => (
-                  <div key={job.id} className="flex items-center justify-between gap-3 rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
+                  <div key={job.id} className="flex items-center justify-between gap-3 rounded-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
                     <div>
                       <div className="font-medium text-[hsl(var(--foreground))]">{job.targetName}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{job.type} · {formatDateTime(job.createdAt)}</div>
@@ -1065,7 +1035,7 @@ export function Dashboard() {
               </div>
             </div>
 
-            <div className="space-y-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+            <div className="space-y-3 rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('dashboard:runtime.autoRemediationSnapshot')}</div>
@@ -1081,7 +1051,7 @@ export function Dashboard() {
               </div>
               <div className="space-y-2">
                 {dashboard?.runtime.remediation.recent.length ? dashboard.runtime.remediation.recent.map(item => (
-                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
+                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-3 py-2 text-sm">
                     <div>
                       <div className="font-medium text-[hsl(var(--foreground))]">{item.title}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">{formatDateTime(item.updatedAt)}</div>
@@ -1110,7 +1080,7 @@ export function Dashboard() {
                 data-testid={`dashboard-pending-action-${item.id}`}
                 type="button"
                 onClick={() => setSelectedActionId(item.id)}
-                className="w-full rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 text-left shadow-workshop-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]"
+                className="w-full rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 text-left shadow-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
@@ -1133,7 +1103,7 @@ export function Dashboard() {
 
         <SectionCard title={t('dashboard:sections.activityFeedPreview')} description={t('dashboard:sections.activityFeedPreviewDesc')}>
           <div data-testid="dashboard-activity-feed-preview" className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-sm sm:grid-cols-3">
               <ThemeSelect
                 data-testid="dashboard-activity-severity-filter"
                 value={activitySeverity}
@@ -1174,7 +1144,7 @@ export function Dashboard() {
                   data-testid={`dashboard-activity-item-${item.id}`}
                   type="button"
                   onClick={() => setSelectedActivityId(item.id)}
-                  className="w-full rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 text-left shadow-workshop-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]"
+                  className="w-full rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 text-left shadow-sm transition-colors hover:bg-[hsl(var(--accent)_/_0.62)]"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -1213,23 +1183,23 @@ export function Dashboard() {
           if (!issue) return <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.issueNotFound')}</div>
           return (
             <div className="space-y-4">
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-workshop-sm" data-testid="drawer-issue-summary">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-sm" data-testid="drawer-issue-summary">
                 <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.issueSummary')}</div>
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{issue.summary}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
+                <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.issueType')}</div>
                   <div className="text-sm font-medium text-[hsl(var(--foreground))]">{getIssueTypeLabel(t, issue.issueType)}</div>
                 </div>
-                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
+                <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.severity')}</div>
                   <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(issue.severity)}`}>{getSeverityText(t, issue.severity)}</span>
                 </div>
               </div>
 
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-sm">
                 <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.relatedInfo')}</div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -1249,7 +1219,7 @@ export function Dashboard() {
                 </div>
               </div>
 
-              <div className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-sm">
                 <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.nextSteps')}</div>
                 <div className="space-y-2">
                   {issue.actions.map(action => (
@@ -1286,28 +1256,28 @@ export function Dashboard() {
           if (!action) return <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.actionNotFound')}</div>
           return (
             <div className="space-y-4">
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-workshop-sm" data-testid="drawer-action-summary">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-sm" data-testid="drawer-action-summary">
                 <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.actionTitle')}</div>
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{action.title}</div>
               </div>
 
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-sm">
                 <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.actionDescription')}</div>
                 <div className="text-sm text-[hsl(var(--foreground))]">{action.summary}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
+                <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.actionType')}</div>
                   <div className="text-sm font-medium text-[hsl(var(--foreground))]">{getPendingActionLabel(t, action.actionType)}</div>
                 </div>
-                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
+                <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.currentStatus')}</div>
                   <div className="text-sm font-medium text-[hsl(var(--foreground))]">{getStatusText(t, action.status)}</div>
                 </div>
               </div>
 
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-sm">
                 <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.relatedInfo')}</div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -1321,7 +1291,7 @@ export function Dashboard() {
                 </div>
               </div>
 
-              <div className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-sm">
                 <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.navigateToModule')}</div>
                 <button
                   type="button"
@@ -1353,28 +1323,28 @@ export function Dashboard() {
           if (!activity) return <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.activityNotFound')}</div>
           return (
             <div className="space-y-4">
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-workshop-sm" data-testid="drawer-activity-summary">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4 shadow-sm" data-testid="drawer-activity-summary">
                 <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.eventTitle')}</div>
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{activity.title}</div>
               </div>
 
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-sm">
                 <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.eventSummary')}</div>
                 <div className="text-sm text-[hsl(var(--foreground))]">{activity.summary}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
+                <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.severity')}</div>
                   <span className={`rounded-full px-2.5 py-1 text-xs border ${getSeverityBadgeClass(activity.severity)}`}>{getSeverityText(t, activity.severity)}</span>
                 </div>
-                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
+                <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-3 shadow-sm">
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('dashboard:drawer.eventType')}</div>
                   <div className="text-sm font-medium text-[hsl(var(--foreground))]">{activity.eventType}</div>
                 </div>
               </div>
 
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-sm">
                 <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.relatedInfo')}</div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -1404,7 +1374,7 @@ export function Dashboard() {
                 </div>
               </div>
 
-              <div className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 shadow-sm">
                 <div className="mb-3 text-xs uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{t('dashboard:drawer.viewFullEventStream')}</div>
                 <button
                   type="button"
@@ -1422,6 +1392,7 @@ export function Dashboard() {
           )
         })()}
       </Drawer>
+      </main>
     </div>
   )
 }
