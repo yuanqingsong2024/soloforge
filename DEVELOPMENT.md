@@ -70,7 +70,8 @@ npm install
 
 ### 初始化数据库
 ```bash
-npx prisma migrate dev
+# 确保 DATABASE_URL 在 .env 中（已配置 file:./dev.db）
+npx prisma migrate deploy
 npx prisma db seed
 ```
 
@@ -81,9 +82,30 @@ npm run dev
 
 应用将启动 Electron 窗口，并自动连接到本地 API 服务器。
 
-### 构建生产版本
+### 生产构建
 ```bash
 npm run build
+```
+
+构建输出位于 `release/0.1.0/`（Windows NSIS / macOS DMG / Linux AppImage）。
+
+### 测试
+```bash
+# 单元测试（隔离数据库）
+npm run test:unit
+
+# 集成测试（独立临时数据库）
+npm run test:integration
+
+# Renderer 测试
+npm run test:renderer
+```
+
+集成测试使用独立的 SQLite 文件，不会触碰 `prisma/dev.db`。
+
+### 代码检查
+```bash
+npx tsc --noEmit
 ```
 
 ## 项目结构

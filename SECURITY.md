@@ -63,6 +63,9 @@ Please include:
 ### Credential Storage
 
 - API tokens and passwords stored in OS Keychain (Electron safeStorage)
+- Atomic writes: credential file written to `.tmp` then renamed (crash-safe)
+- File permissions set to `0600` (owner read/write only)
+- Schema validation: empty/null credentials rejected with typed errors
 - No sensitive data stored in plain text
 - UI only displays masked credentials (e.g., `sk-****abcd`)
 
@@ -70,8 +73,28 @@ Please include:
 
 - All critical actions logged to append-only audit log
 - trace_id贯穿调用链
-- Tamper-evident hash chain (SHA-256)
-- Sensitive fields automatically masked
+- Tamper-evident hash chain (SHA-256, serialized per workspace, concurrent-safe)
+- Sensitive fields automatically masked (recursive token/password/apiKey/authorization)
+- Verification returns structured result (no exceptions on malformed records)
+
+### Agent Workspace Isolation
+
+- Agent binds to a workspace (Agent.workspaceId, unique per workspace)
+- Config sync filters by workspaceId, preventing cross-workspace leakage
+- CRUD operations scoped to workspace boundary
+
+### Config Apply & Rollback
+
+- Apply saves remote old config as before-snapshot (not the incoming new config)
+- Rollback verifies snapshot belongs to current profile
+- After apply/rollback: read-back remote config and verify hash matches target
+- Verification status: `success` or `applied_with_drift`
+
+### E2E Test Bypass
+
+- `SOLOFORGE_E2E=1` only works when app is NOT packaged (`app.isPackaged === false`)
+- Packaged production builds always require token authentication
+- CORS closed to non-localhost origins in production
 
 ### Approval Workflow
 
