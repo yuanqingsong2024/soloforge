@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model Role {
@@ -26,19 +26,23 @@ model Role {
 }
 
 model Agent {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  roleId    String   @map("role_id")
-  model     String
-  runtime   String // cloud, local
-  enabled   Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  name        String
+  workspaceId String   @default("00000000-0000-0000-0000-000000000001") @map("workspace_id")
+  roleId      String   @map("role_id")
+  model       String
+  runtime     String // cloud, local
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  role    Role        @relation(fields: [roleId], references: [id])
-  tools   AgentTool[]
-  tickets Ticket[]
+  role      Role        @relation(fields: [roleId], references: [id])
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tools     AgentTool[]
+  tickets   Ticket[]
 
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
   @@map("agents")
 }
 
@@ -98,6 +102,7 @@ model Ticket {
   templateRuns     TemplateRun[]
   pipelineState    TicketPipelineState?
   jobs             Job[]
+  hermesTasks      HermesTask[]
 
   @@index([workspaceId])
   @@index([contactId])
@@ -505,6 +510,7 @@ model Workspace {
 
   profiles             WorkspaceProfile[]
   policies             WorkspacePolicy[]
+  agents               Agent[]
   tickets              Ticket[]
   contacts             Contact[]
   commsTargets         CommsTarget[]
@@ -1249,3 +1255,97 @@ model OpenClawDetection {
   @@index([detectedAt])
   @@map("openclaw_detections")
 }
+
+// ============================================
+// 插件系统 (Plugin System)
+// ============================================
+
+model Plugin {
+  id            String   @id @default(uuid())
+  name          String   @unique // 插件唯一标识，如 "custom-widget"
+  displayName   String   @map("display_name")
+  version       String   @default("1.0.0")
+  description   String?
+  author        String?
+  homepage      String?
+  enabled       Boolean  @default(true)
+  builtIn       Boolean  @default(false) // 内置插件不可删除
+  configJson    String   @default("{}") @map("config_json")
+  manifestJson  String   @default("{}") @map("manifest_json") // 插件元数据
+  entryPoint    String?  @map("entry_point") // 入口文件路径
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  instances PluginInstance[]
+
+  @@index([enabled])
+  @@map("plugins")
+}
+
+model PluginInstance {
+  id        String   @id @default(uuid())
+  pluginId  String   @map("plugin_id")
+  name      String   // 实例名称（用户自定义）
+  enabled   Boolean  @default(true)
+  configJson String  @default("{}") @map("config_json")
+  order     Int      @default(0) // 排序
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  plugin Plugin @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@unique([pluginId, name])
+  @@index([enabled])
+  @@map("plugin_instances")
+}
+
+// ============================================
+// Hermes Worker 系统（Harness Engineering）
+// ============================================
+
+model HermesWorker {
+  id           String   @id @default(uuid())
+  name         String   @unique // Worker 名称，如 "hermes-dev", "hermes-analysis"
+  description  String   @default("")
+  baseUrl      String   @map("base_url") // Hermes API 地址
+  wsUrl        String?  @map("ws_url") // WebSocket 地址（可选）
+  authTokenRef String?  @map("auth_token_ref") // Keychain 中存储的 token 引用
+  enabled      Boolean  @default(true)
+  tags         String   @default("[]") // JSON: ["code", "analysis", "general"]
+  capabilities String   @default("{}") // JSON: 支持的能力列表
+  lastHealthAt DateTime? @map("last_health_at")
+  lastHealthStatus String? @map("last_health_status") // OK, ERROR, UNKNOWN
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tasks HermesTask[]
+
+  @@index([enabled])
+  @@map("hermes_workers")
+}
+
+model HermesTask {
+  id        String   @id @default(uuid())
+  workerId  String   @map("worker_id")
+  ticketId  String?  @map("ticket_id") // 可选关联工单
+  taskType  String   @map("task_type") // "code", "analysis", "general", "custom"
+  prompt    String   // 任务描述
+  context   String   @default("{}") // JSON: 上下文数据
+  status    String   // PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED
+  result    String?  // JSON: 执行结果
+  error     String?  // 错误信息
+  logs      String?  // 执行日志
+  traceId   String   @map("trace_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  worker HermesWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  ticket Ticket?      @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([workerId])
+  @@index([ticketId])
+  @@index([status])
+  @@index([traceId])
+  @@map("hermes_tasks")
+}
+

@@ -57,20 +57,52 @@ export default defineConfig({
     'import.meta.env.DEV': JSON.stringify(process.env.NODE_ENV !== 'production')
   },
   build: {
+    // 启用更细粒度的代码分割
     rollupOptions: {
       output: {
-        manualChunks: {
+        manualChunks: (id: string) => {
           // React 核心库
-          'react-vendor': ['react', 'react-dom'],
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'react-vendor'
+          }
           // 路由库
-          'router': ['react-router-dom'],
-          // 国际化库
-          'i18n': ['i18next', 'react-i18next', 'i18next-http-backend'],
+          if (id.includes('node_modules/react-router')) {
+            return 'router'
+          }
+          // 国际化库（较大，按需加载）
+          if (id.includes('node_modules/i18next') || id.includes('node_modules/react-i18next')) {
+            return 'i18n'
+          }
           // 拖拽库
-          'dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities']
+          if (id.includes('node_modules/@dnd-kit')) {
+            return 'dnd'
+          }
+          // Prisma 客户端（主进程）
+          if (id.includes('@prisma/client')) {
+            return 'prisma'
+          }
+          // Fastify 及插件（主进程）
+          if (id.includes('node_modules/fastify') || id.includes('node_modules/@fastify')) {
+            return 'fastify'
+          }
+          // UUID 工具
+          if (id.includes('node_modules/uuid')) {
+            return 'utils'
+          }
+          // 其他 node_modules
+          if (id.includes('node_modules')) {
+            return 'vendor'
+          }
         }
       }
     },
     chunkSizeWarningLimit: 600
-  }
+  },
+  // 开发环境优化
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom', 'i18next', 'react-i18next']
+  },
+  // 生产环境构建优化
+  // 使用 Vite 默认的 esbuild 压缩（比 terser 更快）
+  minify: 'esbuild',
 })

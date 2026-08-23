@@ -103,14 +103,25 @@ function validateTrustedProxies(proxies: string[]): { valid: boolean; errors: st
   return { valid: errors.length === 0, errors }
 }
 
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableSerialize).join(',')}]`
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return `{${Object.keys(record).sort().map(key => `${JSON.stringify(key)}:${stableSerialize(record[key])}`).join(',')}}`
+  }
+  return JSON.stringify(value)
+}
+
 export class ConfigManager {
   /**
-   * 计算配置 SHA-256 哈希
+   * 计算配置 SHA-256 哈希，忽略对象键顺序
    */
   static hash(config: unknown): string {
     return crypto
       .createHash('sha256')
-      .update(JSON.stringify(config))
+      .update(stableSerialize(config))
       .digest('hex')
   }
 
@@ -184,11 +195,11 @@ export class ConfigManager {
   /**
    * 回滚到指定快照
    */
-  static async rollback(snapshotId: string): Promise<unknown> {
-    const snapshot = await prisma.configSnapshot.findUnique({
-      where: { id: snapshotId }
+  static async rollback(profileId: string, snapshotId: string): Promise<unknown> {
+    const snapshot = await prisma.configSnapshot.findFirst({
+      where: { id: snapshotId, profileId }
     })
-    if (!snapshot) throw new Error('Snapshot not found')
+    if (!snapshot) throw new Error('指定的配置快照不存在或不属于当前连接档案')
     return JSON.parse(snapshot.config)
   }
 

@@ -23,6 +23,17 @@ test('validateTrustedProxies 接受精确 IP 与小网段', () => {
   assert.deepEqual(result.errors, [])
 })
 
+test('hash 会忽略嵌套对象键顺序', () => {
+  const first = ConfigManager.hash({ b: { d: 2, c: 1 }, a: [{ y: true, x: 'value' }] })
+  const second = ConfigManager.hash({ a: [{ x: 'value', y: true }], b: { c: 1, d: 2 } })
+
+  assert.equal(first, second)
+})
+
+test('hash 会区分配置内容', () => {
+  assert.notEqual(ConfigManager.hash({ model: 'one' }), ConfigManager.hash({ model: 'two' }))
+})
+
 test('checkRateLimit 与 recordWrite 会正确反映剩余额度', () => {
   const profileId = `unit-profile-${Date.now()}`
 

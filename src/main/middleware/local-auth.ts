@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { v4 as uuidv4 } from 'uuid'
 import { KeychainService } from '../services/keychain'
 import { logger } from '../services/logger'
+import { isE2ETestMode } from '../runtime-mode'
 
 /**
  * SoloForge 本地 API 认证中间件
@@ -29,7 +30,7 @@ let cachedToken: string | null = null
  * - 其他模式均需认证（包括开发模式）
  */
 function shouldBypassAuth(): boolean {
-  return process.env.SOLOFORGE_E2E === '1'
+  return isE2ETestMode()
 }
 
 /**

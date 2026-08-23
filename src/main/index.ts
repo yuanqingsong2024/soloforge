@@ -7,7 +7,12 @@ import { startUnlockExpiryChecker } from './services/unlock-expiry-checker'
 import { DoctorSchedulerService } from './services/doctor-scheduler'
 import { HostAgentService } from './services/host-agent-service'
 import { OutboxManager } from './services/outbox-manager'
+import { initTrayAndNotifications, destroyTray } from './services/tray-service'
+import { offlineModeService } from './services/offline-mode-service'
 import { getOrCreateLocalApiToken } from './middleware/local-auth'
+import { isE2ETestMode } from './runtime-mode'
+
+process.env.SOLOFORGE_PACKAGED = app.isPackaged ? '1' : '0'
 
 app.disableHardwareAcceleration()
 app.commandLine.appendSwitch('disable-gpu')
@@ -18,16 +23,21 @@ app.commandLine.appendSwitch('enable-unsafe-swiftshader')
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// 全局 EPIPE 错误处理，防止 Prisma 日志写入在进程终止时报错
+process.on('uncaughtException', (error: Error & { code?: string }) => {
+  if (error.code === 'EPIPE' || error.code === 'ECONNRESET') {
+    // 忽略管道断开错误（通常是进程终止时的日志写入失败）
+    return
+  }
+  console.error('Uncaught Exception:', error)
+})
+
 let mainWindow: BrowserWindow | null = null
 let apiPort: number
 let shuttingDown = false
 
-function isE2ETestMode(): boolean {
-  return process.env.SOLOFORGE_E2E === '1'
-}
-
 function shouldOpenDevTools(): boolean {
-  if (process.env.SOLOFORGE_E2E === '1') {
+  if (isE2ETestMode()) {
     return false
   }
 
@@ -60,11 +70,12 @@ async function createWindow() {
   const cspPolicy = isDev
     ? [
         "default-src 'self'",
-        "script-src 'self'",
+        // 开发模式：允许 unsafe-eval (Vite HMR) 和 unsafe-inline (Vite 内联脚本)
+        "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
         "style-src 'self' 'unsafe-inline'", // Tailwind 需要 unsafe-inline
         "font-src 'self' data:",
         "img-src 'self' data: blob:",
-        "connect-src 'self' http://127.0.0.1:* http://localhost:* ws://localhost:*" // 开发模式允许 Vite HMR
+        "connect-src 'self' http://127.0.0.1:* http://localhost:* ws://localhost:* ws://127.0.0.1:*" // 开发模式允许 Vite HMR
       ].join('; ')
     : [
         "default-src 'self'",
@@ -176,21 +187,39 @@ app.whenReady().then(() => {
     }
   })
   
-  // 启动自动解锁到期检查
+  // 初始化托盘和通知服务
+  void initTrayAndNotifications()
+  
+  // 启动自动解锁到期检查（立即启动，优先级高）
   startUnlockExpiryChecker()
   
-  // 启动 Doctor 调度器
-  DoctorSchedulerService.start()
+  // 延迟启动后台服务，避免阻塞 UI 渲染
+  // 关键：这些服务不需要在首帧渲染前完成启动
+  setTimeout(() => {
+    // 启动 Doctor 调度器
+    DoctorSchedulerService.start()
+  }, 2000)
+  
+  setTimeout(() => {
+    // 启动 Host Agent 心跳监控
+    void HostAgentService.startHeartbeatMonitor()
+  }, 3000)
+  
+  setTimeout(() => {
+    // 启动 Outbox 自动重试调度，保障远程不可达后的排队事件可自动恢复
+    OutboxManager.startScheduler()
+  }, 4000)
 
-  // 启动 Host Agent 心跳监控
-  void HostAgentService.startHeartbeatMonitor()
-
-  // 启动 Outbox 自动重试调度，保障远程不可达后的排队事件可自动恢复
-  OutboxManager.startScheduler()
+  // 初始化离线模式服务（最后启动）
+  if (mainWindow) {
+    offlineModeService.initialize(mainWindow)
+  }
 })
 
 app.on('before-quit', () => {
   OutboxManager.stopScheduler()
+  destroyTray()
+  offlineModeService.destroy()
 })
 
 function shutdown() {
@@ -200,6 +229,7 @@ function shutdown() {
 
   shuttingDown = true
   OutboxManager.stopScheduler()
+  destroyTray()
 
   if (app.isReady()) {
     app.quit()
@@ -213,7 +243,9 @@ process.once('SIGINT', shutdown)
 process.once('SIGTERM', shutdown)
 
 app.on('window-all-closed', () => {
+  // macOS 保留托盘，Windows/Linux 退出应用
   if (process.platform !== 'darwin') {
+    destroyTray()
     app.quit()
   }
 })

@@ -41,6 +41,7 @@ interface TeamHireTemplateMember {
 interface TeamHireBody {
   profileId: string
   template: 'core-team' | 'support-pod'
+  workspaceId?: string
 }
 
 interface TeamHireResultItem {
@@ -119,6 +120,7 @@ const createAgentBodySchema = {
     additionalProperties: false,
     properties: {
       name: { type: 'string', minLength: 1 },
+      workspaceId: { type: 'string', minLength: 1 },
       roleId: { type: 'string', minLength: 1 },
       model: { type: 'string', minLength: 1 },
       runtime: { type: 'string', enum: ['cloud', 'local'] },
@@ -203,7 +205,20 @@ function buildRolePrompt(profileName: string, roleName: string): string {
   return `你是 ${profileName} 环境中的 ${roleName} 员工，请遵循既有审批、审计与最小权限规则执行任务。`
 }
 
-export async function executeTeamHire(profileId: string, template: 'core-team' | 'support-pod') {
+/**
+ * 解析并校验 Agent 所属工作区
+ * 缺省时使用默认工作区；指定时必须存在
+ */
+async function resolveAgentWorkspaceId(workspaceId?: string): Promise<string> {
+  const wid = workspaceId?.trim() || TEST_WORKSPACE_ID
+  const workspace = await prisma.workspace.findUnique({ where: { id: wid } })
+  if (!workspace) {
+    throw new Error(`工作区不存在：${wid}`)
+  }
+  return wid
+}
+
+export async function executeTeamHire(profileId: string, template: 'core-team' | 'support-pod', workspaceId: string) {
   const profile = await prisma.connectionProfile.findUnique({ where: { id: profileId } })
   if (!profile) {
     throw new Error('Connection Profile 不存在')
@@ -233,7 +248,7 @@ export async function executeTeamHire(profileId: string, template: 'core-team' |
 
       const agentName = `${profile.name} · ${member.agentName}`
       const agent = await tx.agent.upsert({
-        where: { name: agentName },
+        where: { workspaceId_name: { workspaceId, name: agentName } },
         update: {
           roleId: role.id,
           model: member.model,
@@ -242,6 +257,7 @@ export async function executeTeamHire(profileId: string, template: 'core-team' |
         },
         create: {
           name: agentName,
+          workspaceId,
           roleId: role.id,
           model: member.model,
           runtime: member.runtime,
@@ -332,8 +348,12 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
   })
 
   // ==================== Agents ====================
-  fastify.get('/api/agents', async () => {
-    return await prisma.agent.findMany({ include: { role: true, tools: { include: { tool: true } } } })
+  fastify.get('/api/agents', async (request) => {
+    const { workspaceId } = request.query as { workspaceId?: string }
+    return await prisma.agent.findMany({
+      where: workspaceId ? { workspaceId } : undefined,
+      include: { role: true, tools: { include: { tool: true } } }
+    })
   })
 
   fastify.post('/api/agents/sync-to-openclaw', { schema: syncAgentsToOpenClawBodySchema }, async (request) => {
@@ -404,6 +424,7 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
     const traceId = uuidv4()
     const data = request.body as {
       name: string
+      workspaceId?: string
       roleId: string
       model: string
       runtime?: string
@@ -411,9 +432,11 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
     }
 
     try {
+      const workspaceId = await resolveAgentWorkspaceId(data.workspaceId)
       const agent = await prisma.agent.create({
         data: {
           name: data.name,
+          workspaceId,
           roleId: data.roleId,
           model: data.model,
           runtime: data.runtime || 'local',
@@ -427,7 +450,7 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
         action: 'AGENT_CREATED',
         tool: 'team-management',
         request: {
-          workspaceId: TEST_WORKSPACE_ID,
+          workspaceId,
           data
         },
         response: {
@@ -444,7 +467,7 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
         action: 'AGENT_CREATE_FAILED',
         tool: 'team-management',
         request: {
-          workspaceId: TEST_WORKSPACE_ID,
+          workspaceId: data.workspaceId || TEST_WORKSPACE_ID,
           data
         },
         response: {
@@ -468,6 +491,12 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
     }
 
     try {
+      // 先查询确认 Agent 存在，且不允许修改 workspaceId
+      const existing = await prisma.agent.findUnique({ where: { id } })
+      if (!existing) {
+        throw new Error('Agent 不存在')
+      }
+
       const agent = await prisma.agent.update({ where: { id }, data })
 
       await writeApiAuditLog({
@@ -476,7 +505,7 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
         action: 'AGENT_UPDATED',
         tool: 'team-management',
         request: {
-          workspaceId: TEST_WORKSPACE_ID,
+          workspaceId: existing.workspaceId,
           id,
           data
         },
@@ -495,7 +524,6 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
         action: 'AGENT_UPDATE_FAILED',
         tool: 'team-management',
         request: {
-          workspaceId: TEST_WORKSPACE_ID,
           id,
           data
         },
@@ -514,6 +542,11 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
     const { id } = request.params as { id: string }
 
     try {
+      const existing = await prisma.agent.findUnique({ where: { id } })
+      if (!existing) {
+        throw new Error('Agent 不存在')
+      }
+
       const agent = await prisma.agent.delete({ where: { id } })
 
       await writeApiAuditLog({
@@ -522,7 +555,7 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
         action: 'AGENT_DELETED',
         tool: 'team-management',
         request: {
-          workspaceId: TEST_WORKSPACE_ID,
+          workspaceId: existing.workspaceId,
           id
         },
         response: {
@@ -539,7 +572,6 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
         action: 'AGENT_DELETE_FAILED',
         tool: 'team-management',
         request: {
-          workspaceId: TEST_WORKSPACE_ID,
           id
         },
         response: {
@@ -576,15 +608,31 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
 
   // ==================== AgentTool Authorization ====================
   fastify.get('/api/agent-tools', async (request) => {
-    const { agentId } = request.query as { agentId?: string }
+    const { agentId, workspaceId } = request.query as { agentId?: string; workspaceId?: string }
+    const where: Record<string, unknown> = {}
+    if (agentId) where.agentId = agentId
+    if (workspaceId) where.agent = { workspaceId }
     return await prisma.agentTool.findMany({
-      where: agentId ? { agentId } : undefined,
+      where: Object.keys(where).length > 0 ? where : undefined,
       include: { agent: true, tool: true }
     })
   })
 
+  /**
+   * 校验 AgentTool 操作的工作区归属
+   * 通过 agentId 查询 Agent 的 workspaceId
+   */
+  async function validateAgentToolWorkspace(agentId: string, expectedWorkspaceId?: string): Promise<void> {
+    const agent = await prisma.agent.findUnique({ where: { id: agentId } })
+    if (!agent) throw new Error('Agent 不存在')
+    if (expectedWorkspaceId && agent.workspaceId !== expectedWorkspaceId) {
+      throw new Error('Agent 不属于当前工作区')
+    }
+  }
+
   fastify.post('/api/agent-tools', async (request) => {
-    const { agentId, toolId, permissionJson } = request.body as { agentId: string; toolId: string; permissionJson: string }
+    const { agentId, toolId, permissionJson, workspaceId } = request.body as { agentId: string; toolId: string; permissionJson: string; workspaceId?: string }
+    if (workspaceId) await validateAgentToolWorkspace(agentId, workspaceId)
     return await prisma.agentTool.create({
       data: { agentId, toolId, permissionJson }
     })
@@ -592,7 +640,13 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
 
   fastify.put('/api/agent-tools/:id', async (request) => {
     const { id } = request.params as { id: string }
-    const { permissionJson } = request.body as { permissionJson: string }
+    const { permissionJson, workspaceId } = request.body as { permissionJson: string; workspaceId?: string }
+    if (workspaceId) {
+      const existing = await prisma.agentTool.findUnique({ where: { id }, include: { agent: true } })
+      if (existing && existing.agent.workspaceId !== workspaceId) {
+        throw new Error('AgentTool 不属于当前工作区')
+      }
+    }
     return await prisma.agentTool.update({
       where: { id },
       data: { permissionJson }
@@ -601,6 +655,13 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
 
   fastify.delete('/api/agent-tools/:id', async (request) => {
     const { id } = request.params as { id: string }
+    const query = request.query as { workspaceId?: string }
+    if (query.workspaceId) {
+      const existing = await prisma.agentTool.findUnique({ where: { id }, include: { agent: true } })
+      if (existing && existing.agent.workspaceId !== query.workspaceId) {
+        throw new Error('AgentTool 不属于当前工作区')
+      }
+    }
     return await prisma.agentTool.delete({ where: { id } })
   })
 
@@ -620,7 +681,8 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
         return fail('template 无效')
       }
 
-      const { profile, hired } = await executeTeamHire(body.profileId, body.template)
+      const workspaceId = await resolveAgentWorkspaceId(body.workspaceId)
+      const { profile, hired } = await executeTeamHire(body.profileId, body.template, workspaceId)
 
       await writeApiAuditLog({
         traceId,
@@ -628,6 +690,7 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
         action: 'TEAM_HIRE_TEMPLATE',
         tool: 'team-management',
         request: {
+          workspaceId,
           profileId: profile.id,
           profileName: profile.name,
           template: body.template
@@ -639,6 +702,7 @@ export function registerTeamRoutes(fastify: FastifyInstance): void {
       })
 
       return ok({
+        workspaceId,
         profileId: profile.id,
         profileName: profile.name,
         template: body.template,

@@ -31,11 +31,20 @@ jobs:
           npx prisma generate
           npx prisma migrate deploy
           npx prisma db seed
+        env:
+          DATABASE_URL: file:./e2e-test.db
       
       - name: Run E2E tests
         run: npx playwright test
         env:
           CI: true
+          DATABASE_URL: file:./e2e-test.db
+
+      - name: Clean test database
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item -Force -ErrorAction SilentlyContinue e2e-test.db, e2e-test.db-wal, e2e-test.db-shm
       
       - name: Upload test results
         uses: actions/upload-artifact@v4

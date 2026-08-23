@@ -22,13 +22,15 @@ import { registerInfrastructureRoutes } from './routes/infrastructure'
 import { registerReleaseRoutes } from './routes/release'
 import { registerWorkspacesRoutes } from './routes/workspaces'
 import { registerWorkspaceRoutes } from './routes/workspace-routes'
-import { registerWorkspaceEnvRoutes } from './routes/workspace-env'
-import { registerWorkspaceSnapshotsRoutes } from './routes/workspace-snapshots'
-import { registerWorkspaceDriftRoutes } from './routes/workspace-drift'
-import { registerWorkspaceChangesRoutes } from './routes/workspace-changes'
+// workspace-snapshots.ts、workspace-drift.ts、workspace-changes.ts 的路由已合并到 workspace-settings.ts 中
 import { registerWorkspaceSettingsRoutes } from './routes/workspace-settings'
 import { registerPoliciesRoutes } from './routes/policies'
 import { registerDeploymentRoutes } from './routes/deployments'
+import { registerOpenClawRoutes } from './routes/openclaw'
+import { registerPluginRoutes } from './plugins/plugin-routes'
+import { registerImportExportRoutes } from './routes/import-export'
+import { registerAuditExportRoutes } from './routes/audit-export'
+import { registerHermesRoutes } from './routes/hermes-workers'
 import { registerAuthenticatedRoutes } from '../middleware/local-auth'
 import {
   prisma,
@@ -37,11 +39,15 @@ import {
   isE2ETestMode,
   writeApiAuditLog
 } from './api-shared'
-import { dispatchOutboundMessage } from './claude-code-helpers'
+import { dispatchOutboundMessage } from './openclaw-helpers'
 import { writeAuditLog } from './audit-log-writer'
+import { optimizeSqlite } from './db'
 
 
 export async function startServer(): Promise<number> {
+  // 应用 SQLite PRAGMA 优化（处理网络驱动器延迟）
+  await optimizeSqlite()
+
   fastify.setErrorHandler((error, request, reply) => {
     const traceId = (request.headers['x-trace-id'] as string | undefined) || uuidv4()
     const isValidationError = error.statusCode === 400 && Boolean((error as { validation?: unknown }).validation)
@@ -79,10 +85,7 @@ export async function startServer(): Promise<number> {
     registerJobsRoutes(fastify)
     registerWorkspacesRoutes(fastify)
     registerWorkspaceRoutes(fastify)
-    registerWorkspaceEnvRoutes(fastify)
-    registerWorkspaceSnapshotsRoutes(fastify)
-    registerWorkspaceDriftRoutes(fastify)
-    registerWorkspaceChangesRoutes(fastify)
+    // workspace-snapshots、workspace-drift、workspace-changes 路由已在 workspace-settings 中定义
     registerWorkspaceSettingsRoutes(fastify)
     registerPoliciesRoutes(fastify)
     registerModelsRoutes(fastify)
@@ -96,6 +99,11 @@ export async function startServer(): Promise<number> {
     registerInfrastructureRoutes(fastify)
     registerReleaseRoutes(fastify)
     registerDeploymentRoutes(fastify)
+    registerOpenClawRoutes(fastify)
+    registerPluginRoutes(fastify)
+    registerImportExportRoutes(fastify)
+    registerAuditExportRoutes(fastify)
+    registerHermesRoutes(fastify)
 
     const DEV_PORT = 13789
     const SAFE_PORT_CANDIDATES = [23119, 23120, 23121, 23122, 23123, 23124, 23125, 23126]

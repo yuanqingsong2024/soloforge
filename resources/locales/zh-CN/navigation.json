@@ -43,7 +43,9 @@
     "outbox": "Outbox 管理",
     "backup": "备份恢复",
     "connection": "连接设置",
-    "help": "帮助中心"
+    "help": "帮助中心",
+    "claude-codeConfig": "Claude Code 配置",
+    "hermesWorkers": "Hermes Workers"
   },
   "topbar": {
     "search": {
@@ -163,6 +165,7 @@
     "dashboard": "总控",
     "workspaces": "工作区",
     "tickets": "交付协作",
+    "claude-code": "Claude Code",
     "openclaw": "OpenClaw",
     "operations": "运行任务",
     "governance": "治理审计",
@@ -230,5 +233,22 @@
     "deploymentDetail": "部署详情",
     "deployments": "部署管理",
     "controlCenter": "控制中心"
+  },
+  "breadcrumb": {
+    "workspace": "工作台",
+    "tickets": "工单",
+    "team": "团队",
+    "approvals": "审批",
+    "audit": "审计",
+    "connection": "连接",
+    "communications": "通讯",
+    "data": "数据",
+    "changes": "变更",
+    "inspection": "巡检",
+    "runtime": "运行态",
+    "release": "发布",
+    "hostMachine": "宿主机",
+    "workspace_settings": "工作区",
+    "deployment": "部署"
   }
 }

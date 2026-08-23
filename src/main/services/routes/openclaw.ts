@@ -32,7 +32,7 @@ import {
   sanitizeDraftContent,
   TEST_WORKSPACE_ID
 } from '../api-shared'
-import { writeAuditLog } from '../audit-log-writer'
+import { writeAuditLog, writeAuditLogStrict } from '../audit-log-writer'
 
 // ==================== JSON Schema 定义 ====================
 
@@ -827,10 +827,22 @@ export function registerOpenClawRoutes(fastify: FastifyInstance): void {
     }
   })
   
-  fastify.get('/api/openclaw/:profileId/status', async (request) => {
+  fastify.get('/api/openclaw/:profileId/status', async (request, reply) => {
     const { profileId } = request.params as { profileId: string }
-    const client = await ensureOpenClawClientConnected(profileId)
-    return { connected: client?.isConnected() || false }
+    try {
+      // 先检查 profile 是否存在
+      const profile = await prisma.connectionProfile.findUnique({ where: { id: profileId } })
+      if (!profile) {
+        reply.code(404)
+        return fail('连接档案不存在')
+      }
+      const client = await ensureOpenClawClientConnected(profileId)
+      return { connected: client?.isConnected() || false }
+    } catch (error) {
+      fastify.log.error({ profileId, err: toErrorMessage(error) }, '获取 Claude Code 连接状态失败')
+      reply.code(500)
+      return fail(`获取连接状态失败：${toErrorMessage(error)}`)
+    }
   })
   
   // ==================== OpenClaw Config ====================
@@ -905,25 +917,36 @@ export function registerOpenClawRoutes(fastify: FastifyInstance): void {
         
         const traceId = uuidv4()
         
-        // 保存快照（应用前）
-        await ConfigManager.saveSnapshot(profileId, config)
-        
-        // 应用配置
+        // 保存远端真实旧配置，作为可回滚基线
+        const beforeConfig = await client.getConfig(traceId)
+        const beforeSnapshotId = await ConfigManager.saveSnapshot(profileId, beforeConfig)
+        const beforeHash = ConfigManager.hash(beforeConfig)
+        const targetHash = ConfigManager.hash(config)
+
+        // 应用配置并回读确认远端状态
         const result = await client.applyConfig(config, traceId)
-        
-        // 记录写入
+        const afterConfig = await client.getConfig(traceId)
+        const afterSnapshotId = await ConfigManager.saveSnapshot(profileId, afterConfig)
+        const afterHash = ConfigManager.hash(afterConfig)
+        const verificationStatus = afterHash === targetHash ? 'success' : 'applied_with_drift'
+
         ConfigManager.recordWrite(profileId)
-        
-        // 审计日志
-        await writeAuditLog({
+
+        await writeAuditLogStrict({
           traceId,
           actor: 'admin',
           action: 'APPLY_CONFIG',
-          request: config,
-          response: result
+          request: {
+            profileId,
+            beforeSnapshotId,
+            afterSnapshotId,
+            targetHash,
+            config: sanitizeDraftContent(config)
+          },
+          response: { providerResult: result, beforeHash, afterHash, targetHash, status: verificationStatus }
         })
-        
-        return result
+
+        return { status: verificationStatus, result, beforeSnapshotId, afterSnapshotId, beforeHash, afterHash, targetHash }
       }
     )
     
@@ -980,24 +1003,31 @@ export function registerOpenClawRoutes(fastify: FastifyInstance): void {
       { profileId, snapshotId, action: 'rollback' },
       'admin',
       async () => {
-        const config = await ConfigManager.rollback(snapshotId)
+        const config = await ConfigManager.rollback(profileId, snapshotId)
         const client = openClawClients.get(profileId)
         if (!client) throw new Error('Client not connected')
-        
+
         const traceId = uuidv4()
+        const beforeConfig = await client.getConfig(traceId)
+        const beforeHash = ConfigManager.hash(beforeConfig)
+        const targetHash = ConfigManager.hash(config)
         const result = await client.applyConfig(config, traceId)
-        
+        const afterConfig = await client.getConfig(traceId)
+        const afterSnapshotId = await ConfigManager.saveSnapshot(profileId, afterConfig)
+        const afterHash = ConfigManager.hash(afterConfig)
+        const verificationStatus = afterHash === targetHash ? 'success' : 'applied_with_drift'
+
         ConfigManager.recordWrite(profileId)
-        
-        await writeAuditLog({
+
+        await writeAuditLogStrict({
           traceId,
           actor: 'admin',
           action: 'ROLLBACK_CONFIG',
-          request: { snapshotId },
-          response: result
+          request: { profileId, snapshotId, targetHash, config: sanitizeDraftContent(config) },
+          response: { providerResult: result, beforeHash, afterHash, targetHash, afterSnapshotId, status: verificationStatus }
         })
-        
-        return result
+
+        return { status: verificationStatus, result, snapshotId, afterSnapshotId, beforeHash, afterHash, targetHash }
       }
     )
     

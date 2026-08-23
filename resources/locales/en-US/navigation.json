@@ -43,7 +43,9 @@
     "outbox": "Outbox",
     "backup": "Backup & Restore",
     "connection": "Connection",
-    "help": "Help"
+    "help": "Help",
+    "claude-codeConfig": "Claude Code Config",
+    "hermesWorkers": "Hermes Workers"
   },
   "groups": {
     "core": "Core Workspace",
@@ -53,7 +55,8 @@
     "openclaw": "OpenClaw",
     "operations": "Operations",
     "governance": "Governance",
-    "settings": "Settings"
+    "settings": "Settings",
+    "claude-code": "Claude Code"
   },
   "displayMode": {
     "label": "Display Mode",

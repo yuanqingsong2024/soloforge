@@ -37,7 +37,27 @@
     "title": "Export Audit Logs",
     "format": "Format",
     "dateRange": "Date Range",
-    "filters": "Filters"
+    "filters": "Filters",
+    "csv": "Export CSV",
+    "json": "Export JSON",
+    "report": "Generate Report",
+    "exporting": "Exporting...",
+    "generating": "Generating...",
+    "success": "Export successful",
+    "failed": "Export failed"
+  },
+  "report": {
+    "title": "Audit Report",
+    "summary": "Summary",
+    "totalOperations": "Total Operations",
+    "uniqueActors": "Unique Users",
+    "uniqueActions": "Action Types",
+    "highRiskOperations": "High-risk Operations",
+    "topActors": "Top Users",
+    "topActions": "Top Actions",
+    "dailyActivity": "Daily Activity",
+    "hashChainValid": "Hash chain verified",
+    "hashChainInvalid": "Hash chain verification failed"
   },
   "noLogs": "No audit logs",
   "ticketLabel": "Ticket",

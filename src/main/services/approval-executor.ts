@@ -20,7 +20,7 @@
 import { type Approval } from '@prisma/client'
 import { v4 as uuidv4 } from 'uuid'
 import { prisma, type HighRiskAction } from './approval-guard'
-import { writeAuditLog } from './audit-log-writer'
+import { writeAuditLogStrict } from './audit-log-writer'
 import { logger } from './logger'
 
 /** 已批准动作处理器类型 */
@@ -37,8 +37,10 @@ export type RejectedActionHandler = (
 
 /** 执行结果 */
 export interface ExecutionResult {
-  /** 是否有已注册的处理器（true=已执行，false=待实现降级） */
+  /** 是否有已注册的处理器（true=已执行，false=未实现或无额外处理） */
   handled: boolean
+  /** 机器可读的执行状态 */
+  status?: 'EXECUTED' | 'NOT_IMPLEMENTED' | 'REJECTED'
   /** 处理器返回值（handled=false 时为 undefined） */
   result?: unknown
 }
@@ -88,16 +90,20 @@ class ApprovalExecutorClass {
    * @param approval 已批准的审批记录（status=APPROVED）
    */
   async executeApprovedAction(approval: Approval): Promise<ExecutionResult> {
+    if (approval.status !== 'APPROVED') {
+      throw new Error(`审批未批准，禁止执行：${approval.id}`)
+    }
+
     const payload = this.parsePayload(approval)
 
     const handler = this.approvedHandlers.get(approval.actionType as HighRiskAction)
     if (handler) {
       const result = await handler(approval, payload)
-      return { handled: true, result }
+      return { handled: true, status: 'EXECUTED', result }
     }
 
-    // 未实现的动作：记录审计日志（降级路径）
-    await writeAuditLog({
+    // 未实现的动作：记录审计日志（明确标记为未实现）
+    await writeAuditLogStrict({
       traceId: uuidv4(),
       actor: approval.approvedBy || approval.requestedBy,
       action: `${approval.actionType}_PENDING_IMPLEMENTATION`,
@@ -117,7 +123,7 @@ class ApprovalExecutorClass {
       `审批动作 ${approval.actionType} 已批准但尚未实现执行逻辑，仅记录审计日志`,
       'approval-executor'
     )
-    return { handled: false }
+    return { handled: false, status: 'NOT_IMPLEMENTED' }
   }
 
   /**
@@ -132,16 +138,20 @@ class ApprovalExecutorClass {
    * @param approval 被拒绝的审批记录（status=REJECTED）
    */
   async handleRejectedAction(approval: Approval): Promise<ExecutionResult> {
+    if (approval.status !== 'REJECTED') {
+      throw new Error(`审批未拒绝，禁止执行拒绝处理：${approval.id}`)
+    }
+
     const payload = this.parsePayload(approval)
 
     const handler = this.rejectedHandlers.get(approval.actionType as HighRiskAction)
     if (handler) {
       const result = await handler(approval, payload)
-      return { handled: true, result }
+      return { handled: true, status: 'REJECTED', result }
     }
 
     // 未注册拒绝处理器的动作：记录审计日志
-    await writeAuditLog({
+    await writeAuditLogStrict({
       traceId: uuidv4(),
       actor: approval.approvedBy || approval.requestedBy,
       action: `${approval.actionType}_REJECTED`,
@@ -157,7 +167,7 @@ class ApprovalExecutorClass {
         message: '审批被拒绝，无额外回滚逻辑'
       }
     })
-    return { handled: false }
+    return { handled: false, status: 'REJECTED' }
   }
 
   /**

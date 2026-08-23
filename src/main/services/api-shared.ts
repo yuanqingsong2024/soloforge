@@ -22,11 +22,30 @@ import { OpenClawClient } from './openclaw-client'
 import { EventBusService } from './event-bus'
 import { NotificationPolicyService } from './notification-policy-service'
 import { writeAuditLog } from './audit-log-writer'
+import { isE2ETestMode, isPackagedRuntime } from '../runtime-mode'
 
 // ==================== 单例 ====================
 
 const fastify = Fastify({ logger: true })
-fastify.register(cors, { origin: true })
+
+function isAllowedDevelopmentOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin)
+    return (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1'))
+  } catch {
+    return false
+  }
+}
+
+fastify.register(cors, {
+  origin: (origin, callback) => {
+    if (isPackagedRuntime() || !origin) {
+      callback(null, false)
+      return
+    }
+    callback(null, isAllowedDevelopmentOrigin(origin))
+  }
+})
 
 const openClawClients = new Map<string, OpenClawClient>()
 const openClawConnectionAttempts = new Map<string, Promise<OpenClawClient | null>>()
@@ -89,11 +108,6 @@ function safeParseJson<T>(raw: string | null | undefined, fallback: T): T {
   } catch {
     return fallback
   }
-}
-
-/** 判断是否为 E2E 测试模式 */
-function isE2ETestMode(): boolean {
-  return process.env.SOLOFORGE_E2E === '1'
 }
 
 /** 判断工作区是否处于临时解锁窗口内 */

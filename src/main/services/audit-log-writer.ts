@@ -180,6 +180,7 @@ const HASH_CHAIN_SECRET = 'soloforge-audit-chain-2026'
 
 /** 内存中的最新哈希（按 workspaceId 隔离，默认用全局密钥） */
 const latestHashByWorkspace = new Map<string, string>()
+const auditWriteLocks = new Map<string, Promise<void>>()
 
 /**
  * 计算单条审计日志的哈希值
@@ -218,7 +219,7 @@ async function getLatestHash(workspaceId: string): Promise<string> {
   try {
     const latest = await prisma.auditLog.findFirst({
       where: { workspaceId },
-      orderBy: { ts: 'desc' }
+      orderBy: [{ ts: 'desc' }, { id: 'desc' }]
     })
     if (latest && latest.currentHash) {
       latestHashByWorkspace.set(workspaceId, latest.currentHash)
@@ -226,7 +227,7 @@ async function getLatestHash(workspaceId: string): Promise<string> {
     }
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error)
-    logger.warn(`[AuditLog] 获取最新哈希失败: ${errMsg}`)
+    throw new Error(`读取审计链失败（workspace=${workspaceId}）：${errMsg}`)
   }
 
   // 没有最新记录，使用空字符串作为链起点
@@ -244,15 +245,20 @@ async function getLatestHash(workspaceId: string): Promise<string> {
  *
  * @param input 审计日志输入
  */
-export async function writeAuditLog(input: WriteAuditLogInput): Promise<void> {
-  try {
-    const wsId = input.workspaceId || DEFAULT_WORKSPACE_ID
-    const latestHash = await getLatestHash(wsId)
+async function writeAuditLogInternal(input: WriteAuditLogInput): Promise<void> {
+  const wsId = input.workspaceId || DEFAULT_WORKSPACE_ID
+  const previous = auditWriteLocks.get(wsId) || Promise.resolve()
+  let release!: () => void
+  const current = new Promise<void>(resolve => { release = resolve })
+  const queued = previous.catch(() => undefined).then(() => current)
+  auditWriteLocks.set(wsId, queued)
 
+  await previous.catch(() => undefined)
+  try {
+    const latestHash = await getLatestHash(wsId)
     const maskedRequest = safeStringify(maskSensitive(input.request))
     const maskedResponse = safeStringify(maskSensitive(input.response))
     const now = new Date()
-
     const currentHash = computeAuditLogHash(
       latestHash,
       input.traceId,
@@ -285,14 +291,24 @@ export async function writeAuditLog(input: WriteAuditLogInput): Promise<void> {
         ts: now
       }
     })
-
-    // 更新内存缓存
     latestHashByWorkspace.set(wsId, currentHash)
+  } finally {
+    release()
+    if (auditWriteLocks.get(wsId) === queued) auditWriteLocks.delete(wsId)
+  }
+}
+
+export async function writeAuditLog(input: WriteAuditLogInput): Promise<void> {
+  try {
+    await writeAuditLogInternal(input)
   } catch (error) {
-    // 写入失败不影响主流程，仅记录错误日志
     const errMsg = error instanceof Error ? error.message : String(error)
     logger.error(`[AuditLog] 写入失败 action=${input.action} traceId=${input.traceId}: ${errMsg}`)
   }
+}
+
+export async function writeAuditLogStrict(input: WriteAuditLogInput): Promise<void> {
+  await writeAuditLogInternal(input)
 }
 
 /**
@@ -317,7 +333,7 @@ export async function verifyAuditChain(
 }> {
   const records = await prisma.auditLog.findMany({
     where: { workspaceId },
-    orderBy: { ts: 'asc' },
+    orderBy: [{ ts: 'asc' }, { id: 'asc' }],
     select: {
       id: true,
       traceId: true,
@@ -344,7 +360,7 @@ export async function verifyAuditChain(
         expectedHash: prevHash,
         actualHash: record.previousHash ?? ''
       })
-      continue // 链已断裂，后续记录不再验证
+      // 链断裂后仍继续校验当前记录，完整报告所有坏点
     }
 
     // 规则 2：currentHash 计算必须匹配
@@ -358,12 +374,15 @@ export async function verifyAuditChain(
       record.ts
     )
 
-    // 使用常量时间比较防止时序攻击
-    if (!timingSafeEqual(Buffer.from(expectedHash), Buffer.from(record.currentHash))) {
+    // 使用常量时间比较防止时序攻击；长度异常时返回结构化失败
+    const actualHash = record.currentHash || ''
+    const expectedBuffer = Buffer.from(expectedHash)
+    const actualBuffer = Buffer.from(actualHash)
+    if (expectedBuffer.length !== actualBuffer.length || !timingSafeEqual(expectedBuffer, actualBuffer)) {
       brokenChains.push({
         index: i,
         expectedHash,
-        actualHash: record.currentHash
+        actualHash
       })
     }
   }

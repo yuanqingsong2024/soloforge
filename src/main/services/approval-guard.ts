@@ -1,6 +1,8 @@
 import { type Approval } from '@prisma/client'
-import { prisma } from './db'
+import { getDefaultDeps, type IDatabaseClient } from './service-container'
 
+// 保留 prisma 导出以保持向后兼容
+export { prisma } from './db'
 
 export type HighRiskAction =
   | 'SEND_EXTERNAL'
@@ -22,11 +24,56 @@ export type HighRiskAction =
   | 'RESTORE_DEPLOYMENT'
   | 'DELETE_DEPLOYMENT'
 
+/**
+ * ApprovalGuard 构造函数参数
+ */
+export interface ApprovalGuardDeps {
+  /** 数据库客户端（支持 mock） */
+  db?: IDatabaseClient
+}
+
+/**
+ * ApprovalGuard 服务
+ * 
+ * 核心职责：
+ * 1. 检查操作是否需要审批
+ * 2. 创建审批请求
+ * 3. 执行守卫检查
+ * 
+ * 支持依赖注入，便于单元测试 mock
+ */
 export class ApprovalGuard {
+  private readonly db: IDatabaseClient
+
+  /**
+   * 静态默认实例（保持向后兼容）
+   */
+  private static defaultInstance: ApprovalGuard | null = null
+
+  /**
+   * 创建 ApprovalGuard 实例
+   * 
+   * @param deps 可选的依赖注入，默认使用全局依赖
+   */
+  constructor(deps?: ApprovalGuardDeps) {
+    const defaultDeps = getDefaultDeps()
+    this.db = deps?.db || defaultDeps.db
+  }
+
+  /**
+   * 获取默认实例（保持向后兼容）
+   */
+  static getInstance(): ApprovalGuard {
+    if (!this.defaultInstance) {
+      this.defaultInstance = new ApprovalGuard()
+    }
+    return this.defaultInstance
+  }
+
   /**
    * 检查操作是否需要审批
    */
-  static requiresApproval(action: string): boolean {
+  requiresApproval(action: string): boolean {
     const highRiskActions: HighRiskAction[] = [
       'SEND_EXTERNAL',
       'MERGE_MAIN',
@@ -53,13 +100,13 @@ export class ApprovalGuard {
   /**
    * 创建审批请求
    */
-  static async createApproval(
+  async createApproval(
     actionType: HighRiskAction,
     payload: unknown,
     requestedBy: string,
     ticketId?: string
   ): Promise<string> {
-    const approval = await prisma.approval.create({
+    const approval = await this.db.approval.create({
       data: {
         ticketId,
         actionType,
@@ -67,15 +114,15 @@ export class ApprovalGuard {
         status: 'PENDING',
         requestedBy
       }
-    })
+    }) as Approval
     return approval.id
   }
 
   /**
    * 检查审批状态
    */
-  static async checkApproval(approvalId: string): Promise<'PENDING' | 'APPROVED' | 'REJECTED'> {
-    const approval = await prisma.approval.findUnique({ where: { id: approvalId } })
+  async checkApproval(approvalId: string): Promise<'PENDING' | 'APPROVED' | 'REJECTED'> {
+    const approval = await this.db.approval.findUnique({ where: { id: approvalId } }) as Approval | null
     if (!approval) throw new Error('Approval not found')
     return approval.status as 'PENDING' | 'APPROVED' | 'REJECTED'
   }
@@ -83,8 +130,8 @@ export class ApprovalGuard {
   /**
    * 批准审批
    */
-  static async approve(approvalId: string, approvedBy: string): Promise<void> {
-    await prisma.approval.update({
+  async approve(approvalId: string, approvedBy: string): Promise<void> {
+    await this.db.approval.update({
       where: { id: approvalId },
       data: {
         status: 'APPROVED',
@@ -97,8 +144,8 @@ export class ApprovalGuard {
   /**
    * 拒绝审批
    */
-  static async reject(approvalId: string, approvedBy: string): Promise<void> {
-    await prisma.approval.update({
+  async reject(approvalId: string, approvedBy: string): Promise<void> {
+    await this.db.approval.update({
       where: { id: approvalId },
       data: {
         status: 'REJECTED',
@@ -119,11 +166,11 @@ export class ApprovalGuard {
    *
    * 返回审批记录与解析后的 payload（已 JSON.parse）。
    */
-  static async assertApproved(
+  async assertApproved(
     approvalId: string,
     expectedActionType?: HighRiskAction
   ): Promise<{ approval: Approval; payload: unknown }> {
-    const approval = await prisma.approval.findUnique({ where: { id: approvalId } })
+    const approval = await this.db.approval.findUnique({ where: { id: approvalId } }) as Approval | null
     if (!approval) {
       throw new Error(`审批记录不存在: ${approvalId}`)
     }
@@ -149,7 +196,7 @@ export class ApprovalGuard {
   /**
    * 执行受保护的操作
    */
-  static async executeProtected<T>(
+  async executeProtected<T>(
     action: string,
     payload: unknown,
     requestedBy: string,
@@ -174,4 +221,70 @@ export class ApprovalGuard {
   }
 }
 
-export { prisma } from './db'
+// ==================== 静态方法兼容层 ====================
+// 保持向后兼容，提供静态方法访问默认实例
+
+export namespace ApprovalGuard {
+  /**
+   * @deprecated 使用 ApprovalGuard.getInstance().requiresApproval() 替代
+   */
+  export function requiresApproval(action: string): boolean {
+    return ApprovalGuard.getInstance().requiresApproval(action)
+  }
+
+  /**
+   * @deprecated 使用 new ApprovalGuard(deps).createApproval() 替代
+   */
+  export async function createApproval(
+    actionType: HighRiskAction,
+    payload: unknown,
+    requestedBy: string,
+    ticketId?: string
+  ): Promise<string> {
+    return ApprovalGuard.getInstance().createApproval(actionType, payload, requestedBy, ticketId)
+  }
+
+  /**
+   * @deprecated 使用 new ApprovalGuard(deps).checkApproval() 替代
+   */
+  export async function checkApproval(approvalId: string): Promise<'PENDING' | 'APPROVED' | 'REJECTED'> {
+    return ApprovalGuard.getInstance().checkApproval(approvalId)
+  }
+
+  /**
+   * @deprecated 使用 new ApprovalGuard(deps).approve() 替代
+   */
+  export async function approve(approvalId: string, approvedBy: string): Promise<void> {
+    return ApprovalGuard.getInstance().approve(approvalId, approvedBy)
+  }
+
+  /**
+   * @deprecated 使用 new ApprovalGuard(deps).reject() 替代
+   */
+  export async function reject(approvalId: string, approvedBy: string): Promise<void> {
+    return ApprovalGuard.getInstance().reject(approvalId, approvedBy)
+  }
+
+  /**
+   * @deprecated 使用 new ApprovalGuard(deps).assertApproved() 替代
+   */
+  export async function assertApproved(
+    approvalId: string,
+    expectedActionType?: HighRiskAction
+  ): Promise<{ approval: Approval; payload: unknown }> {
+    return ApprovalGuard.getInstance().assertApproved(approvalId, expectedActionType)
+  }
+
+  /**
+   * @deprecated 使用 new ApprovalGuard(deps).executeProtected() 替代
+   */
+  export async function executeProtected<T>(
+    action: string,
+    payload: unknown,
+    requestedBy: string,
+    executor: () => Promise<T>,
+    ticketId?: string
+  ): Promise<{ approvalId?: string; result?: T; needsApproval: boolean }> {
+    return ApprovalGuard.getInstance().executeProtected(action, payload, requestedBy, executor, ticketId)
+  }
+}

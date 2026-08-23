@@ -32,6 +32,7 @@ export class AgentConfigSyncService {
   async generateConfigPatch(workspaceId: string): Promise<ConfigPatch> {
     const enabledAgents = await prisma.agent.findMany({
       where: {
+        workspaceId,
         enabled: true
       },
       include: {
@@ -41,12 +42,10 @@ export class AgentConfigSyncService {
       }
     })
 
-    void workspaceId
-
-    // 收集所有启用 Agent 的模型
+    // 收集该工作区启用 Agent 的模型
     const models = [...new Set(enabledAgents.map(a => a.model).filter(Boolean))]
     
-    // 收集所有启用 Agent 的工具
+    // 收集该工作区启用 Agent 的工具
     const tools = [...new Set(
       enabledAgents.flatMap((agent) => agent.tools.map((agentTool) => agentTool.tool.name))
     )]

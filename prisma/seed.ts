@@ -171,10 +171,11 @@ async function main() {
   const supportRole = await prisma.role.findUnique({ where: { name: 'Support' } })
   if (supportRole) {
     await prisma.agent.upsert({
-      where: { name: 'Alice (Support)' },
+      where: { workspaceId_name: { workspaceId: LOCAL_WORKSPACE_ID, name: 'Alice (Support)' } },
       update: {},
       create: {
         name: 'Alice (Support)',
+        workspaceId: LOCAL_WORKSPACE_ID,
         roleId: supportRole.id,
         model: 'gpt-4',
         runtime: 'cloud',

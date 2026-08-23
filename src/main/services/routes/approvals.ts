@@ -72,32 +72,65 @@ export function registerApprovalRoutes(fastify: FastifyInstance): void {
     })
   })
 
-  fastify.put('/api/approvals/:id', async (request) => {
+  fastify.put('/api/approvals/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { status, approvedBy } = request.body as ApprovalDecisionBody
+    const { status, approvedBy } = request.body as Partial<ApprovalDecisionBody>
+    const traceId = uuidv4()
 
-    const updatedApproval = await prisma.approval.update({
-      where: { id },
+    if (status !== 'APPROVED' && status !== 'REJECTED') {
+      reply.code(400)
+      return fail('审批状态必须是 APPROVED 或 REJECTED')
+    }
+    if (!approvedBy || approvedBy.trim().length === 0) {
+      reply.code(400)
+      return fail('审批人不能为空')
+    }
+
+    const existingApproval = await prisma.approval.findUnique({ where: { id } })
+    if (!existingApproval) {
+      reply.code(404)
+      return fail('审批记录不存在')
+    }
+    if (existingApproval.status !== 'PENDING') {
+      reply.code(409)
+      return fail(`审批已决策，不能重复处理：${existingApproval.status}`)
+    }
+
+    const updatedApproval = await prisma.approval.updateMany({
+      where: { id, status: 'PENDING' },
       data: {
         status,
         approvedBy,
         decidedAt: new Date()
       }
     })
-
-    if (status === 'APPROVED') {
-      // 已批准：委托给 ApprovalExecutor 执行对应动作
-      const result = await ApprovalExecutor.executeApprovedAction(updatedApproval)
-      return { ...updatedApproval, executionResult: result }
+    if (updatedApproval.count !== 1) {
+      reply.code(409)
+      return fail('审批已被其他请求处理，请刷新后重试')
     }
 
-    if (status === 'REJECTED') {
-      // 已拒绝：委托给 ApprovalExecutor 执行回滚逻辑
-      const result = await ApprovalExecutor.handleRejectedAction(updatedApproval)
-      return { ...updatedApproval, executionResult: result }
+    const decidedApproval = await prisma.approval.findUnique({ where: { id } })
+    if (!decidedApproval) {
+      reply.code(404)
+      return fail('审批记录不存在')
     }
 
-    return updatedApproval
+    const executionResult = status === 'APPROVED'
+      ? await ApprovalExecutor.executeApprovedAction(decidedApproval)
+      : await ApprovalExecutor.handleRejectedAction(decidedApproval)
+
+    await writeAuditLog({
+      traceId,
+      actor: approvedBy,
+      action: 'APPROVAL_DECIDED',
+      tool: 'approval-api',
+      approvalId: id,
+      ticketId: decidedApproval.ticketId || undefined,
+      request: { approvalId: id, actionType: decidedApproval.actionType, from: 'PENDING', to: status },
+      response: { decision: status, executionResult }
+    })
+
+    return { ...decidedApproval, executionResult, traceId }
   })
 
   // ==================== Audit Logs ====================

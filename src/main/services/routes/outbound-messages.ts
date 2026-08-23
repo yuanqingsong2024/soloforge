@@ -13,8 +13,8 @@ import {
   MAX_RETRY_ATTEMPTS,
   type OutboundMessageStatus
 } from '../api-shared'
-import { dispatchOutboundMessage } from '../claude-code-helpers'
-import { writeAuditLog } from '../audit-log-writer'
+import { dispatchOutboundMessage } from '../openclaw-helpers'
+import { writeAuditLogStrict } from '../audit-log-writer'
 
 // ==================== 类型定义 ====================
 
@@ -120,7 +120,7 @@ export function registerOutboundMessagesRoutes(fastify: FastifyInstance): void {
         artifactId: artifactId || null,
         approvalId: approvalId || null,
         templateId: templateId || null,
-        provider: provider || 'claude-code',
+        provider: provider || 'openclaw',
         channel,
         to,
         toMasked: maskTarget(to),
@@ -203,7 +203,7 @@ export function registerOutboundMessagesRoutes(fastify: FastifyInstance): void {
       if (message.status === 'APPROVED') {
         const result = await dispatchOutboundMessage(outboundMessageId, actor)
 
-        await writeAuditLog({
+        await writeAuditLogStrict({
           ticketId,
           traceId: msgTraceId,
           actor,
@@ -239,7 +239,7 @@ export function registerOutboundMessagesRoutes(fastify: FastifyInstance): void {
           }
         })
 
-        await writeAuditLog({
+        await writeAuditLogStrict({
           ticketId,
           traceId: msgTraceId,
           actor,
@@ -259,7 +259,7 @@ export function registerOutboundMessagesRoutes(fastify: FastifyInstance): void {
         }
       }
 
-      await writeAuditLog({
+      await writeAuditLogStrict({
         ticketId,
         traceId: msgTraceId,
         actor,
@@ -281,7 +281,7 @@ export function registerOutboundMessagesRoutes(fastify: FastifyInstance): void {
 
       if (message) {
         try {
-          await writeAuditLog({
+          await writeAuditLogStrict({
             ticketId: message.ticketId || undefined,
             traceId: message.traceId,
             actor,
@@ -368,7 +368,7 @@ export function registerOutboundMessagesRoutes(fastify: FastifyInstance): void {
         }
       }
 
-      await writeAuditLog({
+      await writeAuditLogStrict({
         traceId,
         actor,
         action: 'OUTBOUND_BATCH_RETRY',
@@ -395,7 +395,7 @@ export function registerOutboundMessagesRoutes(fastify: FastifyInstance): void {
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error)
       try {
-        await writeAuditLog({
+        await writeAuditLogStrict({
           traceId,
           actor,
           action: 'OUTBOUND_BATCH_RETRY',

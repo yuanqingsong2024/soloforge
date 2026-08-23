@@ -35,7 +35,10 @@ function writeStore(store: Record<string, string>): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
   }
-  fs.writeFileSync(filePath, JSON.stringify(store, null, 2), 'utf-8')
+  const tmpPath = `${filePath}.tmp`
+  fs.writeFileSync(tmpPath, JSON.stringify(store, null, 2), 'utf-8')
+  fs.chmodSync(tmpPath, 0o600)
+  fs.renameSync(tmpPath, filePath)
 }
 
 export class KeychainService {
@@ -54,6 +57,12 @@ export class KeychainService {
   static async setPassword(...args: [string, string, string] | [string, string]): Promise<void> {
     const [workspaceId, account, password] =
       args.length === 3 ? args : ['', args[0], args[1]]
+    if (!account || typeof account !== 'string' || !account.trim()) {
+      throw new Error('Keychain account must be a non-empty string')
+    }
+    if (!password || typeof password !== 'string' || !password.trim()) {
+      throw new Error('Keychain password must be a non-empty string')
+    }
     try {
       if (!safeStorage.isEncryptionAvailable()) {
         throw new Error('OS encryption not available')

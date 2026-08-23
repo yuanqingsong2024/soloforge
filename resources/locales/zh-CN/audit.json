@@ -37,7 +37,27 @@
     "title": "导出审计日志",
     "format": "格式",
     "dateRange": "时间范围",
-    "filters": "筛选条件"
+    "filters": "筛选条件",
+    "csv": "导出 CSV",
+    "json": "导出 JSON",
+    "report": "生成报表",
+    "exporting": "导出中...",
+    "generating": "生成中...",
+    "success": "导出成功",
+    "failed": "导出失败"
+  },
+  "report": {
+    "title": "审计报表",
+    "summary": "统计摘要",
+    "totalOperations": "总操作数",
+    "uniqueActors": "独立用户数",
+    "uniqueActions": "操作类型数",
+    "highRiskOperations": "高危操作数",
+    "topActors": "Top 用户",
+    "topActions": "Top 操作",
+    "dailyActivity": "每日活动",
+    "hashChainValid": "哈希链验证通过",
+    "hashChainInvalid": "哈希链验证失败"
   },
   "noLogs": "暂无审计日志",
   "ticketLabel": "工单",
