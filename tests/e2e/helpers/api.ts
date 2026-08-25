@@ -39,3 +39,36 @@ export async function apiJson<T>(page: Page, path: string, init?: RequestInit): 
     return body as T
   }, { path, init })
 }
+
+/**
+ * 创建 E2E 测试用 allowlisted CommsTarget
+ * 用于 retry-mechanism 等需要发送随机 channel 消息的测试
+ */
+export async function createE2ECommsTarget(page: Page, channel: string): Promise<void> {
+  await apiJson(page, '/api/comms-targets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      channel,
+      to: `e2e-test-${channel}`,
+      displayName: `E2E Test ${channel}`,
+      allowlisted: true,
+      notes: 'E2E 测试自动创建'
+    })
+  })
+}
+
+/**
+ * 清理 E2E 测试用 CommsTarget
+ */
+export async function deleteE2ECommsTarget(page: Page, channel: string): Promise<void> {
+  try {
+    const targets = await apiJson<Array<{ id: string; channel: string }>>(page, '/api/comms-targets')
+    const target = targets.find(t => t.channel === channel)
+    if (target) {
+      await apiJson(page, `/api/comms-targets/${target.id}`, { method: 'DELETE' })
+    }
+  } catch {
+    // 忽略删除失败（可能已不存在）
+  }
+}

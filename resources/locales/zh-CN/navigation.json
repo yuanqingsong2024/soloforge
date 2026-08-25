@@ -28,6 +28,8 @@
     "hostAgents": "宿主机 Agent",
     "agentActions": "Agent 动作",
     "doctor": "Doctor 巡检",
+    "plugins": "插件管理",
+    "autoSetup": "快速初始化",
     "activityFeed": "活动流",
     "operations": "任务 / 操作",
     "healthMonitoring": "健康监测",

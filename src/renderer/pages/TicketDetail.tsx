@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useErrorMessage, useConfirmMessage, translateEnum } from '../lib/i18n-helpers'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { LoadingState } from '../components/ui/LoadingState'
+import { LoadingState, Button } from '../components/ui'
 import { EmptyState } from '../components/ui/EmptyState'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { ThemeInput, ThemeSelect, ThemeTextarea } from '../components/ui/FormFields'
@@ -132,17 +133,6 @@ interface Job {
   updatedAt: string
 }
 
-interface ApiSuccessResponse<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailResponse {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccessResponse<T> | ApiFailResponse
 export function TicketDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -150,7 +140,6 @@ export function TicketDetail() {
   const getErrorMessage = useErrorMessage()
   const getConfirmMessage = useConfirmMessage()
   const [ticket, setTicket] = useState<Ticket | null>(null)
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [newArtifactType, setNewArtifactType] = useState('PRD')
   const [newArtifactContent, setNewArtifactContent] = useState('')
@@ -176,15 +165,16 @@ export function TicketDetail() {
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
 
   useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-      fetchTicket(port)
-      fetchAvailableTags(port)
-      fetchContacts(port)
-      fetchTemplates(port)
-      fetchPipelineState(port)
-      fetchJobs(port)
-    })
+    void (async () => {
+      await Promise.all([
+        fetchTicket(),
+        fetchAvailableTags(),
+        fetchContacts(),
+        fetchTemplates(),
+        fetchPipelineState(),
+        fetchJobs()
+      ])
+    })()
   }, [id])
 
   useEffect(() => {
@@ -196,10 +186,9 @@ export function TicketDetail() {
       setSelectedTargetId(ticket.primaryTargetId)
     }
   }, [ticket?.id, ticket?.contactId, ticket?.primaryTargetId])
-  const fetchTicket = async (port: number) => {
+  const fetchTicket = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/tickets`)
-      const tickets = await response.json()
+      const tickets = await apiFetch<Ticket[]>('/api/tickets')
       const found = tickets.find((t: Ticket) => t.id === id)
       setTicket(found || null)
     } catch (error) {
@@ -209,53 +198,46 @@ export function TicketDetail() {
     }
   }
 
-  const fetchContacts = async (port: number) => {
+  const fetchContacts = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/contacts`)
-      const data = await response.json()
+      const data = await apiFetch<Contact[]>('/api/contacts')
       setContacts(data)
     } catch (error) {
       console.error('Failed to fetch contacts:', error)
     }
   }
 
-  const fetchTemplates = async (port: number) => {
+  const fetchTemplates = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/message-templates?enabled=true`)
-      const data = await response.json()
+      const data = await apiFetch<MessageTemplate[]>('/api/message-templates?enabled=true')
       setTemplates(data)
     } catch (error) {
       console.error('Failed to fetch templates:', error)
     }
   }
-  const fetchAvailableTags = async (port: number) => {
+  const fetchAvailableTags = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/tags`)
-      const tags = await response.json()
+      const tags = await apiFetch<Tag[]>('/api/tags')
       setAvailableTags(tags)
     } catch (error) {
       console.error('Failed to fetch tags:', error)
     }
   }
-  const fetchPipelineState = async (port: number) => {
+  const fetchPipelineState = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/tickets/${id}/pipeline`)
-      if (response.ok) {
-        const result = await response.json() as ApiResponse<PipelineState>
-        if (result.success) {
-          setPipelineState(result.data)
-        }
+      const result = await apiFetch<ApiResponse<PipelineState>>(`/api/tickets/${id}/pipeline`)
+      if (result.success) {
+        setPipelineState(result.data ?? null)
       }
     } catch (error) {
       console.error('Failed to fetch pipeline state:', error)
     }
   }
-  const fetchJobs = async (port: number) => {
+  const fetchJobs = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/jobs?ticketId=${id}`)
-      const result = await response.json() as ApiResponse<Job[]>
-      if (!response.ok || !result.success) {
-        throw new Error(result.success ? '获取 Jobs 失败' : result.error)
+      const result = await apiFetch<ApiResponse<Job[]>>(`/api/jobs?ticketId=${id}`)
+      if (!result.success) {
+        throw new Error(result.error)
       }
       setJobs(Array.isArray(result.data) ? result.data : [])
     } catch (error) {
@@ -264,98 +246,85 @@ export function TicketDetail() {
     }
   }
   const handleAdvancePipeline = async () => {
-    if (!apiPort) return
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/tickets/${id}/pipeline/advance`, {
+      const result = await apiFetch<ApiResponse<{ needsApproval?: boolean; approvalIds?: string[] }>>(`/api/tickets/${id}/pipeline/advance`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestedBy: 'admin' })
       })
-      const result = await response.json()
-      const wrapped = result as ApiResponse<{ needsApproval?: boolean; approvalIds?: string[] }>
-      if (!response.ok || !wrapped.success) {
-        throw new Error(wrapped.success ? t('tickets:detail.pipeline.advanceFailed') : wrapped.error)
+      if (!result.success) {
+        throw new Error(t('tickets:detail.pipeline.advanceFailed'))
       }
-      if (wrapped.data.needsApproval) {
-        alert(t('tickets:detail.pipeline.needsApproval', { ids: (wrapped.data.approvalIds || []).join(', ') }))
+      if (result.data?.needsApproval) {
+        alert(t('tickets:detail.pipeline.needsApproval', { ids: (result.data?.approvalIds || []).join(', ') }))
       } else {
         alert(t('tickets:detail.pipeline.advanceSuccess'))
       }
-      fetchPipelineState(apiPort)
-      fetchTicket(apiPort)
+      await Promise.all([fetchPipelineState(), fetchTicket()])
     } catch (error) {
       console.error('Failed to advance pipeline:', error)
       alert(getErrorMessage(error))
     }
   }
   const handleRollbackPipeline = async () => {
-    if (!apiPort || !confirm(getConfirmMessage('rollback'))) return
+    if (!confirm(getConfirmMessage('rollback'))) return
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/tickets/${id}/pipeline/rollback`, {
+      const result = await apiFetch<ApiResponse<{ needsApproval?: boolean; approvalIds?: string[] }>>(`/api/tickets/${id}/pipeline/rollback`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestedBy: 'admin' })
       })
-      const result = await response.json() as ApiResponse<{ needsApproval?: boolean; approvalIds?: string[] }>
-      if (!response.ok || !result.success) {
-        throw new Error(result.success ? t('tickets:detail.pipeline.rollbackFailed') : result.error)
+      if (!result.success) {
+        throw new Error(t('tickets:detail.pipeline.rollbackFailed'))
       }
       alert(t('tickets:detail.pipeline.rollbackSuccess'))
-      fetchPipelineState(apiPort)
-      fetchTicket(apiPort)
+      await Promise.all([fetchPipelineState(), fetchTicket()])
     } catch (error) {
       console.error('Failed to rollback pipeline:', error)
       alert(getErrorMessage(error))
     }
   }
   const handleRetryJob = async (jobId: string) => {
-    if (!apiPort) return
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/jobs/${jobId}/retry`, {
+      const result = await apiFetch<ApiResponse<Job>>(`/api/jobs/${jobId}/retry`, {
         method: 'POST'
       })
-      const result = await response.json() as ApiResponse<Job>
-      if (!response.ok || !result.success) {
-        throw new Error(result.success ? t('tickets:detail.jobs.retryFailed') : result.error)
+      if (!result.success) {
+        throw new Error(t('tickets:detail.jobs.retryFailed'))
       }
       alert(t('tickets:detail.jobs.retrySuccess'))
-      fetchJobs(apiPort)
+      await fetchJobs()
     } catch (error) {
       console.error('Failed to retry job:', error)
       alert(getErrorMessage(error))
     }
   }
   const handleAddTag = async () => {
-    if (!apiPort || !selectedTagId) return
+    if (!selectedTagId) return
     try {
-      await fetch(`http://127.0.0.1:${apiPort}/api/tickets/${id}/tags`, {
+      await apiFetch(`/api/tickets/${id}/tags`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tagId: selectedTagId })
       })
       setSelectedTagId('')
-      fetchTicket(apiPort)
+      await fetchTicket()
     } catch (error) {
       console.error('Failed to add tag:', error)
     }
   }
   const handleRemoveTag = async (tagId: string) => {
-    if (!apiPort) return
     try {
-      await fetch(`http://127.0.0.1:${apiPort}/api/tickets/${id}/tags/${tagId}`, {
+      await apiFetch(`/api/tickets/${id}/tags/${tagId}`, {
         method: 'DELETE'
       })
-      fetchTicket(apiPort)
+      await fetchTicket()
     } catch (error) {
       console.error('Failed to remove tag:', error)
     }
   }
   const handleAddArtifact = async () => {
-    if (!apiPort || !newArtifactContent.trim()) return
+    if (!newArtifactContent.trim()) return
     try {
-      await fetch(`http://127.0.0.1:${apiPort}/api/artifacts`, {
+      await apiFetch('/api/artifacts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ticketId: id,
           type: newArtifactType,
@@ -364,7 +333,7 @@ export function TicketDetail() {
         })
       })
       setNewArtifactContent('')
-      fetchTicket(apiPort)
+      await fetchTicket()
     } catch (error) {
       console.error('Failed to add artifact:', error)
     }
@@ -400,13 +369,12 @@ export function TicketDetail() {
   const selectedContactTarget = selectedContact?.contactTargets.find(item => item.commsTargetId === selectedTargetId)
 
   const handleBindContactToTicket = async (contactId: string) => {
-    if (!apiPort || !ticket) return
+    if (!ticket) return
     const selected = contacts.find(contact => contact.id === contactId)
     const primary = selected?.contactTargets.find(target => target.isPrimary)
 
-    await fetch(`http://127.0.0.1:${apiPort}/api/tickets/${ticket.id}/contact`, {
+    await apiFetch(`/api/tickets/${ticket.id}/contact`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contactId,
         primaryTargetId: primary?.commsTargetId || null
@@ -422,16 +390,15 @@ export function TicketDetail() {
         to: primary.commsTarget.to
       }))
     }
-    await fetchTicket(apiPort)
+    await fetchTicket()
   }
 
   const handleRenderTemplateDraft = async () => {
-    if (!apiPort || !ticket || !selectedTemplateId) return
+    if (!ticket || !selectedTemplateId) return
 
     const target = selectedContactTarget?.commsTarget
-    const response = await fetch(`http://127.0.0.1:${apiPort}/api/template-runs/render-draft`, {
+    const result = await apiFetch<{ outboundDraft: { id: string; channel: string; to: string; subject?: string; body: string }; rendered: { subject?: string; body: string } }>('/api/template-runs/render-draft', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         templateId: selectedTemplateId,
         ticketId: ticket.id,
@@ -440,7 +407,6 @@ export function TicketDetail() {
         to: target?.to || outboundDraft.to
       })
     })
-    const result = await response.json()
 
     setRenderedDraftId(result.outboundDraft.id)
     setComposePreview({
@@ -456,7 +422,7 @@ export function TicketDetail() {
   }
 
   const handleSendOutboundDraft = async () => {
-    if (!apiPort || !ticket || !outboundDraft.to.trim() || !outboundDraft.body.trim()) return
+    if (!ticket || !outboundDraft.to.trim() || !outboundDraft.body.trim()) return
 
     if (!ticket.contactId) {
       const confirmed = window.confirm('当前工单未绑定联系人，发送前请确认目标无误。是否继续？')
@@ -466,9 +432,8 @@ export function TicketDetail() {
     setSendingOutbound(true)
     try {
       const draftId = renderedDraftId || (await (async () => {
-        const createDraftRes = await fetch(`http://127.0.0.1:${apiPort}/api/outbound-messages`, {
+        const created = await apiFetch<{ id: string }>('/api/outbound-messages', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ticketId: ticket.id,
             channel: outboundDraft.channel,
@@ -478,14 +443,13 @@ export function TicketDetail() {
             status: 'DRAFT'
           })
         })
-        const created = await createDraftRes.json()
         return created.id as string
       })())
 
-      const sendRes = await fetch(`http://127.0.0.1:${apiPort}/api/outbound-messages/${draftId}/send`, {
-        method: 'POST'
+      const sendResult = await apiFetch<{ status?: string; message?: string; approvalId?: string }>(`/api/outbound-messages/${draftId}/send`, {
+        method: 'POST',
+        body: JSON.stringify({})
       })
-      const sendResult = await sendRes.json()
 
       if (sendResult.status === 'blocked_allowlist') {
         alert(sendResult.message)
@@ -499,7 +463,7 @@ export function TicketDetail() {
 
       setOutboundDraft(prev => ({ ...prev, to: '' }))
       setRenderedDraftId('')
-      await fetchTicket(apiPort)
+      await fetchTicket()
     } catch (error) {
       console.error('Failed to send outbound draft:', error)
     } finally {
@@ -544,19 +508,19 @@ export function TicketDetail() {
       {/* 工单基本信息 */}
       <SectionCard className="mb-6" testId="ticket-basic-info-panel">
         <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
-          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-4">
+          <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-4">
             <span className="text-[hsl(var(--muted-foreground))]">状态：</span>
             <StatusBadge label={ticket.status} tone={getToneByStatus(ticket.status, { DONE: 'success', DELIVERY: 'success', TEST: 'info', SPEC: 'info', DEV: 'warning' })} className="ml-2 px-2.5 py-1" />
           </div>
-          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-4">
+          <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-4">
             <span className="text-[hsl(var(--muted-foreground))]">优先级：</span>
             <StatusBadge label={ticket.priority} tone={getToneByStatus(ticket.priority, { HIGH: 'danger', MEDIUM: 'warning', LOW: 'muted' })} className="ml-2 px-2.5 py-1" />
           </div>
-          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+          <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-sm">
             <span className="text-[hsl(var(--muted-foreground))]">来源：</span>
             <span className="ml-2 font-medium text-[hsl(var(--foreground))]">{ticket.source}</span>
           </div>
-          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+          <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--card))] p-4 shadow-sm">
             <span className="text-[hsl(var(--muted-foreground))]">负责人：</span>
             <span className="ml-2 font-medium text-[hsl(var(--foreground))]">{ticket.assignee?.name || '未分配'}</span>
           </div>
@@ -569,7 +533,7 @@ export function TicketDetail() {
               ticket.tags.map(tt => (
                 <span
                   key={tt.id}
-                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium shadow-workshop-sm"
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium shadow-sm"
                   style={{ backgroundColor: `${tt.tag.color}20`, color: tt.tag.color }}
                 >
                   {tt.tag.name}
@@ -625,7 +589,7 @@ export function TicketDetail() {
         <SectionCard title="交付物" testId="ticket-artifacts-panel">
           <div className="space-y-3 mb-6">
             {ticket.artifacts?.map(artifact => (
-              <div key={artifact.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+              <div key={artifact.id} className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full border border-[hsl(var(--google-blue)_/_0.14)] bg-[hsl(var(--google-blue)_/_0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--google-blue))]">{artifact.type}</span>
@@ -642,7 +606,7 @@ export function TicketDetail() {
                   </button>
                 )}
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-3">
-                  {new Date(artifact.createdAt).toLocaleString('zh-CN')}
+                  {formatDateTime(artifact.createdAt)}
                 </p>
               </div>
             ))}
@@ -765,7 +729,7 @@ export function TicketDetail() {
               </button>
 
                {composePreview && (
-                  <div data-testid="ticket-template-preview" className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.56)] p-3 shadow-workshop-sm">
+                  <div data-testid="ticket-template-preview" className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.56)] p-3 shadow-sm">
                    <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2">模板预览</p>
                    <p className="text-sm font-medium mb-2">主题：{composePreview.subject || '（无）'}</p>
                    <p className="text-sm whitespace-pre-wrap">{composePreview.body}</p>
@@ -805,14 +769,15 @@ export function TicketDetail() {
               />
               <ThemeTextarea data-testid="ticket-outbound-body-input" value={outboundDraft.body} onChange={e => setOutboundDraft(prev => ({ ...prev, body: e.target.value }))} placeholder="外发正文（支持 Markdown）" rows={6} fieldSize="lg" fieldShape="soft" />
             </div>
-            <button
+            <Button
               data-testid="ticket-send-outbound"
+              className="w-full"
               onClick={handleSendOutboundDraft}
-              disabled={sendingOutbound || !outboundDraft.to.trim() || !outboundDraft.body.trim()}
-              className="w-full rounded-full px-4 py-2.5 bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] hover:opacity-90 disabled:opacity-50"
+              loading={sendingOutbound}
+              disabled={!outboundDraft.to.trim() || !outboundDraft.body.trim()}
             >
-              {sendingOutbound ? '提交中...' : '发送（创建审批）'}
-            </button>
+              发送（创建审批）
+            </Button>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">仅 allowlist 目标允许发送；发送会创建 SEND_EXTERNAL 审批。</p>
           </div>
         </SectionCard>
@@ -823,7 +788,7 @@ export function TicketDetail() {
           emptyMessage: '暂无审批记录',
           testId: 'ticket-approvals-panel',
           renderItem: (approval) => (
-            <div key={approval.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+            <div key={approval.id} className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
               <div className="flex justify-between items-start mb-2">
                 <span className="font-semibold text-sm text-[hsl(var(--foreground))]">{approval.actionType}</span>
                 <StatusBadge label={approval.status} tone={getToneByStatus(approval.status, { APPROVED: 'success', REJECTED: 'danger', PENDING: 'warning' })} className="px-2.5 py-1" />
@@ -837,7 +802,7 @@ export function TicketDetail() {
                 </p>
               )}
               <p className="text-xs text-[hsl(var(--muted-foreground))] mt-3">
-                {new Date(approval.createdAt).toLocaleString('zh-CN')}
+                {formatDateTime(approval.createdAt)}
               </p>
             </div>
           )
@@ -846,7 +811,7 @@ export function TicketDetail() {
         {pipelineState && (
           <SectionCard title="Pipeline 流程" testId="ticket-pipeline-panel">
             <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.52)] p-4">
+              <div className="flex items-center justify-between rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.52)] p-4">
                 <div>
                   <p className="text-sm font-medium text-[hsl(var(--foreground))]">
                     当前步骤：{pipelineState.currentStepOrder}/{pipelineState.pipeline.steps.length} - {pipelineState.pipeline.steps.find(s => s.order === pipelineState.currentStepOrder)?.roleName}
@@ -882,12 +847,12 @@ export function TicketDetail() {
           items: jobs,
           emptyMessage: '暂无作业记录',
           renderItem: (job) => (
-            <div key={job.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+            <div key={job.id} className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <span className="rounded-full border border-[hsl(var(--google-blue)_/_0.14)] bg-[hsl(var(--google-blue)_/_0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--google-blue))]">{job.type}</span>
                   <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                    {new Date(job.createdAt).toLocaleString('zh-CN')}
+                    {formatDateTime(job.createdAt)}
                   </p>
                 </div>
                 <StatusBadge label={translateEnum(t, 'operationStatusMap', job.status)} tone={getToneByStatus(job.status, { RUNNING: 'info', SUCCEEDED: 'success', FAILED: 'danger' })} className="px-2.5 py-1" />
@@ -901,7 +866,7 @@ export function TicketDetail() {
                     {expandedJobId === job.id ? '隐藏日志' : '查看日志'}
                   </button>
                   {expandedJobId === job.id && (
-                    <pre className="mt-2 overflow-x-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-3 text-xs">
+                    <pre className="mt-2 overflow-x-auto rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-3 text-xs">
                       {job.logs}
                     </pre>
                   )}

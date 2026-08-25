@@ -1,26 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { LoadingState } from '../components/ui/LoadingState'
-import { EmptyState } from '../components/ui/EmptyState'
+import { LoadingState, ErrorState, Button } from '../components/ui'
 import { EventGroupCard } from '../components/investigation/EventGroupCard'
 import { EventRecord } from '../components/investigation/types'
 import { translateEnum } from '../lib/i18n-helpers'
-
-interface ApiSuccess<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailure {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
+import { useApiQuery } from '../hooks/useApiQuery'
 
 function formatJson(value: unknown): string {
   try {
@@ -66,30 +54,14 @@ export function TraceDetailPage() {
   const { t } = useTranslation('common')
   const { traceId = '' } = useParams<{ traceId: string }>()
   const navigate = useNavigate()
-  const [events, setEvents] = useState<EventRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const port = await getApiPort()
-        const response = await fetch(`http://127.0.0.1:${port}/api/event-records/trace/${encodeURIComponent(traceId)}`)
-        const json = await response.json() as ApiResponse<EventRecord[]>
-        if (!response.ok || !json.success) {
-          throw new Error(json.success ? '获取 Trace 详情失败' : json.error)
-        }
-        setEvents(json.data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '获取 Trace 详情失败')
-      } finally {
-        setLoading(false)
-      }
-    }
+  const { data, loading, error, refetch } = useApiQuery<ApiResponse<EventRecord[]>>(
+    traceId ? `/api/event-records/trace/${encodeURIComponent(traceId)}` : '/api/invalid',
+    { enabled: !!traceId }
+  )
 
-    void load()
-  }, [traceId])
+  const events = data?.success ? (data.data ?? []) : []
 
   const handleJump = (event: EventRecord) => {
     switch (event.sourceType) {
@@ -118,7 +90,7 @@ export function TraceDetailPage() {
   }
 
   if (error) {
-    return <EmptyState message={error} tone="danger" />
+    return <ErrorState message={error} onRetry={refetch} />
   }
 
   const operationCount = new Set(events.filter(event => event.sourceType === 'SYSTEM').map(event => event.sourceId)).size
@@ -208,11 +180,11 @@ export function TraceDetailPage() {
         description={traceId}
         actions={
           <div className="flex items-center gap-2">
-            <Link to="/investigation-timeline" className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
-              返回调查时间线
+            <Link to="/investigation-timeline">
+              <Button variant="secondary" size="sm">返回调查时间线</Button>
             </Link>
-            <Link to="/activity-feed" className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
-              返回事件流
+            <Link to="/activity-feed">
+              <Button size="sm">返回事件流</Button>
             </Link>
           </div>
         }

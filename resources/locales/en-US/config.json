@@ -8,6 +8,9 @@
     "diff": "Diff Comparison",
     "snapshots": "History Snapshots"
   },
+  "rawJson": {
+    "title": "Raw JSON"
+  },
   "quickMode": {
     "title": "Quick Config First",
     "basicDesc": "Basic mode is active. Prefer form-based configuration and hide Raw JSON entry.",

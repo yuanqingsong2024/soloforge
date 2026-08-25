@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { ThemeCheckbox, ThemeInput, ThemeTextarea } from '../components/ui/FormFields'
 import { readWorkspaceId } from '../lib/storage'
-
-interface ApiSuccess<T> { success: true; data: T }
-interface ApiFailure { success: false; error: string }
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 
 interface MaintenanceWindow {
   id: string
@@ -21,7 +17,6 @@ interface MaintenanceWindow {
 const DEFAULT_WORKSPACE_ID = readWorkspaceId()
 
 export function MaintenanceWindowsPage() {
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [windows, setWindows] = useState<MaintenanceWindow[]>([])
   const [form, setForm] = useState({
     name: '',
@@ -32,31 +27,24 @@ export function MaintenanceWindowsPage() {
   })
 
   useEffect(() => {
-    getApiPort().then(async port => {
-      setApiPort(port)
-      await refresh(port)
-    })
+    void refresh()
   }, [])
 
-  const refresh = async (port: number) => {
-    const response = await fetch(`http://127.0.0.1:${port}/api/maintenance-windows?workspaceId=${DEFAULT_WORKSPACE_ID}`)
-    const json = await response.json() as ApiResponse<MaintenanceWindow[]>
-    if (json.success) setWindows(json.data)
+  const refresh = async () => {
+    const json = await apiFetch<ApiResponse<MaintenanceWindow[]>>(`/api/maintenance-windows?workspaceId=${DEFAULT_WORKSPACE_ID}`)
+    if (json.success && json.data) setWindows(json.data)
   }
 
   const saveWindow = async () => {
-    if (!apiPort) return
-    const response = await fetch(`http://127.0.0.1:${apiPort}/api/maintenance-windows`, {
+    const json = await apiFetch<ApiResponse<MaintenanceWindow>>('/api/maintenance-windows', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workspaceId: DEFAULT_WORKSPACE_ID, ...form })
     })
-    const json = await response.json() as ApiResponse<MaintenanceWindow>
     if (!json.success) {
       alert(json.error)
       return
     }
-    await refresh(apiPort)
+    await refresh()
   }
 
   return (
@@ -70,13 +58,13 @@ export function MaintenanceWindowsPage() {
           <label className="flex items-center gap-2 text-sm"><ThemeCheckbox checked={form.enabled} onChange={e => setForm(prev => ({ ...prev, enabled: e.target.checked }))} /> 启用</label>
           <ThemeTextarea value={form.notes} onChange={e => setForm(prev => ({ ...prev, notes: e.target.value }))} rows={4} className="md:col-span-2" />
         </div>
-        <div className="mt-4"><button onClick={saveWindow} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">保存维护窗口</button></div>
+        <div className="mt-4"><button onClick={saveWindow} className="px-4 py-2 rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">保存维护窗口</button></div>
       </SectionCard>
 
       <SectionCard title={`维护窗口 (${windows.length})`}>
         <div className="space-y-3">
           {windows.map(item => (
-            <div key={item.id} className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
+            <div key={item.id} className="border border-[hsl(var(--border))] rounded-md p-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <div className="font-semibold">{item.name}</div>

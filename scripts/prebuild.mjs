@@ -1,8 +1,8 @@
 import { existsSync, readdirSync, rmSync } from 'node:fs'
-import { resolve, join } from 'node:path'
+import { dirname, resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const root = resolve(fileURLToPath(import.meta.url), '..')
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const release = join(root, 'release')
 
 if (existsSync(release)) {

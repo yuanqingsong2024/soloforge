@@ -1,5 +1,6 @@
+import { formatDateTime } from '../../lib/i18n-formatters'
 import { useEffect, useState } from 'react'
-import { getApiPort } from '../../lib/api'
+import { apiFetch } from '../../lib/api'
 import { getHealthErrorPanelClass, getHealthMetricBadgeClass, getHealthSeverityBadgeClass, getHealthStatusBadgeClass } from '../../lib/health-badge'
 
 interface Alert {
@@ -48,19 +49,13 @@ export function AlertsTab({ workspaceId }: AlertsTabProps) {
     try {
       setLoading(true)
       setError(null)
-      const port = await getApiPort()
 
-      const res = await fetch(`http://127.0.0.1:${port}/api/alerts?workspaceId=${encodeURIComponent(workspaceId)}`)
-      if (!res.ok) {
-        throw new Error('加载告警失败')
+      const result = await apiFetch<ApiResponse<Alert[]>>(`/api/alerts?workspaceId=${encodeURIComponent(workspaceId)}`)
+      if (!result.success) {
+        throw new Error(result.error)
       }
 
-      const data = await res.json() as ApiResponse<Alert[]>
-      if (!data.success) {
-        throw new Error(data.error)
-      }
-
-      setAlerts(data.data)
+      setAlerts(result.data)
     } catch (err) {
       setError(err instanceof Error ? err.message : '未知错误')
     } finally {
@@ -71,25 +66,18 @@ export function AlertsTab({ workspaceId }: AlertsTabProps) {
   async function updateAlertStatus(alertId: string, status: 'ACKED' | 'RESOLVED') {
     try {
       setError(null)
-      const port = await getApiPort()
 
-      const res = await fetch(`http://127.0.0.1:${port}/api/alerts/${alertId}/status`, {
+      const result = await apiFetch<ApiResponse<Alert>>(`/api/alerts/${alertId}/status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
       })
 
-      if (!res.ok) {
+      if (!result.success) {
         throw new Error(status === 'ACKED' ? '确认告警失败' : '解决告警失败')
       }
 
-      const updated = await res.json() as ApiResponse<Alert>
-      if (!updated.success) {
-        throw new Error(updated.error)
-      }
-
       if (selectedAlert?.id === alertId) {
-        setSelectedAlert(updated.data)
+        setSelectedAlert(result.data)
       }
 
       await loadAlerts()
@@ -130,19 +118,19 @@ export function AlertsTab({ workspaceId }: AlertsTabProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className={`px-3 py-1 rounded-workshop-sm border ${getHealthMetricBadgeClass('danger')}`}>
+          <div className={`px-3 py-1 rounded-sm border ${getHealthMetricBadgeClass('danger')}`}>
             <span className="text-sm font-medium">活跃: {activeCount}</span>
           </div>
-          <div className={`px-3 py-1 rounded-workshop-sm border ${getHealthMetricBadgeClass('warning')}`}>
+          <div className={`px-3 py-1 rounded-sm border ${getHealthMetricBadgeClass('warning')}`}>
             <span className="text-sm font-medium">已确认: {acknowledgedCount}</span>
           </div>
-          <div className={`px-3 py-1 rounded-workshop-sm border ${getHealthMetricBadgeClass('success')}`}>
+          <div className={`px-3 py-1 rounded-sm border ${getHealthMetricBadgeClass('success')}`}>
             <span className="text-sm font-medium">已解决: {resolvedCount}</span>
           </div>
         </div>
         <button
           onClick={() => void loadAlerts()}
-          className="px-4 py-2 bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] rounded-workshop-md hover:bg-[hsl(var(--secondary))]/80 transition-colors"
+          className="px-4 py-2 bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] rounded-md hover:bg-[hsl(var(--secondary))]/80 transition-colors"
         >
           刷新
         </button>
@@ -154,7 +142,7 @@ export function AlertsTab({ workspaceId }: AlertsTabProps) {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-1 rounded-workshop-sm border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm"
+            className="px-3 py-1 rounded-sm border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm"
           >
             <option value="all">全部</option>
             <option value="OPEN">活跃</option>
@@ -167,7 +155,7 @@ export function AlertsTab({ workspaceId }: AlertsTabProps) {
           <select
             value={filterSeverity}
             onChange={(e) => setFilterSeverity(e.target.value)}
-            className="px-3 py-1 rounded-workshop-sm border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm"
+            className="px-3 py-1 rounded-sm border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm"
           >
             <option value="all">全部</option>
             <option value="CRITICAL">严重</option>
@@ -193,7 +181,7 @@ export function AlertsTab({ workspaceId }: AlertsTabProps) {
                 <div
                   key={alert.id}
                   onClick={() => setSelectedAlert(alert)}
-                  className={`p-4 rounded-workshop-md border cursor-pointer transition-colors ${
+                  className={`p-4 rounded-md border cursor-pointer transition-colors ${
                     selectedAlert?.id === alert.id
                       ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/5'
                       : `${getHealthSeverityBadgeClass(alert.severity, true)} hover:border-[hsl(var(--primary))]/50`
@@ -218,7 +206,7 @@ export function AlertsTab({ workspaceId }: AlertsTabProps) {
                       <div className="mt-2 flex items-center gap-4 text-xs text-[hsl(var(--muted-foreground))] flex-wrap">
                         <span>来源检查: {alert.sourceCheckId || '未关联'}</span>
                         {alert.targetId && <span>目标: {alert.targetId}</span>}
-                        <span>{new Date(alert.createdAt).toLocaleString('zh-CN')}</span>
+                        <span>{formatDateTime(alert.createdAt)}</span>
                       </div>
                     </div>
                   </div>
@@ -232,7 +220,7 @@ export function AlertsTab({ workspaceId }: AlertsTabProps) {
           {selectedAlert ? (
             <>
               <h4 className="text-sm font-medium text-[hsl(var(--foreground))]">告警详情</h4>
-              <div className="rounded-workshop-md border border-[hsl(var(--border))] p-4 space-y-4">
+              <div className="rounded-md border border-[hsl(var(--border))] p-4 space-y-4">
                 <div>
                   <label className="text-xs text-[hsl(var(--muted-foreground))]">标题</label>
                   <p className="text-sm font-medium text-[hsl(var(--foreground))]">
@@ -278,13 +266,13 @@ export function AlertsTab({ workspaceId }: AlertsTabProps) {
                 <div>
                   <label className="text-xs text-[hsl(var(--muted-foreground))]">创建时间</label>
                   <p className="text-sm text-[hsl(var(--foreground))]">
-                    {new Date(selectedAlert.createdAt).toLocaleString('zh-CN')}
+                    {formatDateTime(selectedAlert.createdAt)}
                   </p>
                 </div>
                 <div>
                   <label className="text-xs text-[hsl(var(--muted-foreground))]">更新时间</label>
                   <p className="text-sm text-[hsl(var(--foreground))]">
-                    {new Date(selectedAlert.updatedAt).toLocaleString('zh-CN')}
+                    {formatDateTime(selectedAlert.updatedAt)}
                   </p>
                 </div>
 
@@ -292,7 +280,7 @@ export function AlertsTab({ workspaceId }: AlertsTabProps) {
                   {selectedAlert.status === 'OPEN' && (
                     <button
                       onClick={() => void updateAlertStatus(selectedAlert.id, 'ACKED')}
-                      className="flex-1 px-4 py-2 bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] rounded-workshop-md hover:bg-[hsl(var(--secondary))]/80 transition-colors"
+                      className="flex-1 px-4 py-2 bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] rounded-md hover:bg-[hsl(var(--secondary))]/80 transition-colors"
                     >
                       确认
                     </button>
@@ -300,7 +288,7 @@ export function AlertsTab({ workspaceId }: AlertsTabProps) {
                   {(selectedAlert.status === 'OPEN' || selectedAlert.status === 'ACKED') && (
                     <button
                       onClick={() => void updateAlertStatus(selectedAlert.id, 'RESOLVED')}
-                      className="flex-1 px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:bg-[hsl(var(--primary))]/90 transition-colors"
+                      className="flex-1 px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-md hover:bg-[hsl(var(--primary))]/90 transition-colors"
                     >
                       解决
                     </button>

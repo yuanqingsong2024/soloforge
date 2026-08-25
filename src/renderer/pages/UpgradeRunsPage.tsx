@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react'
-import { getApiPort } from '../lib/api'
+import { formatDateTime } from '../lib/i18n-formatters'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { readWorkspaceId } from '../lib/storage'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { ThemeInput } from '../components/ui/FormFields'
-
-interface ApiSuccess<T> { success: true; data: T }
-interface ApiFailure { success: false; error: string }
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 
 interface UpgradeRun {
   id: string
@@ -24,22 +21,19 @@ interface UpgradeRun {
 const DEFAULT_WORKSPACE_ID = readWorkspaceId()
 
 export function UpgradeRunsPage() {
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [runs, setRuns] = useState<UpgradeRun[]>([])
   const [status, setStatus] = useState('')
 
   useEffect(() => {
-    getApiPort().then(async port => {
-      setApiPort(port)
-      await fetchRuns(port, '')
-    })
+    void (async () => {
+      await fetchRuns('')
+    })()
   }, [])
 
-  const fetchRuns = async (port: number, nextStatus: string) => {
+  const fetchRuns = async (nextStatus: string) => {
     const suffix = nextStatus ? `&status=${nextStatus}` : ''
-    const response = await fetch(`http://127.0.0.1:${port}/api/upgrade-runs?workspaceId=${DEFAULT_WORKSPACE_ID}${suffix}`)
-    const json = await response.json() as ApiResponse<UpgradeRun[]>
-    if (json.success) setRuns(json.data)
+    const json = await apiFetch<ApiResponse<UpgradeRun[]>>(`/api/upgrade-runs?workspaceId=${DEFAULT_WORKSPACE_ID}${suffix}`)
+    if (json.success) setRuns(json.data ?? [])
   }
 
   return (
@@ -48,25 +42,25 @@ export function UpgradeRunsPage() {
       <SectionCard title="过滤器" description="按状态筛选升级运行历史。">
         <div className="flex gap-3">
           <ThemeInput value={status} onChange={e => setStatus(e.target.value)} placeholder="状态，如 SUCCEEDED / FAILED" />
-          <button onClick={() => apiPort && fetchRuns(apiPort, status)} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">应用</button>
+          <button onClick={() => void fetchRuns(status)} className="px-4 py-2 rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">应用</button>
         </div>
       </SectionCard>
 
       <SectionCard title={`运行记录 (${runs.length})`}>
         <div className="space-y-3">
           {runs.map(run => (
-            <div key={run.id} className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
+            <div key={run.id} className="border border-[hsl(var(--border))] rounded-md p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="font-semibold">{run.target.name}</div>
                   <div className="text-sm text-[hsl(var(--muted-foreground))]">{run.plan.component} → {run.plan.targetVersion}</div>
-                  <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{new Date(run.startedAt).toLocaleString('zh-CN')}</div>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{formatDateTime(run.startedAt)}</div>
                 </div>
                 <span className="px-2 py-0.5 rounded-full text-xs bg-[hsl(var(--muted))]">{run.status}</span>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-                <pre className="p-3 rounded-workshop-md bg-[hsl(var(--muted))] text-xs font-mono overflow-auto max-h-56">{prettyJson(run.resultJson)}</pre>
-                <pre className="p-3 rounded-workshop-md bg-[hsl(var(--muted))] text-xs font-mono overflow-auto max-h-56">{prettyJson(run.rollbackResultJson || '{}')}</pre>
+                <pre className="p-3 rounded-md bg-[hsl(var(--muted))] text-xs font-mono overflow-auto max-h-56">{prettyJson(run.resultJson)}</pre>
+                <pre className="p-3 rounded-md bg-[hsl(var(--muted))] text-xs font-mono overflow-auto max-h-56">{prettyJson(run.rollbackResultJson || '{}')}</pre>
               </div>
             </div>
           ))}

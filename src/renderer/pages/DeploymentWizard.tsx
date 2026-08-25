@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { useTranslation } from 'react-i18next'
 import { useEnumTranslation } from '../lib/i18n-helpers'
@@ -24,7 +24,6 @@ export function DeploymentWizard() {
   const translateType = useEnumTranslation('deploymentTypeMap')
   
   const navigate = useNavigate()
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [currentStep, setCurrentStep] = useState<WizardStep>(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,12 +47,6 @@ export function DeploymentWizard() {
 
   // Step 4: Deploy
   const [deployResult, setDeployResult] = useState<string | null>(null)
-
-  useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-    })
-  }, [])
 
   const deploymentTypes = [
     {
@@ -100,7 +93,6 @@ export function DeploymentWizard() {
   }
 
   const handleCreateTarget = async () => {
-    if (!apiPort) return
     if (!name.trim()) {
       setError(t('deployment:wizard.errors.nameRequired'))
       return
@@ -111,9 +103,8 @@ export function DeploymentWizard() {
 
     try {
       // Create target
-      const createResponse = await fetch(`http://127.0.0.1:${apiPort}/api/deployment-targets`, {
+      const target = await apiFetch<{ id: string }>('/api/deployment-targets', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
           targetType: selectedType,
@@ -132,27 +123,14 @@ export function DeploymentWizard() {
         })
       })
 
-      if (!createResponse.ok) {
-        const errorData = await createResponse.json()
-        throw new Error(errorData.message || t('deployment:wizard.errors.createFailed'))
-      }
-
-      const target = await createResponse.json()
       setTargetId(target.id)
 
       // Run precheck
-      const precheckResponse = await fetch(`http://127.0.0.1:${apiPort}/api/deployment-targets/${target.id}/precheck`, {
+      const precheckData = await apiFetch<PrecheckResult>(`/api/deployment-targets/${target.id}/precheck`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       })
 
-      if (!precheckResponse.ok) {
-        const errorData = await precheckResponse.json()
-        throw new Error(errorData.message || t('deployment:wizard.errors.precheckFailed'))
-      }
-
-      const precheckData = await precheckResponse.json()
       setPrecheckResult(precheckData)
       setCurrentStep(3)
     } catch (err) {
@@ -164,7 +142,7 @@ export function DeploymentWizard() {
   }
 
   const handleDeploy = async () => {
-    if (!apiPort || !targetId) return
+    if (!targetId) return
     if (!precheckResult?.passed) {
       setError(t('deployment:wizard.errors.precheckNotPassed'))
       return
@@ -174,22 +152,15 @@ export function DeploymentWizard() {
     setError(null)
 
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/deployment-targets/${targetId}/install`, {
+      const result = await apiFetch<{ status?: string; approvalId?: string; message?: string }>(`/api/deployment-targets/${targetId}/install`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       })
-
-      const result = await response.json()
 
       if (result.status === 'pending_approval') {
         setDeployResult(t('deployment:wizard.deployPendingApproval', { approvalId: result.approvalId }))
         setCurrentStep(4)
         return
-      }
-
-      if (!response.ok) {
-        throw new Error(result.message || t('deployment:wizard.errors.deployFailed'))
       }
 
       setDeployResult(t('deployment:wizard.deploySuccess'))
@@ -233,7 +204,7 @@ export function DeploymentWizard() {
       />
 
       {/* Progress Steps */}
-      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+      <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
         <div className="flex items-center justify-between">
           {[
             { step: 1, label: t('deployment:wizard.steps.selectType') },
@@ -244,7 +215,7 @@ export function DeploymentWizard() {
             <div key={item.step} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
                 <div
-                  className={`flex h-10 w-10 items-center justify-center rounded-full font-medium shadow-workshop-sm ${
+                  className={`flex h-10 w-10 items-center justify-center rounded-full font-medium shadow-sm ${
                     currentStep >= item.step
                       ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
                       : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
@@ -269,7 +240,7 @@ export function DeploymentWizard() {
       </div>
 
       {/* Step Content */}
-      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+      <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
         {/* Step 1: Type Selection */}
         {currentStep === 1 && (
           <div className="space-y-6">
@@ -279,7 +250,7 @@ export function DeploymentWizard() {
                 <button
                   key={type.id}
                   onClick={() => setSelectedType(type.id)}
-                  className={`rounded-workshop-lg border-2 p-6 text-left transition-all shadow-workshop-sm ${
+                  className={`rounded-lg border-2 p-6 text-left transition-all shadow-sm ${
                     selectedType === type.id
                       ? 'border-[hsl(var(--google-blue)_/_0.26)] bg-[hsl(var(--google-blue)_/_0.08)]'
                       : 'border-[hsl(var(--border))] hover:border-[hsl(var(--google-blue)_/_0.22)] hover:bg-[hsl(var(--accent)_/_0.36)]'
@@ -394,7 +365,7 @@ export function DeploymentWizard() {
                 {precheckResult.checks.map((check, index) => (
                   <div
                     key={index}
-                    className={`rounded-workshop-lg border p-4 shadow-workshop-sm ${
+                    className={`rounded-lg border p-4 shadow-sm ${
                       check.passed
                         ? 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.08)]'
                         : 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.08)]'
@@ -417,7 +388,7 @@ export function DeploymentWizard() {
                 ))}
 
                 {!precheckResult.passed && (
-                  <div className="rounded-workshop-lg border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.16)] p-4 shadow-workshop-sm">
+                  <div className="rounded-lg border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.16)] p-4 shadow-sm">
                     <p className="text-sm text-[hsl(var(--foreground))]">
                       <strong>{t('common:warning')}：</strong>{t('deployment:wizard.precheckWarning')}
                     </p>
@@ -436,7 +407,7 @@ export function DeploymentWizard() {
             <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">{t('deployment:wizard.deployResult')}</h2>
             {deployResult ? (
               <div className="space-y-4">
-                <div className="rounded-workshop-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.1)] p-6 text-center shadow-workshop-sm">
+                <div className="rounded-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.1)] p-6 text-center shadow-sm">
                   <div className="text-6xl mb-4">🎉</div>
                   <p className="text-lg text-[hsl(var(--success))] whitespace-pre-line">{deployResult}</p>
                 </div>
@@ -463,7 +434,7 @@ export function DeploymentWizard() {
 
         {/* Error Display */}
         {error && (
-          <div className="mt-6 rounded-workshop-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-4 shadow-workshop-sm">
+          <div className="mt-6 rounded-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-4 shadow-sm">
             <p className="text-sm text-[hsl(var(--destructive))]">{error}</p>
           </div>
         )}

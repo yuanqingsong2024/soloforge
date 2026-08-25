@@ -66,7 +66,7 @@ export const Drawer: React.FC<DrawerProps> = ({
         ref={drawerRef}
         tabIndex={-1}
         className={`absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col border-l border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--card)_/_0.96)]
-          shadow-workshop-lg outline-none backdrop-blur
+          shadow-lg outline-none backdrop-blur
           transition-transform duration-300 ease-out will-change-transform
           ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
         data-testid="drawer-panel"
@@ -89,7 +89,7 @@ export const Drawer: React.FC<DrawerProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="ml-4 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 text-[hsl(var(--muted-foreground))] shadow-workshop-sm transition-colors duration-200 hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]
+            className="ml-4 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 text-[hsl(var(--muted-foreground))] shadow-sm transition-colors duration-200 hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]
               focus:ring-2 focus:ring-[hsl(var(--ring))] focus:outline-none"
             aria-label="Close drawer"
             data-testid="drawer-close-button"

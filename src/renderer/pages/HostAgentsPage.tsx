@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { LoadingState } from '../components/ui/LoadingState'
@@ -37,18 +38,6 @@ interface DashboardStats {
   recentlyRegisteredAgents: HostAgentRow[]
 }
 
-interface ApiOk<T> {
-  success: true
-  data: T
-}
-
-interface ApiFail {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiOk<T> | ApiFail
-
 function parseCapabilities(raw: string): string[] {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
@@ -71,7 +60,6 @@ export function HostAgentsPage() {
       status: params.get('status') || ''
     }
   }, [location.search])
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [workspaceId, setWorkspaceId] = useState(initialQuery.workspaceId)
   const [targetId, setTargetId] = useState(initialQuery.targetId)
   const [status, setStatus] = useState(initialQuery.status)
@@ -86,52 +74,43 @@ export function HostAgentsPage() {
   }, [initialQuery])
 
   useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-      void load(port, workspaceId, targetId, status)
-    })
+    void load(workspaceId, targetId, status)
   }, [targetId, workspaceId, status])
 
   const { lastEventPollAt } = useEventDrivenRefresh({
-    apiPort,
     workspaceId,
     targetId: undefined,
-    enabled: Boolean(autoRefresh && apiPort && workspaceId),
+    enabled: Boolean(autoRefresh && workspaceId),
     hasActiveWork: Boolean((stats?.onlineAgents || 0) + (stats?.degradedAgents || 0) > 0),
     onRelevantEvent: async () => {
-      if (!apiPort) return
-      await load(apiPort, workspaceId, targetId, status)
+      await load(workspaceId, targetId, status)
     }
   })
 
-  const load = async (port: number, wid: string, nextTargetId: string, nextStatus: string) => {
+  const load = async (wid: string, nextTargetId: string, nextStatus: string) => {
     setLoading(true)
     const params = new URLSearchParams({ workspaceId: wid })
     if (nextTargetId) params.set('targetId', nextTargetId)
     if (nextStatus) params.set('status', nextStatus)
 
-    const [rowsRes, statsRes] = await Promise.all([
-      fetch(`http://127.0.0.1:${port}/api/host-agents?${params.toString()}`),
-      fetch(`http://127.0.0.1:${port}/api/host-agents/dashboard?workspaceId=${encodeURIComponent(wid)}`)
+    const [rowsJson, statsJson] = await Promise.all([
+      apiFetch<ApiResponse<HostAgentRow[]>>(`/api/host-agents?${params.toString()}`),
+      apiFetch<ApiResponse<DashboardStats>>(`/api/host-agents/dashboard?workspaceId=${encodeURIComponent(wid)}`)
     ])
 
-    const rowsJson = await rowsRes.json() as ApiResponse<HostAgentRow[]>
-    const statsJson = await statsRes.json() as ApiResponse<DashboardStats>
-    if (rowsJson.success) setRows(rowsJson.data)
-    if (statsJson.success) setStats(statsJson.data)
+    if (rowsJson.success) setRows(rowsJson.data ?? [])
+    if (statsJson.success) setStats(statsJson.data ?? null)
     setLoading(false)
   }
 
   const runTestAction = async (id: string) => {
-    if (!apiPort) return
-    await fetch(`http://127.0.0.1:${apiPort}/api/host-agents/${id}/test-action`, { method: 'POST' })
-    await load(apiPort, workspaceId, targetId, status)
+    await apiFetch(`/api/host-agents/${id}/test-action`, { method: 'POST' })
+    await load(workspaceId, targetId, status)
   }
 
   const revokeAgent = async (id: string) => {
-    if (!apiPort) return
-    await fetch(`http://127.0.0.1:${apiPort}/api/host-agents/${id}/revoke`, { method: 'POST' })
-    await load(apiPort, workspaceId, targetId, status)
+    await apiFetch(`/api/host-agents/${id}/revoke`, { method: 'POST' })
+    await load(workspaceId, targetId, status)
   }
 
   const renderRecentlyRegisteredAgents = () => (
@@ -160,7 +139,7 @@ export function HostAgentsPage() {
       <td className="px-4 py-3 text-sm">{row.status}</td>
       <td className="px-4 py-3 text-sm">{row.agentVersion}</td>
       <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">{parseCapabilities(row.capabilitiesJson).slice(0, 4).join(', ') || '—'}</td>
-      <td className="px-4 py-3 text-sm">{row.lastHeartbeatAt ? new Date(row.lastHeartbeatAt).toLocaleString('zh-CN') : '从未'}</td>
+      <td className="px-4 py-3 text-sm">{row.lastHeartbeatAt ? formatDateTime(row.lastHeartbeatAt) : '从未'}</td>
       <td className="px-4 py-3 text-right text-sm space-x-3">
         <button onClick={() => void runTestAction(row.id)} className="text-[hsl(var(--primary))] hover:opacity-80">执行测试动作</button>
         <button onClick={() => void revokeAgent(row.id)} className="text-[hsl(var(--destructive))] hover:opacity-80">撤销代理</button>
@@ -169,7 +148,7 @@ export function HostAgentsPage() {
   )
 
   const renderRecentAgentItem = (item: HostAgentRow) => (
-    <div key={item.id} className="p-3 rounded-workshop-md border border-[hsl(var(--border))] flex items-center justify-between">
+    <div key={item.id} className="p-3 rounded-md border border-[hsl(var(--border))] flex items-center justify-between">
       <div>
         <div className="font-medium">{item.name}</div>
         <div className="text-xs text-[hsl(var(--muted-foreground))]">{item.hostname} · {item.target?.name || '未绑定目标环境'}</div>
@@ -186,7 +165,7 @@ export function HostAgentsPage() {
         actions={
           <button
             onClick={() => navigate('/host-agents/new')}
-            className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90"
+            className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-md hover:opacity-90"
           >
             创建引导令牌
           </button>
@@ -213,7 +192,7 @@ export function HostAgentsPage() {
             <option value="OFFLINE">OFFLINE</option>
             <option value="UNREGISTERED">UNREGISTERED</option>
           </ThemeSelect>
-          <button onClick={() => apiPort && void load(apiPort, workspaceId, targetId, status)} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">应用筛选</button>
+          <button onClick={() => void load(workspaceId, targetId, status)} className="px-4 py-2 text-sm rounded-md bg-[hsl(var(--muted))] hover:opacity-90">应用筛选</button>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[hsl(var(--muted-foreground))]">
           <div>

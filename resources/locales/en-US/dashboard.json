@@ -157,6 +157,7 @@
     "activityFeedPreviewDesc": "High-signal summary of recent events with links to the full feed."
   },
   "messages": {
+    "loading": "Loading...",
     "autoRefreshFailed": "Auto refresh failed: {{error}}",
     "refreshed": "Refreshed at {{time}}",
     "runningDoctorCheck": "Running Doctor check...",
@@ -251,8 +252,12 @@
   },
   "setupBanner": {
     "title": "Welcome to SoloForge",
-    "description": "OpenClaw connection setup is not complete yet. Use the button below for quick setup.",
+    "description": "Claude Code connection setup is not complete yet. Use the button below for quick setup.",
     "startSetup": "Start Setup",
     "skipSetup": "Configure Later"
+  },
+  "a11y": {
+    "skipToMain": "Skip to main content",
+    "mainRegion": "Main content region"
   }
 }

@@ -28,6 +28,8 @@
     "hostAgents": "Host Agents",
     "agentActions": "Agent Actions",
     "doctor": "Doctor",
+    "plugins": "Plugin Management",
+    "autoSetup": "Quick Setup",
     "activityFeed": "Activity Feed",
     "operations": "Jobs / Operations",
     "healthMonitoring": "Health Monitoring",

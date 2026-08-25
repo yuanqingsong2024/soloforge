@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { useNavigate } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
-import { LoadingState } from '../components/ui/LoadingState'
+import { LoadingState, Button } from '../components/ui'
 import { EmptyState } from '../components/ui/EmptyState'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { useTranslation } from 'react-i18next'
@@ -96,7 +97,6 @@ export function Deployments() {
   const translateType = useEnumTranslation('deploymentTypeMap')
   
   const [targets, setTargets] = useState<DeploymentTarget[]>([])
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [bootstrapLoading, setBootstrapLoading] = useState(false)
@@ -116,20 +116,13 @@ export function Deployments() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-      fetchTargets(port)
-    })
+    void fetchTargets()
   }, [])
 
-  const fetchTargets = async (port: number) => {
+  const fetchTargets = async () => {
     try {
       const workspaceId = readWorkspaceId()
-      const response = await fetch(`http://127.0.0.1:${port}/api/deployment-targets?workspaceId=${encodeURIComponent(workspaceId)}`)
-      if (!response.ok) {
-        throw new Error(t('deployment:errors.fetchTargetsFailed'))
-      }
-      const data = await response.json()
+      const data = await apiFetch<DeploymentTarget[]>(`/api/deployment-targets?workspaceId=${encodeURIComponent(workspaceId)}`)
       setTargets(data)
     } catch (err) {
       console.error('Failed to fetch deployment targets:', err)
@@ -140,21 +133,15 @@ export function Deployments() {
   }
 
   const handleDelete = async (id: string, name: string) => {
-    if (!apiPort) return
     if (!confirm(t('deployment:confirmDelete', { name }))) return
 
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/deployment-targets/${id}`, {
+      const result = await apiFetch<ApiResponse<unknown>>(`/api/deployment-targets/${id}`, {
         method: 'DELETE'
       })
 
-      if (!response.ok) {
-        const error = await response.json()
-        if (error.status === 'pending_approval') {
-          alert(t('deployment:deleteSubmittedForApproval'))
-          return
-        }
-        throw new Error(error.message || t('deployment:errors.deleteFailed'))
+      if (!result.success) {
+        throw new Error(result.error)
       }
 
       setTargets(prev => prev.filter(t => t.id !== id))
@@ -166,11 +153,8 @@ export function Deployments() {
   }
 
   const handleHealthCheck = async (id: string) => {
-    if (!apiPort) return
-
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/deployment-targets/${id}/health`)
-      const result = await response.json()
+      const result = await apiFetch<{ healthy: boolean; message?: string }>(`/api/deployment-targets/${id}/health`)
       
       if (result.healthy) {
         alert(t('deployment:healthCheckPassed', { message: result.message || t('deployment:serviceRunningNormally') }))
@@ -179,7 +163,7 @@ export function Deployments() {
       }
 
       // 刷新列表
-      fetchTargets(apiPort)
+      await fetchTargets()
     } catch (err) {
       console.error('Health check failed:', err)
       alert(t('deployment:errors.healthCheckFailed'))
@@ -187,15 +171,13 @@ export function Deployments() {
   }
 
   const handleBootstrap = async () => {
-    if (!apiPort) return
     setBootstrapLoading(true)
     setBootstrapMessage(null)
     setBootstrapResult(null)
 
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/openclaw/bootstrap`, {
+      const result = await apiFetch<BootstrapResponse>('/api/openclaw/bootstrap', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workspaceId: readWorkspaceId(),
           name: bootstrapName,
@@ -208,15 +190,14 @@ export function Deployments() {
           autoHireTemplate: autoHireTemplate === 'none' ? null : autoHireTemplate
         })
       })
-      const result = await response.json() as BootstrapResponse
-      if (!response.ok || !result.success || !result.data) {
+      if (!result.success || !result.data) {
         throw new Error(result.error || t('deployment:errors.bootstrapFailed'))
       }
 
       setBootstrapResult(result.data)
       setBootstrapMessage(t('deployment:bootstrapSuccess'))
 
-      await fetchTargets(apiPort)
+      await fetchTargets()
     } catch (err) {
       setBootstrapResult(null)
       setBootstrapMessage(err instanceof Error ? err.message : t('deployment:errors.bootstrapFailed'))
@@ -233,21 +214,19 @@ export function Deployments() {
   }
 
   const triggerInstallJob = async () => {
-    if (!apiPort || !bootstrapResult) return
+    if (!bootstrapResult) return
     setInstallJobLoading(true)
     setInstallJobMessage(null)
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/openclaw/bootstrap/install-job`, {
+      const result = await apiFetch<BootstrapInstallJobResponse>('/api/openclaw/bootstrap/install-job', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetId: bootstrapResult.target.id,
           profileId: bootstrapResult.profile.id,
           registrationId: bootstrapResult.bootstrap.registrationId
         })
       })
-      const result = await response.json() as BootstrapInstallJobResponse
-      if (!response.ok || !result.success || !result.data) {
+      if (!result.success || !result.data) {
         throw new Error(result.error || t('deployment:errors.installJobFailed'))
       }
       setInstallJobMessage([
@@ -292,16 +271,13 @@ export function Deployments() {
         title={t('deployment:title')}
         description={t('deployment:description')}
         actions={
-          <button
-            onClick={() => navigate('/deployments/new')}
-            className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 transition-opacity"
-          >
+          <Button onClick={() => navigate('/deployments/new')}>
             {t('deployment:newDeployment')}
-          </button>
+          </Button>
         }
       />
 
-      <div className="bg-[hsl(var(--card))] rounded-workshop-lg border border-[hsl(var(--border))] p-6 space-y-4">
+      <div className="bg-[hsl(var(--card))] rounded-lg border border-[hsl(var(--border))] p-6 space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">{t('deployment:bootstrapTitle')}</h2>
           <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">{t('deployment:bootstrapDescription')}</p>
@@ -330,20 +306,22 @@ export function Deployments() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => void handleBootstrap()} disabled={bootstrapLoading || !bootstrapName || !bootstrapHost || !bootstrapSshUser} className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50">
-            {bootstrapLoading ? t('deployment:bootstrapCreating') : t('deployment:bootstrapButton')}
-          </button>
-          <button onClick={() => navigate('/host-agents/new')} className="px-4 py-2 bg-[hsl(var(--muted))] rounded-workshop-md hover:opacity-90">{t('deployment:generateBootstrapTokenOnly')}</button>
+          <Button onClick={() => void handleBootstrap()} loading={bootstrapLoading} disabled={!bootstrapName || !bootstrapHost || !bootstrapSshUser}>
+            {t('deployment:bootstrapButton')}
+          </Button>
+          <Button variant="secondary" onClick={() => navigate('/host-agents/new')}>
+            {t('deployment:generateBootstrapTokenOnly')}
+          </Button>
         </div>
 
         {bootstrapMessage && (
-          <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-4 text-sm whitespace-pre-wrap">
+          <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-4 text-sm whitespace-pre-wrap">
             {bootstrapMessage}
           </div>
         )}
 
         {bootstrapResult && (
-          <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-5 space-y-5">
+          <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-5 space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div>
                 <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-1">{t('deployment:deploymentTarget')}</div>
@@ -358,13 +336,13 @@ export function Deployments() {
               <div>
                 <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-1">Bootstrap</div>
                 <div className="font-medium break-all">{bootstrapResult.bootstrap.registrationId}</div>
-                <div className="text-[hsl(var(--muted-foreground))] mt-1">{t('deployment:expiresAt', { date: new Date(bootstrapResult.bootstrap.expiresAt).toLocaleString('zh-CN') })}</div>
+                <div className="text-[hsl(var(--muted-foreground))] mt-1">{t('deployment:expiresAt', { date: formatDateTime(bootstrapResult.bootstrap.expiresAt) })}</div>
               </div>
             </div>
 
             <div>
               <div className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-2">{t('deployment:installCommand')}</div>
-              <pre className="text-xs font-mono whitespace-pre-wrap rounded-workshop-md bg-[hsl(var(--muted))] p-4 overflow-auto">{bootstrapResult.bootstrap.installCommand}</pre>
+              <pre className="text-xs font-mono whitespace-pre-wrap rounded-md bg-[hsl(var(--muted))] p-4 overflow-auto">{bootstrapResult.bootstrap.installCommand}</pre>
             </div>
 
             <div>
@@ -383,25 +361,25 @@ export function Deployments() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button onClick={() => void copyInstallCommand()} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
+              <Button onClick={() => void copyInstallCommand()}>
                 {copiedInstallCommand ? t('deployment:installCommandCopied') : t('deployment:copyInstallCommand')}
-              </button>
-              <button onClick={() => void triggerInstallJob()} disabled={installJobLoading} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50">
-                {installJobLoading ? t('deployment:submitting') : t('deployment:triggerInstallJob')}
-              </button>
-              <button onClick={() => navigate(`/deployments/${bootstrapResult.target.id}`)} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
+              </Button>
+              <Button onClick={() => void triggerInstallJob()} loading={installJobLoading}>
+                {t('deployment:triggerInstallJob')}
+              </Button>
+              <Button variant="secondary" onClick={() => navigate(`/deployments/${bootstrapResult.target.id}`)}>
                 {t('deployment:viewDeploymentDetail')}
-              </button>
-              <button onClick={() => navigate('/host-agents')} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
+              </Button>
+              <Button variant="secondary" onClick={() => navigate('/host-agents')}>
                 {t('deployment:goToHostAgents')}
-              </button>
-              <button onClick={() => navigate('/team')} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
+              </Button>
+              <Button variant="secondary" onClick={() => navigate('/team')}>
                 {t('deployment:goToTeamManagement')}
-              </button>
+              </Button>
             </div>
 
             {installJobMessage && (
-              <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3 text-sm">
+              <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3 text-sm">
                 {installJobMessage}
               </div>
             )}
@@ -410,7 +388,7 @@ export function Deployments() {
       </div>
 
       {targets.length === 0 ? (
-        <div className="bg-[hsl(var(--card))] rounded-workshop-lg border border-[hsl(var(--border))] p-12 text-center">
+        <div className="bg-[hsl(var(--card))] rounded-lg border border-[hsl(var(--border))] p-12 text-center">
           <svg
             className="mx-auto h-12 w-12 text-[hsl(var(--muted-foreground))]"
             fill="none"
@@ -430,15 +408,12 @@ export function Deployments() {
           <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">
             {t('deployment:noTargetsHint')}
           </p>
-          <button
-            onClick={() => navigate('/deployments/new')}
-            className="mt-6 px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 transition-opacity"
-          >
+          <Button className="mt-6" onClick={() => navigate('/deployments/new')}>
             {t('deployment:newDeployment')}
-          </button>
+          </Button>
         </div>
       ) : (
-        <div className="rounded-workshop-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-workshop-sm">
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm">
           <div className="flex items-center justify-between gap-3 border-b border-[hsl(var(--border))] px-5 py-3 text-sm text-[hsl(var(--muted-foreground))]">
             <span>当前 Workspace 部署目标 {targets.length} 个</span>
             <span className="hidden sm:inline">操作列已固定在右侧，可横向滚动查看完整字段</span>
@@ -499,7 +474,7 @@ export function Deployments() {
                       <StatusBadge label={t('deployment:status.' + (target.status || 'UNKNOWN'))} tone={getToneByStatus(target.status, { HEALTHY: 'success', DEGRADED: 'warning', UNREACHABLE: 'danger' })} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-[hsl(var(--muted-foreground))]">
-                    {target.lastCheckAt ? new Date(target.lastCheckAt).toLocaleString('zh-CN') : t('deployment:never')}
+                    {target.lastCheckAt ? formatDateTime(target.lastCheckAt) : t('deployment:never')}
                   </td>
                   <td className="sticky right-0 z-10 whitespace-nowrap border-l border-[hsl(var(--border))] bg-[hsl(var(--card))] px-5 py-4 text-right text-sm font-medium shadow-[-8px_0_16px_-14px_hsl(var(--foreground))]">
                     <div className="flex justify-end gap-2">

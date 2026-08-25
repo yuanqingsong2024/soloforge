@@ -1,3 +1,4 @@
+import { formatDateTime } from '../../lib/i18n-formatters'
 import { EventRecord } from './types'
 import { eventRowSeverityStyle, severityColor, severityDotColor, sourceTypeColor, SourceTypeIcon } from './styles'
 
@@ -32,7 +33,7 @@ export function EventGroupCard({
   formatSeverity
 }: EventGroupCardProps) {
   return (
-    <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+    <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{title}</div>
@@ -53,9 +54,9 @@ export function EventGroupCard({
       {!collapsed && (
         <div className="relative pl-4 space-y-4 before:absolute before:inset-y-2 before:left-[11px] before:w-px before:bg-[hsl(var(--border))]">
           {events.map((event, index) => (
-            <div key={event.id} className="relative pl-6 rounded-workshop-md border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+            <div key={event.id} className="relative pl-6 rounded-md border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
               <span className={`absolute left-[-5px] top-4 h-2 w-2 rounded-full ring-4 ring-[hsl(var(--background))] ${severityDotColor(event.severity)}`} />
-              <div className="text-xs text-[hsl(var(--muted-foreground))]">#{index + 1} · {new Date(event.createdAt).toLocaleString('zh-CN')}</div>
+              <div className="text-xs text-[hsl(var(--muted-foreground))]">#{index + 1} · {formatDateTime(event.createdAt)}</div>
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <span className={`rounded-sm px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase border ${severityColor(event.severity)}`}>{formatSeverity ? formatSeverity(event.severity) : event.severity}</span>
                 <span className={`flex items-center gap-1.5 rounded-sm px-2 py-1 text-[11px] border ${sourceTypeColor(event.sourceType)}`}>
@@ -83,7 +84,7 @@ export function EventGroupCard({
               </div>
               <details className="mt-3">
                 <summary className="cursor-pointer text-xs text-[hsl(var(--muted-foreground))]">展开 Payload</summary>
-                <pre className="mt-2 max-h-64 overflow-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-3 text-xs font-mono">{renderPayload(event)}</pre>
+                <pre className="mt-2 max-h-64 overflow-auto rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-3 text-xs font-mono">{renderPayload(event)}</pre>
               </details>
             </div>
           ))}

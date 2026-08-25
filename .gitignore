@@ -32,6 +32,8 @@ coverage
 # Prisma
 prisma/dev.db
 prisma/dev.db-journal
+prisma/integration-test.db
+prisma/integration-test.db-journal
 
 # Environment
 .env

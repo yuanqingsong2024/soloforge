@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getApiPort } from '../lib/api'
+import { apiFetch } from '../lib/api'
 import { useEnumTranslation } from '../lib/i18n-helpers'
-import { EmptyState } from '../components/ui/EmptyState'
+import { EmptyState, Button, LoadingState } from '../components/ui'
 import { FormField, FormLabel, FormHint, ThemeInput, ThemeSelect } from '../components/ui/FormFields'
 import { StatusBadge } from '../components/ui/StatusBadge'
 
@@ -51,7 +51,6 @@ export function ConnectionSettings() {
   const { t } = useTranslation(['config', 'common'])
   const translateStatus = useEnumTranslation('commonStatusMap')
   
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [profiles, setProfiles] = useState<ConnectionProfile[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [credentials, setCredentials] = useState<Credentials | null>(null)
@@ -72,10 +71,7 @@ export function ConnectionSettings() {
   const pageEnd = Math.min(currentPage * PAGE_SIZE, profiles.length)
 
   useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-      fetchProfiles(port)
-    })
+    void fetchProfiles()
   }, [])
 
   useEffect(() => {
@@ -96,10 +92,9 @@ export function ConnectionSettings() {
     }
   }, [currentPage, profiles, selectedId])
 
-  const fetchProfiles = async (port: number) => {
+  const fetchProfiles = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/api/profiles`)
-      const data = await res.json()
+      const data = await apiFetch<ConnectionProfile[]>('/api/profiles')
       setProfiles(data)
     } catch (err) {
       console.error('Failed to fetch profiles:', err)
@@ -123,15 +118,13 @@ export function ConnectionSettings() {
       edgeToken: ''
     })
 
-    if (!apiPort) return
-
     try {
-      const [credRes, statusRes] = await Promise.all([
-        fetch(`http://127.0.0.1:${apiPort}/api/profiles/${profile.id}/credentials`),
-        fetch(`http://127.0.0.1:${apiPort}/api/openclaw/${profile.id}/status`)
+      const [credData, statusData] = await Promise.all([
+        apiFetch<Credentials>(`/api/profiles/${profile.id}/credentials`),
+        apiFetch<{ connected: boolean }>(`/api/openclaw/${profile.id}/status`)
       ])
-      setCredentials(await credRes.json())
-      setWsStatus(await statusRes.json())
+      setCredentials(credData)
+      setWsStatus(statusData)
     } catch (err) {
       console.error('Failed to fetch profile details:', err)
     }
@@ -148,7 +141,6 @@ export function ConnectionSettings() {
   }
 
   const handleSave = async () => {
-    if (!apiPort) return
     setSaving(true)
     setError(null)
 
@@ -164,24 +156,21 @@ export function ConnectionSettings() {
       }
 
       if (isCreating) {
-        const res = await fetch(`http://127.0.0.1:${apiPort}/api/profiles`, {
+        const created = await apiFetch<{ id: string }>('/api/profiles', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         })
-        const created = await res.json()
         setIsCreating(false)
         setSelectedId(created.id)
         setCurrentPage(Math.max(1, Math.ceil((profiles.length + 1) / PAGE_SIZE)))
       } else if (selectedId) {
-        await fetch(`http://127.0.0.1:${apiPort}/api/profiles/${selectedId}`, {
+        await apiFetch(`/api/profiles/${selectedId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         })
       }
 
-      await fetchProfiles(apiPort)
+      await fetchProfiles()
     } catch (err) {
       console.error('Failed to save profile:', err)
       setError(t('common:errors.saveFailed'))
@@ -191,16 +180,16 @@ export function ConnectionSettings() {
   }
 
   const handleDelete = async () => {
-    if (!apiPort || !selectedId || !confirm(t('config:connection.confirmDelete'))) return
+    if (!selectedId || !confirm(t('config:connection.confirmDelete'))) return
 
     try {
-      await fetch(`http://127.0.0.1:${apiPort}/api/profiles/${selectedId}`, {
+      await apiFetch(`/api/profiles/${selectedId}`, {
         method: 'DELETE'
       })
       setSelectedId(null)
       setCredentials(null)
       setFormData({ ...emptyForm })
-      await fetchProfiles(apiPort)
+      await fetchProfiles()
     } catch (err) {
       console.error('Failed to delete profile:', err)
       setError(t('common:errors.deleteFailed'))
@@ -208,17 +197,15 @@ export function ConnectionSettings() {
   }
 
   const handlePing = async () => {
-    if (!apiPort || !selectedId) return
+    if (!selectedId) return
     setPinging(true)
     setPingResult(null)
 
     try {
-      const res = await fetch(`http://127.0.0.1:${apiPort}/api/openclaw/ping`, {
+      const result = await apiFetch<{ success: boolean; message?: string }>('/api/openclaw/ping', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileId: selectedId })
       })
-      const result = await res.json()
       setPingResult(result)
     } catch (err) {
       setPingResult({ success: false, message: String(err) })
@@ -228,16 +215,14 @@ export function ConnectionSettings() {
   }
 
   const handleConnect = async () => {
-    if (!apiPort || !selectedId) return
+    if (!selectedId) return
     setConnecting(true)
 
     try {
-      const res = await fetch(`http://127.0.0.1:${apiPort}/api/openclaw/connect`, {
+      const result = await apiFetch<{ success: boolean; error?: string }>('/api/openclaw/connect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileId: selectedId })
       })
-      const result = await res.json()
       if (result.success) {
         setWsStatus({ connected: true })
       } else {
@@ -252,12 +237,11 @@ export function ConnectionSettings() {
   }
 
   const handleDisconnect = async () => {
-    if (!apiPort || !selectedId) return
+    if (!selectedId) return
 
     try {
-      await fetch(`http://127.0.0.1:${apiPort}/api/openclaw/disconnect`, {
+      await apiFetch('/api/openclaw/disconnect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileId: selectedId })
       })
       setWsStatus({ connected: false })
@@ -268,22 +252,18 @@ export function ConnectionSettings() {
 
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-[hsl(var(--google-blue))]"></div>
-      </div>
-    )
+    return <LoadingState message="加载连接设置中..." fullPage className="min-h-screen" />
   }
 
   return (
     <div className="space-y-6 p-6">
-      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card)_/_0.76)] px-6 py-5 shadow-workshop-sm backdrop-blur">
+      <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card)_/_0.76)] px-6 py-5 shadow-sm backdrop-blur">
         <h1 className="text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">{t('config:connection.pageTitle')}</h1>
       </div>
 
       <div className="flex gap-6">
         <div className="w-1/3">
-          <div className="overflow-hidden rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm">
+          <div className="overflow-hidden rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-sm">
             <ul className="divide-y divide-[hsl(var(--border)_/_0.8)]">
               {paginatedProfiles.map(profile => (
                 <li
@@ -321,50 +301,37 @@ export function ConnectionSettings() {
                 <div className="flex items-center justify-between gap-3 text-xs text-[hsl(var(--muted-foreground))]">
                   <span>显示 {pageStart}-{pageEnd} / 共 {profiles.length} 条</span>
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
-                      disabled={currentPage === 1}
-                      className="rounded-full border border-[hsl(var(--border))] px-3 py-1.5 text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
+                    <Button variant="secondary" size="sm" onClick={() => setCurrentPage(page => Math.max(1, page - 1))} disabled={currentPage === 1}>
                       上一页
-                    </button>
+                    </Button>
                     <span>{currentPage} / {totalPages}</span>
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
-                      disabled={currentPage === totalPages}
-                      className="rounded-full border border-[hsl(var(--border))] px-3 py-1.5 text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
+                    <Button variant="secondary" size="sm" onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))} disabled={currentPage === totalPages}>
                       下一页
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
-              <button
-                onClick={handleNewProfile}
-                className="w-full rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90"
-              >
+              <Button className="w-full" onClick={handleNewProfile}>
                 {t('config:connection.newProfile')}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
 
         <div className="w-2/3">
           {!selectedId && !isCreating ? (
-            <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-12 shadow-workshop-sm">
+            <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-12 shadow-sm">
               <EmptyState message={t('config:connection.selectOrCreate')} />
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
                 <h2 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">
                   {isCreating ? t('config:connection.createTitle') : t('config:connection.editTitle')}
                 </h2>
 
                 {error && (
-                  <div className="mb-4 rounded-workshop-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-3 text-sm text-[hsl(var(--destructive))] shadow-workshop-sm">
+                  <div className="mb-4 rounded-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-3 text-sm text-[hsl(var(--destructive))] shadow-sm">
                     {error}
                   </div>
                 )}
@@ -457,27 +424,20 @@ export function ConnectionSettings() {
 
                 <div className="flex justify-between mt-6">
                   <div className="flex gap-2">
-                    <button
-                      onClick={handleSave}
-                      disabled={saving || !formData.name}
-                      className="rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
-                    >
-                      {saving ? t('config:connection.saving') : t('common:buttons.save')}
-                    </button>
+                    <Button onClick={handleSave} loading={saving} disabled={!formData.name}>
+                      {t('common:buttons.save')}
+                    </Button>
                   </div>
                   {selectedId && !isCreating && (
-                    <button
-                      onClick={handleDelete}
-                      className="rounded-full border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.08)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--destructive))] hover:bg-[hsl(var(--google-red)_/_0.14)]"
-                    >
+                    <Button variant="destructive" onClick={handleDelete}>
                       {t('common:buttons.delete')}
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
 
               {selectedId && !isCreating && (
-                <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+                <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
                   <h2 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">{t('config:connection.diagnostics')}</h2>
 
                   <div className="flex items-center gap-3 mb-4">
@@ -518,7 +478,7 @@ export function ConnectionSettings() {
 
                   {pingResult && (
                     <div
-                      className={`mt-4 rounded-workshop-lg border p-3 shadow-workshop-sm ${
+                      className={`mt-4 rounded-lg border p-3 shadow-sm ${
                         pingResult.success
                           ? 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
                           : 'border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] text-[hsl(var(--destructive))]'
@@ -537,19 +497,19 @@ export function ConnectionSettings() {
                       <div className="mt-6 border-t border-[hsl(var(--border)_/_0.8)] pt-4">
                         <h3 className="mb-3 text-sm font-medium text-[hsl(var(--foreground))]">{t('config:connection.storedCredentials')}</h3>
                         <div className="grid grid-cols-3 gap-4">
-                          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-3 py-4 text-center">
+                          <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-3 py-4 text-center">
                             <p className="text-xs text-[hsl(var(--muted-foreground))]">{t('config:connection.token')}</p>
                             <p className={`text-sm font-medium ${credentials.hasToken ? 'text-[hsl(var(--success))]' : 'text-[hsl(var(--muted-foreground))]'}`}>
                               {credentials.hasToken ? credentials.token : t('config:connection.notSet')}
                             </p>
                           </div>
-                          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-3 py-4 text-center">
+                          <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-3 py-4 text-center">
                             <p className="text-xs text-[hsl(var(--muted-foreground))]">{t('config:connection.password')}</p>
                             <p className={`text-sm font-medium ${credentials.hasPassword ? 'text-[hsl(var(--success))]' : 'text-[hsl(var(--muted-foreground))]'}`}>
                               {credentials.hasPassword ? credentials.password : t('config:connection.notSet')}
                             </p>
                           </div>
-                          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-3 py-4 text-center">
+                          <div className="rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] px-3 py-4 text-center">
                             <p className="text-xs text-[hsl(var(--muted-foreground))]">{t('config:connection.edgeToken')}</p>
                             <p className={`text-sm font-medium ${credentials.hasEdgeToken ? 'text-[hsl(var(--success))]' : 'text-[hsl(var(--muted-foreground))]'}`}>
                               {credentials.hasEdgeToken ? credentials.edgeToken : t('config:connection.notSet')}

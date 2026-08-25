@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { apiFetch } from '../lib/api'
 
 interface EventRecordLite {
   id: string
@@ -8,13 +9,7 @@ interface EventRecordLite {
   createdAt: string
 }
 
-interface EventApiResponse {
-  success: boolean
-  data?: EventRecordLite[]
-}
-
 interface UseEventDrivenRefreshOptions {
-  apiPort: number | null
   workspaceId?: string
   targetId: string | undefined
   enabled: boolean
@@ -25,7 +20,6 @@ interface UseEventDrivenRefreshOptions {
 }
 
 export function useEventDrivenRefresh({
-  apiPort,
   workspaceId,
   targetId,
   enabled,
@@ -54,7 +48,7 @@ export function useEventDrivenRefresh({
   }, [])
 
   useEffect(() => {
-    if (!enabled || !hasActiveWork || !apiPort || (!targetId && !workspaceId)) {
+    if (!enabled || !hasActiveWork || (!targetId && !workspaceId)) {
       return
     }
 
@@ -72,21 +66,9 @@ export function useEventDrivenRefresh({
           sourceTypes.map(async (sourceType) => {
             const params = new URLSearchParams(baseParams)
             params.set('sourceType', sourceType)
-            const response = await fetch(`http://127.0.0.1:${apiPort}/api/event-records?${params.toString()}`)
-            return { sourceType, response }
+            const events = await apiFetch<EventRecordLite[]>(`/api/event-records?${params.toString()}`)
+            return { sourceType, events }
           })
-        )
-
-        if (responses.some(item => !item.response.ok)) {
-          setFailureCount((count) => Math.min(count + 1, 5))
-          return
-        }
-
-        const eventsByType = await Promise.all(
-          responses.map(async item => ({
-            sourceType: item.sourceType,
-            payload: await item.response.json() as EventApiResponse
-          }))
         )
 
         setLastEventPollAt(new Date().toISOString())
@@ -94,15 +76,16 @@ export function useEventDrivenRefresh({
           setFailureCount(0)
         }
 
-        const hasRelevantEvent = eventsByType.some(({ sourceType, payload }) => {
-          if (!payload.success || !payload.data?.length) return false
+        const hasRelevantEvent = responses.some(({ sourceType, events }) => {
+          const eventList = Array.isArray(events) ? events : []
+          if (eventList.length === 0) return false
           if (sourceType === 'DEPLOYMENT_JOB') {
-            return payload.data.some(event => event.sourceType === 'DEPLOYMENT_JOB' || event.eventType.includes('DEPLOYMENT'))
+            return eventList.some(event => event.sourceType === 'DEPLOYMENT_JOB' || event.eventType.includes('DEPLOYMENT'))
           }
           if (sourceType === 'HOST_AGENT') {
-            return payload.data.some(event => event.eventType.startsWith('HOST_AGENT_ACTION_') || event.eventType === 'HOST_AGENT_HEARTBEAT')
+            return eventList.some(event => event.eventType.startsWith('HOST_AGENT_ACTION_') || event.eventType === 'HOST_AGENT_HEARTBEAT')
           }
-          return payload.data.length > 0
+          return eventList.length > 0
         })
 
         if (hasRelevantEvent) {
@@ -127,7 +110,7 @@ export function useEventDrivenRefresh({
     }
 
     return () => clearInterval(interval)
-  }, [enabled, hasActiveWork, apiPort, targetId, workspaceId, intervalMs, sourceTypes, onRelevantEvent, isDocumentVisible, failureCount])
+  }, [enabled, hasActiveWork, targetId, workspaceId, intervalMs, sourceTypes, onRelevantEvent, isDocumentVisible, failureCount])
 
   return {
     lastEventPollAt,

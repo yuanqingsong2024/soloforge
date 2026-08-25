@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { LoadingState } from '../components/ui/LoadingState'
@@ -111,17 +112,6 @@ interface UnifiedTask {
   route?: string
 }
 
-interface ApiSuccess<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailure {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 
 function toUnifiedStatus(status: string): 'running' | 'blocked' | 'attention' | 'completed' | 'queued' {
   switch (status) {
@@ -189,7 +179,6 @@ export function OperationsPage() {
     }
   }, [location.search])
 
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [operations, setOperations] = useState<Operation[]>([])
@@ -205,23 +194,20 @@ export function OperationsPage() {
   }, [initialFilters])
 
   useEffect(() => {
-    getApiPort().then(async port => {
-      setApiPort(port)
-      await Promise.all([fetchOperations(port, initialFilters), fetchUnifiedTaskSources(port, initialFilters)])
+    void (async () => {
+      await Promise.all([fetchOperations(initialFilters), fetchUnifiedTaskSources(initialFilters)])
       setLoading(false)
-    })
+    })()
   }, [initialFilters])
 
   const { lastEventPollAt } = useEventDrivenRefresh({
-    apiPort,
     workspaceId: filters.workspaceId,
     targetId: filters.targetId || undefined,
-    enabled: Boolean(autoRefresh && apiPort),
+    enabled: Boolean(autoRefresh),
     hasActiveWork: operations.some(operation => operation.status === 'RUNNING' || operation.status === 'PENDING' || operation.status === 'WAITING_APPROVAL'),
     sourceTypes: ['DEPLOYMENT_JOB', 'HOST_AGENT', 'SYSTEM'],
     onRelevantEvent: async () => {
-      if (!apiPort) return
-      await Promise.all([fetchOperations(apiPort, filters), fetchUnifiedTaskSources(apiPort, filters)])
+      await Promise.all([fetchOperations(filters), fetchUnifiedTaskSources(filters)])
     }
   })
 
@@ -301,46 +287,44 @@ export function OperationsPage() {
     }, { total: 0, running: 0, blocked: 0, attention: 0, completed: 0, queued: 0 })
   }, [unifiedTasks])
 
-  const fetchOperations = async (port: number, nextFilters = filters) => {
+  const fetchOperations = async (nextFilters = filters) => {
     const params = new URLSearchParams()
     for (const [key, value] of Object.entries(nextFilters)) {
       if (value) params.append(key, value)
     }
 
-    const response = await fetch(`http://127.0.0.1:${port}/api/operations?${params.toString()}`)
-    const json = await response.json() as ApiResponse<Operation[]>
+    const json = await apiFetch<ApiResponse<Operation[]>>(`/api/operations?${params.toString()}`)
     if (!json.success) {
       throw new Error(json.error)
     }
-    setOperations(json.data)
-    if (!selectedOperationId && json.data.length > 0) {
+    setOperations(json.data ?? [])
+    if (!selectedOperationId && json.data && json.data.length > 0) {
       setSelectedOperationId(json.data[0].id)
     }
   }
 
-  const fetchUnifiedTaskSources = async (port: number, nextFilters = filters) => {
+  const fetchUnifiedTaskSources = async (nextFilters = filters) => {
     const readOk = async <T,>(url: string): Promise<T[]> => {
       try {
-        const response = await fetch(url)
-        const json = await response.json() as ApiResponse<T[]> | T[]
+        const json = await apiFetch<ApiResponse<T[]> | T[]>(url)
         if (Array.isArray(json)) return json
-        return json.success ? json.data : []
+        return json.success ? (json.data ?? []) : []
       } catch (error) {
         console.warn('Failed to fetch unified task source:', error)
         return []
       }
     }
 
-    const jobItems = await readOk<JobRecord>(`http://127.0.0.1:${port}/api/jobs`)
+    const jobItems = await readOk<JobRecord>('/api/jobs')
     const deploymentJobParams = new URLSearchParams()
     if (nextFilters.workspaceId) deploymentJobParams.set('workspaceId', nextFilters.workspaceId)
     if (nextFilters.targetId) deploymentJobParams.set('targetId', nextFilters.targetId)
-    const deploymentJobItems = await readOk<DeploymentJobRecord>(`http://127.0.0.1:${port}/api/deployment-jobs?${deploymentJobParams.toString()}`)
+    const deploymentJobItems = await readOk<DeploymentJobRecord>(`/api/deployment-jobs?${deploymentJobParams.toString()}`)
     const agentActionParams = new URLSearchParams()
     if (nextFilters.workspaceId) agentActionParams.set('workspaceId', nextFilters.workspaceId)
     if (nextFilters.targetId) agentActionParams.set('targetId', nextFilters.targetId)
-    const agentActionItems = await readOk<AgentActionRecord>(`http://127.0.0.1:${port}/api/agent-actions?${agentActionParams.toString()}`)
-    const outboxItems = await readOk<OutboxEventRecord>(`http://127.0.0.1:${port}/api/outbox`)
+    const agentActionItems = await readOk<AgentActionRecord>(`/api/agent-actions?${agentActionParams.toString()}`)
+    const outboxItems = await readOk<OutboxEventRecord>('/api/outbox')
 
     setJobs(jobItems)
     setDeploymentJobs(deploymentJobItems)
@@ -354,11 +338,10 @@ export function OperationsPage() {
   )
 
   const startOperation = async (operationId: string) => {
-    if (!apiPort) return
-    await fetch(`http://127.0.0.1:${apiPort}/api/operations/${operationId}/start`, {
+    await apiFetch(`/api/operations/${operationId}/start`, {
       method: 'POST'
     })
-      await Promise.all([fetchOperations(apiPort), fetchUnifiedTaskSources(apiPort)])
+    await Promise.all([fetchOperations(), fetchUnifiedTaskSources()])
   }
 
   if (loading) {
@@ -381,8 +364,8 @@ export function OperationsPage() {
               <span>{t('operations:actions.eventRefresh')}</span>
             </label>
             <button
-              onClick={() => apiPort && Promise.all([fetchOperations(apiPort), fetchUnifiedTaskSources(apiPort)])}
-              className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90"
+              onClick={() => Promise.all([fetchOperations(filters), fetchUnifiedTaskSources(filters)])}
+              className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-md hover:opacity-90"
             >
                 {t('operations:actions.refresh')}
             </button>
@@ -398,7 +381,7 @@ export function OperationsPage() {
           <ThemeInput value={filters.type} onChange={e => setFilters(prev => ({ ...prev, type: e.target.value }))} placeholder={t('operations:filters.typePlaceholder')} fieldSize="lg" />
         </div>
         <div className="mt-3">
-          <button onClick={() => apiPort && Promise.all([fetchOperations(apiPort), fetchUnifiedTaskSources(apiPort)])} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
+          <button onClick={() => Promise.all([fetchOperations(filters), fetchUnifiedTaskSources(filters)])} className="px-4 py-2 text-sm rounded-md bg-[hsl(var(--muted))] hover:opacity-90">
             {t('operations:filters.apply')}
           </button>
         </div>
@@ -410,7 +393,7 @@ export function OperationsPage() {
       <SectionCard title={t('operations:unified.title')} description={t('operations:unified.description')}>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
           {(['total', 'running', 'blocked', 'attention', 'completed', 'queued'] as const).map(key => (
-            <div key={key} className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
+            <div key={key} className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
               <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{t(`operations:unified.${key}`)}</div>
               <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{unifiedSummary[key]}</div>
             </div>
@@ -419,7 +402,7 @@ export function OperationsPage() {
 
         <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
           {unifiedTasks.slice(0, 12).map(task => (
-            <div key={`${task.source}-${task.id}`} className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
+            <div key={`${task.source}-${task.id}`} className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -449,7 +432,7 @@ export function OperationsPage() {
               <button
                 key={operation.id}
                 onClick={() => setSelectedOperationId(operation.id)}
-                className={`w-full text-left border rounded-workshop-md p-4 transition-colors ${selectedOperationId === operation.id ? 'border-[hsl(var(--primary))] bg-[hsl(var(--accent))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))]'}`}
+                className={`w-full text-left border rounded-md p-4 transition-colors ${selectedOperationId === operation.id ? 'border-[hsl(var(--primary))] bg-[hsl(var(--accent))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))]'}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -462,7 +445,7 @@ export function OperationsPage() {
                 <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))] flex gap-3 flex-wrap">
                   <span>{operation.type}</span>
                   {operation.targetId && <span>{t('operations:labels.target')}: {operation.targetId}</span>}
-                  <span>{new Date(operation.updatedAt).toLocaleString('zh-CN')}</span>
+                  <span>{formatDateTime(operation.updatedAt)}</span>
                 </div>
                 <div className="mt-3 flex justify-end">
                   <Link
@@ -485,11 +468,11 @@ export function OperationsPage() {
           actions={selectedOperation ? (
             <div className="flex items-center gap-2">
               {selectedOperation.status === 'PENDING' && (
-                <button onClick={() => startOperation(selectedOperation.id)} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
+                <button onClick={() => startOperation(selectedOperation.id)} className="px-4 py-2 text-sm rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
                   {t('operations:actions.start')}
                 </button>
               )}
-              <Link to={`/operations/${selectedOperation.id}`} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
+              <Link to={`/operations/${selectedOperation.id}`} className="px-4 py-2 text-sm rounded-md bg-[hsl(var(--muted))] hover:opacity-90">
                 {t('operations:actions.viewFullDetails')}
               </Link>
             </div>
@@ -510,20 +493,20 @@ export function OperationsPage() {
                 </div>
               </div>
 
-              <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
+              <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
                 <div className="text-xs font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))] mb-3">{t('operations:details.executionSummary')}</div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="rounded-workshop-md bg-[hsl(var(--muted))] px-3 py-3">
+                  <div className="rounded-md bg-[hsl(var(--muted))] px-3 py-3">
                     <div className="text-[11px] uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{t('operations:details.phaseCount')}</div>
                     <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{selectedOperation.phases.length}</div>
                   </div>
-                  <div className="rounded-workshop-md bg-[hsl(var(--muted))] px-3 py-3">
+                  <div className="rounded-md bg-[hsl(var(--muted))] px-3 py-3">
                     <div className="text-[11px] uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{t('operations:details.stepCount')}</div>
                     <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{selectedOperation.phases.reduce((total, phase) => total + phase.steps.length, 0)}</div>
                   </div>
-                  <div className="rounded-workshop-md bg-[hsl(var(--muted))] px-3 py-3">
+                  <div className="rounded-md bg-[hsl(var(--muted))] px-3 py-3">
                     <div className="text-[11px] uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{t('operations:details.lastUpdated')}</div>
-                    <div className="mt-2 text-sm font-medium text-[hsl(var(--foreground))]">{new Date(selectedOperation.updatedAt).toLocaleString('zh-CN')}</div>
+                    <div className="mt-2 text-sm font-medium text-[hsl(var(--foreground))]">{formatDateTime(selectedOperation.updatedAt)}</div>
                   </div>
                 </div>
               </div>
@@ -534,13 +517,13 @@ export function OperationsPage() {
                   const completedSteps = phase.steps.filter(step => step.status === 'SUCCEEDED').length
                   const waitingSteps = phase.steps.filter(step => step.status === 'PENDING' || step.status === 'WAITING_APPROVAL').length
                   return (
-                <div key={phase.id} className="border border-[hsl(var(--border))] rounded-workshop-md overflow-hidden">
+                <div key={phase.id} className="border border-[hsl(var(--border))] rounded-md overflow-hidden">
                   <div className="px-4 py-3 bg-[hsl(var(--muted))] flex items-center justify-between gap-3">
                     <div>
                   <div className="font-semibold text-[hsl(var(--foreground))]">{t('operations:details.phaseTitle', { order: phase.orderNo, name: phase.name })}</div>
                       <div className="text-xs text-[hsl(var(--muted-foreground))]">
-                        {phase.startedAt ? t('operations:details.startedAt', { time: new Date(phase.startedAt).toLocaleString('zh-CN') }) : t('operations:details.notStarted')}
-                        {phase.endedAt ? ` · ${t('operations:details.endedAt', { time: new Date(phase.endedAt).toLocaleString('zh-CN') })}` : ''}
+                        {phase.startedAt ? t('operations:details.startedAt', { time: formatDateTime(phase.startedAt) }) : t('operations:details.notStarted')}
+                        {phase.endedAt ? ` · ${t('operations:details.endedAt', { time: formatDateTime(phase.endedAt) })}` : ''}
                       </div>
                     </div>
                     <StatusBadge label={getUnifiedStatusLabel(t, phase.status)} tone={getStatusTone(phase.status)} />

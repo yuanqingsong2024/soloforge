@@ -1,6 +1,7 @@
+import { formatDateTime } from '../../lib/i18n-formatters'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getApiPort } from '../../lib/api'
+import { apiFetch } from '../../lib/api'
 import { getHealthErrorPanelClass, getHealthSeverityBadgeClass, getHealthStatusBadgeClass } from '../../lib/health-badge'
 import { translateEnum } from '../../lib/i18n-helpers'
 
@@ -64,30 +65,22 @@ export function DoctorTab({ workspaceId }: DoctorTabProps) {
     try {
       setLoading(true)
       setError(null)
-      const port = await getApiPort()
       const query = `?workspaceId=${encodeURIComponent(workspaceId)}`
 
-      const [reportsRes, checksRes] = await Promise.all([
-        fetch(`http://127.0.0.1:${port}/api/doctor/reports${query}`),
-        fetch(`http://127.0.0.1:${port}/api/doctor/checks${query}`)
+      const [reportsResult, checksResult] = await Promise.all([
+        apiFetch<ApiResponse<DiagnosticReport[]>>(`/api/doctor/reports${query}`),
+        apiFetch<ApiResponse<DoctorCheck[]>>(`/api/doctor/checks${query}`)
       ])
 
-      if (!reportsRes.ok || !checksRes.ok) {
-        throw new Error('加载数据失败')
+      if (!reportsResult.success) {
+        throw new Error(reportsResult.error)
+      }
+      if (!checksResult.success) {
+        throw new Error(checksResult.error)
       }
 
-      const reportsData = await reportsRes.json() as ApiResponse<DiagnosticReport[]>
-      const checksData = await checksRes.json() as ApiResponse<DoctorCheck[]>
-
-      if (!reportsData.success) {
-        throw new Error(reportsData.error)
-      }
-      if (!checksData.success) {
-        throw new Error(checksData.error)
-      }
-
-      setReports(reportsData.data)
-      setChecks(checksData.data)
+      setReports(reportsResult.data)
+      setChecks(checksResult.data)
     } catch (err) {
       setError(err instanceof Error ? err.message : '未知错误')
     } finally {
@@ -99,17 +92,11 @@ export function DoctorTab({ workspaceId }: DoctorTabProps) {
     try {
       setRunningCheck(true)
       setError(null)
-      const port = await getApiPort()
 
-      const res = await fetch(`http://127.0.0.1:${port}/api/doctor/run`, {
+      await apiFetch('/api/doctor/run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId, createdBy: 'admin' })
       })
-
-      if (!res.ok) {
-        throw new Error('执行诊断失败')
-      }
 
       await loadData()
     } catch (err) {
@@ -123,17 +110,11 @@ export function DoctorTab({ workspaceId }: DoctorTabProps) {
     try {
       setRunningCheck(true)
       setError(null)
-      const port = await getApiPort()
 
-      const res = await fetch(`http://127.0.0.1:${port}/api/doctor/run/${checkId}`, {
+      await apiFetch(`/api/doctor/run/${checkId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId, createdBy: 'admin' })
       })
-
-      if (!res.ok) {
-        throw new Error('执行诊断失败')
-      }
 
       await loadData()
     } catch (err) {
@@ -173,7 +154,7 @@ export function DoctorTab({ workspaceId }: DoctorTabProps) {
         <button
           onClick={() => void runAllChecks()}
           disabled={runningCheck}
-          className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:bg-[hsl(var(--primary))]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-md hover:bg-[hsl(var(--primary))]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {runningCheck ? '执行中...' : '执行全部诊断'}
         </button>
@@ -192,7 +173,7 @@ export function DoctorTab({ workspaceId }: DoctorTabProps) {
                 <div
                   key={report.id}
                   onClick={() => setSelectedReport(report)}
-                  className={`p-4 rounded-workshop-md border cursor-pointer transition-colors ${
+                  className={`p-4 rounded-md border cursor-pointer transition-colors ${
                     selectedReport?.id === report.id
                       ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/5'
                       : 'border-[hsl(var(--border))] hover:border-[hsl(var(--primary))]/50'
@@ -219,7 +200,7 @@ export function DoctorTab({ workspaceId }: DoctorTabProps) {
                         </p>
                       )}
                       <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                        {new Date(report.createdAt).toLocaleString('zh-CN')}
+                        {formatDateTime(report.createdAt)}
                       </p>
                     </div>
                   </div>
@@ -233,7 +214,7 @@ export function DoctorTab({ workspaceId }: DoctorTabProps) {
           {selectedReport ? (
             <>
               <h4 className="text-sm font-medium text-[hsl(var(--foreground))]">报告详情</h4>
-              <div className="rounded-workshop-md border border-[hsl(var(--border))] p-4 space-y-4">
+              <div className="rounded-md border border-[hsl(var(--border))] p-4 space-y-4">
                 <div>
                   <label className="text-xs text-[hsl(var(--muted-foreground))]">检查项</label>
                   <p className="text-sm font-medium text-[hsl(var(--foreground))]">
@@ -265,7 +246,7 @@ export function DoctorTab({ workspaceId }: DoctorTabProps) {
                 <div>
                   <label className="text-xs text-[hsl(var(--muted-foreground))]">执行时间</label>
                   <p className="text-sm text-[hsl(var(--foreground))]">
-                    {new Date(selectedReport.createdAt).toLocaleString('zh-CN')}
+                    {formatDateTime(selectedReport.createdAt)}
                   </p>
                 </div>
               </div>
@@ -277,7 +258,7 @@ export function DoctorTab({ workspaceId }: DoctorTabProps) {
                 {checks.filter(check => check.enabled).map((check) => (
                   <div
                     key={check.id}
-                    className="p-4 rounded-workshop-md border border-[hsl(var(--border))] hover:border-[hsl(var(--primary))]/50 transition-colors"
+                    className="p-4 rounded-md border border-[hsl(var(--border))] hover:border-[hsl(var(--primary))]/50 transition-colors"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -299,14 +280,14 @@ export function DoctorTab({ workspaceId }: DoctorTabProps) {
                         </p>
                         {check.lastRunAt && (
                           <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                            上次运行: {new Date(check.lastRunAt).toLocaleString('zh-CN')}
+                            上次运行: {formatDateTime(check.lastRunAt)}
                           </p>
                         )}
                       </div>
                       <button
                         onClick={() => void runSingleCheck(check.id)}
                         disabled={runningCheck}
-                        className="ml-4 px-3 py-1 text-sm bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] rounded-workshop-sm hover:bg-[hsl(var(--secondary))]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="ml-4 px-3 py-1 text-sm bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] rounded-sm hover:bg-[hsl(var(--secondary))]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         执行
                       </button>

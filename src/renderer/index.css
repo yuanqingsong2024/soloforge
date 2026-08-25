@@ -3,127 +3,216 @@
 @tailwind utilities;
 
 /* ============================================
+   SoloForge Design System - 设计令牌 V2
    Workshop OS Design Tokens
-   工坊操作台设计系统 - CSS Variables
    ============================================ */
 
 :root {
-  /* 颜色系统 - 浅色主题（Material 3 风格） */
-  --background: 220 35% 97%;         /* 应用画布背景 */
-  --foreground: 222 32% 16%;         /* 主文字 */
+  /* ============================================
+     颜色系统 - 浅色主题
+     ============================================ */
+  
+  /* 基础背景与文字 */
+  --background: 220 20% 97%;          /* 应用画布背景 - 更柔和的灰白 */
+  --foreground: 222 32% 17%;          /* 主文字 - 深蓝灰 */
 
-  --muted: 220 30% 94%;              /* 柔和背景 */
-  --muted-foreground: 215 15% 42%;   /* 次级文字 */
+  /* 次级色 */
+  --muted: 220 16% 93%;              /* 柔和背景 */
+  --muted-foreground: 215 14% 46%;    /* 次级文字 - 中灰 */
 
-  --card: 0 0% 100%;                 /* 卡片背景 */
-  --card-foreground: 222 32% 16%;    /* 卡片文字 */
+  /* 卡片 */
+  --card: 0 0% 100%;                 /* 卡片背景 - 纯白 */
+  --card-foreground: 222 32% 17%;     /* 卡片文字 */
 
+  /* 弹层 */
   --popover: 0 0% 100%;              /* 弹层背景 */
-  --popover-foreground: 222 32% 16%; /* 弹层文字 */
+  --popover-foreground: 222 32% 17%;  /* 弹层文字 */
 
-  --border: 220 24% 88%;             /* 边框 */
-  --input: 220 24% 88%;              /* 输入框边框 */
+  /* 边框与输入 */
+  --border: 220 14% 91%;              /* 边框 - 浅灰 */
+  --input: 220 14% 91%;              /* 输入框边框 */
+  --input-bg: 220 16% 96%;           /* 输入框背景 */
 
-  --primary: 217 89% 61%;            /* Google Blue #4285F4 */
+  /* 主色 - Google Blue 演变 */
+  --primary: 217 91% 55%;             /* #4285F4 增强对比度 */
+  --primary-hover: 217 91% 48%;       /* 悬停态加深 */
   --primary-foreground: 0 0% 100%;   /* 主色文字 */
 
-  --secondary: 220 36% 96%;          /* 次级面板色 */
-  --secondary-foreground: 222 32% 20%;
+  /* 次级面板色 */
+  --secondary: 220 16% 95%;          /* 次级面板 */
+  --secondary-foreground: 222 32% 22%;
 
-  --accent: 214 100% 97%;            /* 轻蓝强调面 */
-  --accent-foreground: 217 78% 43%;  /* 强调文字 */
+  /* 强调面 - 轻蓝 */
+  --accent: 214 72% 96%;             /* 轻蓝强调面 */
+  --accent-foreground: 217 78% 38%;  /* 强调文字 */
+  --accent-hover: 214 72% 92%;      /* 悬停强调面 */
 
-  --destructive: 4 80% 57%;          /* Google Red #EA4335 */
+  /* ============================================
+     状态色系统
+     ============================================ */
+  
+  /* 危险/错误 - Google Red */
+  --destructive: 4 90% 58%;          /* #EA4335 增强可读性 */
+  --destructive-hover: 4 90% 52%;
   --destructive-foreground: 0 0% 100%;
 
-  --success: 137 52% 43%;            /* Google Green #34A853 */
+  /* 成功 - Google Green */
+  --success: 137 56% 42%;             /* #34A853 增强可读性 */
+  --success-hover: 137 56% 38%;
   --success-foreground: 0 0% 100%;
 
-  --warning: 45 96% 50%;             /* Google Yellow #FBBC05 */
-  --warning-foreground: 222 32% 16%;
+  /* 警告 - Google Yellow */
+  --warning: 43 96% 52%;             /* #FBBC05 增强可读性 */
+  --warning-hover: 43 96% 48%;
+  --warning-foreground: 222 32% 17%;
 
-  --info: 217 89% 61%;               /* 信息色与主色统一 */
+  /* 信息 */
+  --info: 217 91% 55%;
   --info-foreground: 0 0% 100%;
 
-  --ring: 217 89% 61%;               /* 焦点环 */
+  /* 焦点环 */
+  --ring: 217 91% 55%;
 
-  /* Google 辅助点缀色 */
-  --google-blue: 217 89% 61%;
-  --google-red: 4 80% 57%;
-  --google-yellow: 45 96% 50%;
-  --google-green: 137 52% 43%;
+  /* ============================================
+     Google 品牌色
+     ============================================ */
+  --google-blue: 217 91% 55%;
+  --google-red: 4 90% 58%;
+  --google-yellow: 43 96% 52%;
+  --google-green: 137 56% 42%;
+
+  /* ============================================
+     圆角系统 - 4 档规范
+     ============================================ */
+  --radius: 0.5rem;     /* 基础圆角 8px */
+  --radius-sm: 0.25rem; /* 小圆角 4px */
+  --radius-md: 0.75rem; /* 中圆角 12px */
+  --radius-lg: 1rem;    /* 大圆角 16px */
+  --radius-xl: 1.5rem;  /* 超大圆角 24px */
+  --radius-2xl: 2rem;   /* 特大圆角 32px */
   
-  /* 圆角系统（更接近 Material 3） */
-  --radius-sm: 0.625rem; /* 10px */
-  --radius-md: 1rem;     /* 16px */
-  --radius-lg: 1.25rem;  /* 20px */
+  /* ============================================
+     阴影系统 V2 - MacOS/Vercel 风格
+     ============================================ */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px -1px rgb(0 0 0 / 0.06);
+  --shadow: 0 2px 4px 0 rgb(0 0 0 / 0.04), 0 2px 6px -2px rgb(0 0 0 / 0.06);
+  --shadow-md: 0 4px 8px 0 rgb(0 0 0 / 0.06), 0 4px 12px -4px rgb(0 0 0 / 0.08);
+  --shadow-lg: 0 8px 16px 0 rgb(0 0 0 / 0.08), 0 8px 24px -8px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 16px 32px 0 rgb(0 0 0 / 0.1), 0 16px 48px -16px rgb(0 0 0 / 0.12);
   
-  /* 阴影系统（细腻悬浮感） */
-  --shadow-sm: 0 10px 28px rgb(60 64 67 / 0.08), 0 2px 6px rgb(60 64 67 / 0.06);
-  --shadow-md: 0 14px 36px rgb(60 64 67 / 0.12), 0 4px 12px rgb(60 64 67 / 0.08);
-  --shadow-lg: 0 22px 48px rgb(60 64 67 / 0.16), 0 8px 18px rgb(60 64 67 / 0.1);
+  /* 悬浮阴影 */
+  --shadow-hover: 0 8px 16px 0 rgb(0 0 0 / 0.1), 0 8px 24px -8px rgb(0 0 0 / 0.12);
   
-  /* 间距系统（8px 网格） */
+  /* ============================================
+     ✨ 新增：高级阴影系统
+     ============================================ */
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.06);
+  --shadow-soft: 0 2px 8px -2px rgb(0 0 0 / 0.05), 0 4px 16px -4px rgb(0 0 0 / 0.08);
+  --shadow-elevated: 0 8px 30px -6px rgb(0 0 0 / 0.1), 0 20px 40px -8px rgb(0 0 0 / 0.12);
+  --shadow-glow: 0 0 20px hsl(var(--google-blue) / 0.25);
+  
+  /* ============================================
+     间距系统 - 8px 网格
+     ============================================ */
   --spacing-xs: 0.5rem;   /* 8px */
   --spacing-sm: 0.75rem;  /* 12px */
   --spacing-md: 1rem;     /* 16px */
   --spacing-lg: 1.5rem;   /* 24px */
   --spacing-xl: 2rem;     /* 32px */
   --spacing-2xl: 3rem;    /* 48px */
-}
-
-/* 深色主题 */
-[data-theme="dark"] {
-  --background: 224 24% 11%;
-  --foreground: 210 40% 96%;
-
-  --muted: 223 18% 18%;
-  --muted-foreground: 215 18% 72%;
-
-  --card: 224 20% 14%;
-  --card-foreground: 210 40% 96%;
-
-  --popover: 224 20% 14%;
-  --popover-foreground: 210 40% 96%;
-
-  --border: 223 16% 24%;
-  --input: 223 16% 24%;
-
-  --primary: 217 89% 68%;
-  --primary-foreground: 222 32% 12%;
-
-  --secondary: 223 18% 18%;
-  --secondary-foreground: 210 40% 96%;
-
-  --accent: 223 28% 21%;
-  --accent-foreground: 210 40% 96%;
-
-  --destructive: 4 76% 61%;
-  --destructive-foreground: 210 40% 98%;
-
-  --success: 137 45% 50%;
-  --success-foreground: 210 40% 98%;
-
-  --warning: 45 96% 56%;
-  --warning-foreground: 222 32% 12%;
-
-  --info: 217 89% 68%;
-  --info-foreground: 222 32% 12%;
-
-  --ring: 217 89% 68%;
-
-  --google-blue: 217 89% 68%;
-  --google-red: 4 76% 61%;
-  --google-yellow: 45 96% 56%;
-  --google-green: 137 45% 50%;
+  
+  /* ============================================
+     过渡动画
+     ============================================ */
+  --transition-fast: 150ms;
+  --transition: 200ms;
+  --transition-slow: 300ms;
 }
 
 /* ============================================
-   全局样式
+   深色主题
    ============================================ */
+[data-theme="dark"] {
+  /* 基础背景与文字 */
+  --background: 224 24% 9%;           /* 更深的背景 */
+  --foreground: 210 40% 98%;          /* 更亮的文字 */
 
+  /* 次级色 */
+  --muted: 223 18% 14%;
+  --muted-foreground: 215 20% 65%;
+
+  /* 卡片 */
+  --card: 224 20% 11%;
+  --card-foreground: 210 40% 98%;
+
+  /* 弹层 */
+  --popover: 224 20% 11%;
+  --popover-foreground: 210 40% 98%;
+
+  /* 边框与输入 */
+  --border: 223 16% 20%;
+  --input: 223 16% 20%;
+  --input-bg: 223 18% 14%;
+
+  /* 主色 - 浅蓝 */
+  --primary: 217 91% 65%;
+  --primary-hover: 217 91% 70%;
+  --primary-foreground: 222 32% 10%;
+
+  /* 次级面板 */
+  --secondary: 223 18% 14%;
+  --secondary-foreground: 210 40% 98%;
+
+  /* 强调面 */
+  --accent: 223 28% 18%;
+  --accent-foreground: 210 40% 98%;
+  --accent-hover: 223 28% 22%;
+
+  /* 状态色 - 调整以适应深色主题 */
+  --destructive: 4 76% 60%;
+  --destructive-hover: 4 76% 65%;
+  --destructive-foreground: 210 40% 98%;
+
+  --success: 137 50% 50%;
+  --success-hover: 137 50% 55%;
+  --success-foreground: 210 40% 98%;
+
+  --warning: 43 96% 54%;
+  --warning-hover: 43 96% 58%;
+  --warning-foreground: 222 32% 10%;
+
+  --info: 217 91% 65%;
+  --info-foreground: 222 32% 10%;
+
+  --ring: 217 91% 65%;
+
+  /* Google 品牌色 - 深色适配 */
+  --google-blue: 217 91% 65%;
+  --google-red: 4 76% 60%;
+  --google-yellow: 43 96% 54%;
+  --google-green: 137 50% 50%;
+
+  /* 阴影 - 深色主题更深 */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2), 0 1px 3px -1px rgb(0 0 0 / 0.3);
+  --shadow: 0 2px 4px 0 rgb(0 0 0 / 0.2), 0 2px 6px -2px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 8px 0 rgb(0 0 0 / 0.25), 0 4px 12px -4px rgb(0 0 0 / 0.35);
+  --shadow-lg: 0 8px 16px 0 rgb(0 0 0 / 0.3), 0 8px 24px -8px rgb(0 0 0 / 0.4);
+  --shadow-xl: 0 16px 32px 0 rgb(0 0 0 / 0.4), 0 16px 48px -16px rgb(0 0 0 / 0.5);
+  --shadow-hover: 0 8px 16px 0 rgb(0 0 0 / 0.35), 0 8px 24px -8px rgb(0 0 0 / 0.45);
+  
+  /* 深色主题高级阴影 */
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.2), 0 4px 12px rgb(0 0 0 / 0.25);
+  --shadow-soft: 0 2px 8px -2px rgb(0 0 0 / 0.3), 0 4px 16px -4px rgb(0 0 0 / 0.35);
+  --shadow-elevated: 0 8px 30px -6px rgb(0 0 0 / 0.4), 0 20px 40px -8px rgb(0 0 0 / 0.5);
+  --shadow-glow: 0 0 20px hsl(var(--google-blue) / 0.35);
+}
+
+/* ============================================
+   全局基础样式
+   ============================================ */
 * {
   border-color: hsl(var(--border));
+  transition: background-color var(--transition), border-color var(--transition), color var(--transition);
 }
 
 body {
@@ -135,12 +224,22 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-  background-image: radial-gradient(circle at top left, hsl(var(--google-blue) / 0.08), transparent 24%), radial-gradient(circle at top right, hsl(var(--google-yellow) / 0.08), transparent 18%);
+  /* ✨ 多层渐变背景 - 更丰富的视觉层次 */
+  background-image: 
+    radial-gradient(ellipse 100% 60% at 50% -10%, hsl(var(--google-blue) / 0.08), transparent),
+    radial-gradient(ellipse 80% 50% at 90% 5%, hsl(var(--google-yellow) / 0.05), transparent),
+    radial-gradient(ellipse 60% 40% at 10% 100%, hsl(var(--google-green) / 0.04), transparent),
+    radial-gradient(ellipse 40% 30% at 100% 100%, hsl(var(--google-red) / 0.02), transparent);
+  background-attachment: fixed;
 }
 
 #root {
   min-height: 100vh;
 }
+
+/* ============================================
+   字体系统
+   ============================================ */
 
 /* 等宽字体（用于 ID 显示） */
 code,
@@ -150,36 +249,46 @@ code,
   font-family: 'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
 }
 
-/* 滚动条样式 */
+/* ============================================
+   滚动条样式 - 精致细腻
+   ============================================ */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--background));
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.2);
-  border-radius: var(--radius-sm);
-  border: 2px solid hsl(var(--background));
+  background: hsl(var(--muted-foreground) / 0.15);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color var(--transition);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.35);
+  background: hsl(var(--muted-foreground) / 0.3);
 }
 
-/* 焦点样式 */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ============================================
+   焦点样式 - 柔和无侵入
+   ============================================ */
 *:focus-visible {
-  outline: 2px solid hsl(var(--ring));
+  outline: 2px solid hsl(var(--ring) / 0.5);
   outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
-/*
-  表单基线：统一输入控件的主题背景和文字颜色。
-  这样即使页面局部忘记补全样式，也不会出现白底或默认浏览器配色。
-*/
+/* ============================================
+   表单基础样式
+   ============================================ */
 input:not([type='checkbox']):not([type='radio']),
 select,
 textarea {
@@ -190,19 +299,20 @@ textarea {
 
 input:not([type='checkbox']):not([type='radio'])::placeholder,
 textarea::placeholder {
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--muted-foreground) / 0.7);
 }
 
-/* 选择文本样式 */
+/* ============================================
+   文本选择样式
+   ============================================ */
 ::selection {
-  background-color: hsl(var(--primary) / 0.22);
+  background-color: hsl(var(--primary) / 0.2);
   color: hsl(var(--foreground));
 }
 
 /* ============================================
    工具类扩展
    ============================================ */
-
 @layer utilities {
   /* 文本截断 */
   .truncate-2 {
@@ -219,50 +329,132 @@ textarea::placeholder {
     overflow: hidden;
   }
   
-  /* 阴影工具类 */
-  .shadow-workshop-sm {
-    box-shadow: var(--shadow-sm);
+  /* 渐变背景 */
+  .bg-gradient-to-br {
+    background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
   }
   
-  .shadow-workshop-md {
-    box-shadow: var(--shadow-md);
+  /* 玻璃态效果 */
+  .glass {
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    background-color: hsl(var(--background) / 0.8);
   }
   
-  .shadow-workshop-lg {
-    box-shadow: var(--shadow-lg);
+  /* 焦点环 */
+  .ring-offset-background {
+    --tw-ring-offset-color: hsl(var(--background));
   }
   
-  /* 间距工具类 */
-  .gap-workshop-xs { gap: var(--spacing-xs); }
-  .gap-workshop-sm { gap: var(--spacing-sm); }
-  .gap-workshop-md { gap: var(--spacing-md); }
-  .gap-workshop-lg { gap: var(--spacing-lg); }
-  .gap-workshop-xl { gap: var(--spacing-xl); }
-  
-  /* 圆角工具类 */
-  .rounded-workshop-sm { border-radius: var(--radius-sm); }
-  .rounded-workshop-md { border-radius: var(--radius-md); }
-  .rounded-workshop-lg { border-radius: var(--radius-lg); }
-  
-  /* 动画工具类 */
-  .animate-fade-in {
-    animation: fadeIn 0.2s ease-in-out;
+  /* ✨ 新增：渐变文字 */
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(var(--google-blue)), hsl(var(--google-green)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
   
-  .animate-slide-in-up {
-    animation: slideInUp 0.3s ease-out;
+  /* ✨ 新增：光晕效果 */
+  .glow-blue {
+    box-shadow: var(--shadow-glow);
   }
   
-  .animate-slide-in-down {
-    animation: slideInDown 0.3s ease-out;
+  /* ✨ 新增：悬停上浮 */
+  .hover-lift {
+    transition: transform var(--transition), box-shadow var(--transition);
   }
   
-  .animate-scale-in {
-    animation: scaleIn 0.2s ease-out;
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-elevated);
   }
 }
 
-/* 动画关键帧 */
+/* ============================================
+   组件基础类
+   ============================================ */
+@layer components {
+  /* 按钮基础样式 */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-medium;
+    transition: all var(--transition);
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+    @apply disabled:pointer-events-none disabled:opacity-50;
+  }
+  
+  .btn-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.9) 100%);
+    box-shadow: 0 2px 4px hsl(var(--primary) / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.1);
+    @apply text-primary-foreground hover:opacity-95;
+  }
+  
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px hsl(var(--primary) / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.15);
+  }
+  
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+  
+  .btn-outline {
+    @apply border border-border bg-transparent hover:bg-accent hover:text-accent-foreground;
+  }
+  
+  .btn-ghost {
+    @apply hover:bg-accent hover:text-accent-foreground;
+  }
+  
+  .btn-destructive {
+    @apply bg-destructive text-destructive-foreground hover:bg-destructive/90;
+  }
+  
+  /* 卡片样式 */
+  .card {
+    @apply rounded-2xl border border-[hsl(var(--border)/0.6)] bg-card text-card-foreground;
+    box-shadow: var(--shadow-card);
+    transition: all var(--transition);
+  }
+  
+  .card-hover {
+    @apply transition-all duration-200;
+  }
+  
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-elevated);
+    border-color: hsl(var(--primary) / 0.3);
+  }
+  
+  /* 输入框样式 */
+  .input {
+    @apply flex h-11 w-full rounded-xl border border-[hsl(var(--border)/0.6)] bg-background px-4 py-2 text-sm;
+    @apply file:border-0 file:bg-transparent file:text-sm file:font-medium;
+    @apply placeholder:text-muted-foreground;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.2)];
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
+    box-shadow: 0 1px 2px hsl(var(--primary) / 0.04);
+    transition: all var(--transition);
+  }
+  
+  .input:focus {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15), 0 2px 8px hsl(var(--primary) / 0.1);
+  }
+  
+  /* 标签样式 */
+  .badge {
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors;
+  }
+}
+
+/* ============================================
+   ✨ 动画关键帧
+   ============================================ */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -272,7 +464,7 @@ textarea::placeholder {
   }
 }
 
-@keyframes slideInUp {
+@keyframes fadeInUp {
   from {
     opacity: 0;
     transform: translateY(10px);
@@ -283,7 +475,7 @@ textarea::placeholder {
   }
 }
 
-@keyframes slideInDown {
+@keyframes fadeInDown {
   from {
     opacity: 0;
     transform: translateY(-10px);
@@ -303,4 +495,168 @@ textarea::placeholder {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulseSoft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* ✨ 脉冲动画 - 用于在线状态 */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+.animate-pulse-soft {
+  animation: pulseSoft 2s ease-in-out infinite;
+}
+
+.animate-pulse-status {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* 骨架屏加载动画 */
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted-foreground) / 0.1) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+}
+
+/* ✨ 渐变边框动画 */
+@keyframes gradientBorder {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-border {
+  background: linear-gradient(90deg, hsl(var(--google-blue)), hsl(var(--google-green)), hsl(var(--google-blue)));
+  background-size: 200% 100%;
+  animation: gradientBorder 3s ease infinite;
+}
+
+/* ============================================
+   ✨ 响应式辅助
+   ============================================ */
+
+/* 触摸友好点击区域 */
+@media (hover: none) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* 减少动画（无障碍） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================
+   ✨ 表格样式增强
+   ============================================ */
+.table-container {
+  @apply overflow-hidden rounded-2xl border border-[hsl(var(--border)/0.6)];
+  box-shadow: var(--shadow-card);
+}
+
+.table-header {
+  background: linear-gradient(180deg, hsl(var(--muted) / 0.9) 0%, hsl(var(--muted) / 0.5) 100%);
+  backdrop-filter: blur(4px);
+  @apply font-semibold text-xs uppercase tracking-wider text-[hsl(var(--muted-foreground))];
+}
+
+.table-row {
+  @apply border-b border-[hsl(var(--border)/0.4)] transition-colors;
+}
+
+.table-row:nth-child(even) {
+  background: hsl(var(--muted) / 0.25);
+}
+
+.table-row:hover {
+  background: hsl(var(--accent) / 0.4);
+}
+
+.table-row:last-child {
+  @apply border-b-0;
+}
+
+/* ============================================
+   ✨ 页面切换动画
+   ============================================ */
+.page-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-enter-active {
+  animation: fadeInUp 0.3s ease-out forwards;
+}
+
+/* ============================================
+   ✨ 工具提示样式
+   ============================================ */
+.tooltip {
+  @apply absolute z-50 rounded-lg border border-[hsl(var(--border))] bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg;
+  animation: scaleIn 0.15s ease-out;
 }

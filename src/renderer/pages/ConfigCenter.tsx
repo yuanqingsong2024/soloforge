@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { getApiPort } from '../lib/api'
+import { formatDateTime } from '../lib/i18n-formatters'
+import { apiFetch } from '../lib/api'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { LoadingState } from '../components/ui/LoadingState'
+import { LoadingState, Button } from '../components/ui'
 import { EmptyState } from '../components/ui/EmptyState'
 import { PendingApprovalNotice } from '../components/ui/PendingApprovalNotice'
 import { FormField, FormHint, FormLabel, ThemeCheckbox, ThemeInput, ThemeSelect, ThemeTextarea } from '../components/ui/FormFields'
@@ -42,16 +43,6 @@ interface PendingApprovalState {
 
 type DisplayMode = 'basic' | 'advanced' | 'expert'
 
-async function readApiResponse<T>(response: Response): Promise<T | null> {
-  const text = await response.text()
-  if (!text.trim()) return null
-  try {
-    return JSON.parse(text) as T
-  } catch {
-    return null
-  }
-}
-
 function resolveDisplayMode(): DisplayMode {
   const stored = readLocalStorage('soloforge-display-mode')
   return stored === 'advanced' || stored === 'expert' ? stored : 'basic'
@@ -62,7 +53,6 @@ export function ConfigCenter() {
   const navigate = useNavigate()
   const displayMode = resolveDisplayMode()
   const canUseRawJson = displayMode !== 'basic'
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [profiles, setProfiles] = useState<ConnectionProfile[]>([])
   const [selectedProfileId, setSelectedProfileId] = useState<string>('')
   const [currentConfig, setCurrentConfig] = useState<Record<string, unknown> | null>(null)
@@ -99,10 +89,7 @@ export function ConfigCenter() {
   }, [activeTab, canUseRawJson])
 
   useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-      fetchProfiles(port)
-    })
+    void fetchProfiles()
   }, [])
 
   // Countdown timer for rate limiting
@@ -112,8 +99,8 @@ export function ConfigCenter() {
       setCountdown(prev => {
         if (prev <= 1) {
           // Refresh rate limit when countdown expires
-          if (apiPort && selectedProfileId) {
-            fetchRateLimit(apiPort, selectedProfileId)
+          if (selectedProfileId) {
+            void fetchRateLimit(selectedProfileId)
           }
           return 0
         }
@@ -121,12 +108,12 @@ export function ConfigCenter() {
       })
     }, 1000)
     return () => clearInterval(timer)
-  }, [countdown, apiPort, selectedProfileId])
+  }, [countdown, selectedProfileId])
 
-  const fetchProfiles = async (port: number) => {
+  const fetchProfiles = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/api/profiles`)
-      setProfiles(await res.json())
+      const data = await apiFetch<ConnectionProfile[]>('/api/profiles')
+      setProfiles(data)
     } catch (err) {
       console.error('Failed to fetch profiles:', err)
     } finally {
@@ -134,35 +121,23 @@ export function ConfigCenter() {
     }
   }
 
-  const fetchConfig = async (port: number, profileId: string) => {
+  const fetchConfig = async (profileId: string) => {
     setConfigLoading(true)
     setApplyStatus(null)
 
     try {
-      const [configRes, snapshotsRes] = await Promise.all([
-        fetch(`http://127.0.0.1:${port}/api/openclaw/${profileId}/config`),
-        fetch(`http://127.0.0.1:${port}/api/config/snapshots?profileId=${profileId}`)
+      const [configData, snapshotsData] = await Promise.all([
+        apiFetch<Record<string, unknown>>(`/api/openclaw/${profileId}/config`),
+        apiFetch<ConfigSnapshot[]>(`/api/config/snapshots?profileId=${profileId}`)
       ])
 
-      if (!configRes.ok) {
-        const err = await readApiResponse<{ error?: string; message?: string }>(configRes)
-        setApplyStatus({ type: 'error', message: err?.error || err?.message || t('config:status.fetchFailed') })
-        setCurrentConfig(null)
-        setEditedConfig(null)
-        setRawJson('')
-      } else {
-        const config = await readApiResponse<Record<string, unknown>>(configRes)
-        if (!config) {
-          throw new Error(t('config:status.fetchFailed'))
-        }
-        setCurrentConfig(config)
-        setEditedConfig(JSON.parse(JSON.stringify(config)))
-        setRawJson(JSON.stringify(config, null, 2))
-        populateForm(config)
-      }
+      setCurrentConfig(configData)
+      setEditedConfig(JSON.parse(JSON.stringify(configData)))
+      setRawJson(JSON.stringify(configData, null, 2))
+      populateForm(configData)
 
-      setSnapshots(await snapshotsRes.json())
-      await fetchRateLimit(port, profileId)
+      setSnapshots(snapshotsData)
+      await fetchRateLimit(profileId)
     } catch (err) {
       console.error('Failed to fetch config:', err)
       setApplyStatus({ type: 'error', message: t('config:status.connectFirst') })
@@ -171,10 +146,9 @@ export function ConfigCenter() {
     }
   }
 
-  const fetchRateLimit = async (port: number, profileId: string) => {
+  const fetchRateLimit = async (profileId: string) => {
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/api/config/rate-limit?profileId=${profileId}`)
-      const data = await res.json()
+      const data = await apiFetch<RateLimitInfo>(`/api/config/rate-limit?profileId=${profileId}`)
       setRateLimit(data)
       if (!data.allowed && data.resetIn > 0) {
         setCountdown(Math.ceil(data.resetIn / 1000))
@@ -266,7 +240,7 @@ export function ConfigCenter() {
   }
 
   const handleApply = async (configToApply?: Record<string, unknown>) => {
-    if (!apiPort || !selectedProfileId) return
+    if (!selectedProfileId) return
     setApplying(true)
     setApplyStatus(null)
     setPendingApproval(null)
@@ -274,12 +248,10 @@ export function ConfigCenter() {
     const config = configToApply || (activeTab === 'json' ? JSON.parse(rawJson) : buildConfigFromForm())
 
     try {
-      const res = await fetch(`http://127.0.0.1:${apiPort}/api/config/apply`, {
+      const result = await apiFetch<{ status: string; approvalId?: string; message?: string; errors?: string[]; resetIn?: number }>('/api/config/apply', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileId: selectedProfileId, config })
       })
-      const result = await res.json()
 
       if (result.status === 'success') {
         setApplyStatus({ type: 'success', message: t('config:status.success') })
@@ -288,16 +260,14 @@ export function ConfigCenter() {
         setRawJson(JSON.stringify(config, null, 2))
         populateForm(config as Record<string, unknown>)
         // Refresh snapshots and rate limit
-        const [snapRes] = await Promise.all([
-          fetch(`http://127.0.0.1:${apiPort}/api/config/snapshots?profileId=${selectedProfileId}`),
-          fetchRateLimit(apiPort, selectedProfileId)
-        ])
-        setSnapshots(await snapRes.json())
+        const snapshotsData = await apiFetch<ConfigSnapshot[]>(`/api/config/snapshots?profileId=${selectedProfileId}`)
+        setSnapshots(snapshotsData)
+        await fetchRateLimit(selectedProfileId)
       } else if (result.status === 'pending_approval') {
         setApplyStatus({ type: 'pending', message: `配置变更需要审批，审批ID: ${result.approvalId}` })
-        setPendingApproval({ action: 'apply', approvalId: result.approvalId })
+        setPendingApproval({ action: 'apply', approvalId: result.approvalId || '' })
       } else if (result.status === 'rate_limited') {
-        setApplyStatus({ type: 'rate_limited', message: result.message })
+        setApplyStatus({ type: 'rate_limited', message: result.message ?? '' })
         if (result.resetIn) {
           setCountdown(Math.ceil(result.resetIn / 1000))
         }
@@ -315,27 +285,25 @@ export function ConfigCenter() {
   }
 
   const handleRollback = async (snapshotId: string) => {
-    if (!apiPort || !selectedProfileId || !confirm(t('config:confirm.rollback'))) return
+    if (!selectedProfileId || !confirm(t('config:confirm.rollback'))) return
     setApplying(true)
     setApplyStatus(null)
     setPendingApproval(null)
 
     try {
-      const res = await fetch(`http://127.0.0.1:${apiPort}/api/config/rollback`, {
+      const result = await apiFetch<{ status: string; approvalId?: string; message?: string }>('/api/config/rollback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileId: selectedProfileId, snapshotId })
       })
-      const result = await res.json()
 
       if (result.status === 'success') {
         setApplyStatus({ type: 'success', message: t('config:status.rollbackSuccess') })
-        await fetchConfig(apiPort, selectedProfileId)
+        await fetchConfig(selectedProfileId)
       } else if (result.status === 'pending_approval') {
         setApplyStatus({ type: 'pending', message: `配置回滚需要审批，审批ID: ${result.approvalId}` })
-        setPendingApproval({ action: 'rollback', approvalId: result.approvalId })
+        setPendingApproval({ action: 'rollback', approvalId: result.approvalId || '' })
       } else if (result.status === 'rate_limited') {
-        setApplyStatus({ type: 'rate_limited', message: result.message })
+        setApplyStatus({ type: 'rate_limited', message: result.message ?? '' })
       } else {
         setApplyStatus({ type: 'error', message: t('config:status.rollbackFailed') })
       }
@@ -355,8 +323,8 @@ export function ConfigCenter() {
     setEditedConfig(null)
     setRawJson('')
     setSnapshots([])
-    if (apiPort && profileId) {
-      fetchConfig(apiPort, profileId)
+    if (profileId) {
+      void fetchConfig(profileId)
     }
   }
 
@@ -368,12 +336,12 @@ export function ConfigCenter() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card)_/_0.76)] px-6 py-5 shadow-workshop-sm backdrop-blur">
+      <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card)_/_0.76)] px-6 py-5 shadow-sm backdrop-blur">
         <h1 className="text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">{t('config:pageTitle')}</h1>
       </div>
 
       {/* Profile Selector */}
-      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
         <label className="text-sm font-medium text-[hsl(var(--foreground))]">{t('config:connection.profileLabel')}</label>
         <select
           value={selectedProfileId}
@@ -387,7 +355,7 @@ export function ConfigCenter() {
         </select>
 
         {rateLimit && (
-          <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-3 py-2 text-sm shadow-workshop-sm">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-3 py-2 text-sm shadow-sm">
             <span className="text-[hsl(var(--muted-foreground))]">{t('config:rateLimit.remaining')}:</span>
             <span className={`font-medium ${rateLimit.remaining > 0 ? 'text-[hsl(var(--success))]' : 'text-[hsl(var(--destructive))]'}`}>
               {rateLimit.remaining}/3
@@ -399,7 +367,7 @@ export function ConfigCenter() {
         )}
       </div>
 
-      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+      <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('config:quickMode.title')}</div>
@@ -416,7 +384,7 @@ export function ConfigCenter() {
       {/* Status Banner */}
       {applyStatus && (
         <div
-          className={`mb-4 rounded-workshop-lg border px-4 py-3 shadow-workshop-sm ${
+          className={`mb-4 rounded-lg border px-4 py-3 shadow-sm ${
             applyStatus.type === 'success'
               ? 'border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]'
               : applyStatus.type === 'pending'
@@ -442,7 +410,7 @@ export function ConfigCenter() {
       )}
 
       {!selectedProfileId ? (
-        <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-12 shadow-workshop-sm">
+        <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-12 shadow-sm">
           <EmptyState message={t('config:selectProfileToManage')} />
         </div>
       ) : configLoading ? (
@@ -450,7 +418,7 @@ export function ConfigCenter() {
       ) : (
         <>
           {/* Tabs */}
-          <div className="mb-6 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-2 shadow-workshop-sm">
+          <div className="mb-6 rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-2 shadow-sm">
             <nav className="flex flex-wrap gap-2">
               {([
                 { key: 'form' as const, label: t('config:tabs.form') },
@@ -463,7 +431,7 @@ export function ConfigCenter() {
                   onClick={() => setActiveTab(tab.key)}
                   className={`rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
                     activeTab === tab.key
-                      ? 'bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))] shadow-workshop-sm'
+                      ? 'bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))] shadow-sm'
                       : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
                   }`}
                 >
@@ -476,13 +444,13 @@ export function ConfigCenter() {
           {/* Tab Content */}
           {activeTab === 'form' && (
             <div className="space-y-6">
-              <div className="rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.08)] p-5 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.08)] p-5 shadow-sm">
                 <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('config:quickMode.quickConfigTitle')}</div>
                 <div className="mt-2 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{t('config:quickMode.quickConfigDesc')}</div>
               </div>
 
               {/* 模型与路由 */}
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
                 <h3 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">{t('config:models.title')}</h3>
                 <div className="grid grid-cols-1 gap-4">
                   <FormField>
@@ -501,7 +469,7 @@ export function ConfigCenter() {
               </div>
 
               {/* Hooks */}
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
                 <h3 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">{t('config:hooks.title')}</h3>
                 <div className="grid grid-cols-1 gap-4">
                   <div className="flex items-center">
@@ -520,7 +488,7 @@ export function ConfigCenter() {
               </div>
 
               {/* Tools 策略 */}
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
                 <h3 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">{t('config:tools.title')}</h3>
                 <div className="grid grid-cols-1 gap-4">
                   <FormField>
@@ -543,7 +511,7 @@ export function ConfigCenter() {
               </div>
 
               {/* Gateway 安全 */}
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
                 <h3 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">{t('config:gateway.title')}</h3>
                 <div className="grid grid-cols-1 gap-4">
                   <FormField>
@@ -568,7 +536,7 @@ export function ConfigCenter() {
               </div>
 
               {/* Channels 配置 */}
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
                 <h3 className="mb-4 text-lg font-medium text-[hsl(var(--foreground))]">{t('config:channels.title')}</h3>
                 <div className="grid grid-cols-1 gap-4">
                   <div className="flex items-center">
@@ -584,27 +552,23 @@ export function ConfigCenter() {
               </div>
 
               <div className="flex justify-end">
-                <button
-                  onClick={() => handleApply()}
-                  disabled={applying || !currentConfig}
-                  className="rounded-full bg-[hsl(var(--primary))] px-6 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
-                >
-                  {applying ? t('config:actions.applying') : t('config:actions.apply')}
-                </button>
+                <Button onClick={() => handleApply()} loading={applying} disabled={!currentConfig}>
+                  {t('config:actions.apply')}
+                </Button>
               </div>
             </div>
           )}
 
           {activeTab === 'json' && (
             <div className="space-y-4">
-              <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
                 <FormField>
                   <FormLabel>{t('config:rawJson.title')}</FormLabel>
                   <ThemeTextarea value={rawJson} onChange={e => setRawJson(e.target.value)} fieldSize="lg" fieldShape="soft" className="font-mono text-sm" style={{ minHeight: '400px' }} spellCheck={false} />
                 </FormField>
               </div>
               <div className="flex justify-end">
-                <button
+                <Button
                   onClick={() => {
                     try {
                       const parsed = JSON.parse(rawJson)
@@ -613,27 +577,27 @@ export function ConfigCenter() {
                       setApplyStatus({ type: 'error', message: t('config:status.jsonError') })
                     }
                   }}
-                  disabled={applying || !currentConfig}
-                  className="rounded-full bg-[hsl(var(--primary))] px-6 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
+                  loading={applying}
+                  disabled={!currentConfig}
                 >
-                  {applying ? t('config:actions.applying') : t('config:actions.apply')}
-                </button>
+                  {t('config:actions.apply')}
+                </Button>
               </div>
             </div>
           )}
 
           {activeTab === 'diff' && (
-            <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+            <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <h3 className="mb-2 text-sm font-medium text-[hsl(var(--foreground))]">{t('config:diff.current')}</h3>
-                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.42)] p-4 text-xs font-mono text-[hsl(var(--foreground))]">
+                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.42)] p-4 text-xs font-mono text-[hsl(var(--foreground))]">
                     {currentConfig ? JSON.stringify(currentConfig, null, 2) : t('config:diff.noConfig')}
                   </pre>
                 </div>
                 <div>
                   <h3 className="mb-2 text-sm font-medium text-[hsl(var(--foreground))]">{t('config:diff.modified')}</h3>
-                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 text-xs font-mono text-[hsl(var(--foreground))]">
+                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.08)] p-4 text-xs font-mono text-[hsl(var(--foreground))]">
                     {activeTab === 'diff'
                       ? JSON.stringify(buildConfigFromForm(), null, 2)
                       : rawJson || t('config:diff.noConfig')
@@ -645,7 +609,7 @@ export function ConfigCenter() {
           )}
 
           {activeTab === 'snapshots' && (
-            <div className="overflow-hidden rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm">
+            <div className="overflow-hidden rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-sm">
               {snapshots.length === 0 ? (
                 <div className="py-12 text-center text-[hsl(var(--muted-foreground))]">
                   {t('config:snapshots.noSnapshots')}
@@ -671,7 +635,7 @@ export function ConfigCenter() {
                             {snapshot.configHash.substring(0, 12)}...
                           </td>
                           <td className="whitespace-nowrap px-6 py-4 text-sm text-[hsl(var(--muted-foreground))]">
-                            {new Date(snapshot.createdAt).toLocaleString('zh-CN')}
+                            {formatDateTime(snapshot.createdAt)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                             <button
@@ -694,7 +658,7 @@ export function ConfigCenter() {
                         {expandedSnapshotId === snapshot.id && (
                           <tr>
                             <td colSpan={4} className="bg-[hsl(var(--muted)_/_0.46)] px-6 py-4">
-                              <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--background))] p-4 text-xs font-mono text-[hsl(var(--foreground))]">
+                              <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--background))] p-4 text-xs font-mono text-[hsl(var(--foreground))]">
                                 {JSON.stringify(JSON.parse(snapshot.configJson), null, 2)}
                               </pre>
                             </td>

@@ -1,24 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { LoadingState } from '../components/ui/LoadingState'
 import { EmptyState } from '../components/ui/EmptyState'
 import { ThemeInput, ThemeSelect } from '../components/ui/FormFields'
 import { readWorkspaceId } from '../lib/storage'
-
-interface ApiSuccess<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailure {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 
 interface DeploymentTarget {
   id: string
@@ -76,7 +65,6 @@ export function UpgradePlansPage() {
       status: params.get('status') || ''
     }
   }, [location.search])
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [workspaceId, setWorkspaceId] = useState(initialQuery.workspaceId)
   const [statusFilter, setStatusFilter] = useState(initialQuery.status)
@@ -100,31 +88,30 @@ export function UpgradePlansPage() {
   }, [initialQuery])
 
   useEffect(() => {
-    getApiPort().then(async port => {
-      setApiPort(port)
-      await refreshAll(port, initialQuery.workspaceId, initialQuery.targetId, initialQuery.status)
+    void (async () => {
+      await refreshAll(initialQuery.workspaceId, initialQuery.targetId, initialQuery.status)
       setLoading(false)
-    })
+    })()
   }, [initialQuery])
 
-  const refreshAll = async (port: number, nextWorkspaceId = workspaceId, nextTargetId = form.targetId, nextStatus = statusFilter) => {
+  const refreshAll = async (nextWorkspaceId = workspaceId, nextTargetId = form.targetId, nextStatus = statusFilter) => {
     const planParams = new URLSearchParams({ workspaceId: nextWorkspaceId })
     if (nextTargetId) planParams.set('targetId', nextTargetId)
     if (nextStatus) planParams.set('status', nextStatus)
 
     const [targetRows, catalogRows, policyRows, planRows] = await Promise.all([
-      fetch(`http://127.0.0.1:${port}/api/deployment-targets?workspaceId=${nextWorkspaceId}`).then(res => res.json() as Promise<DeploymentTarget[]>),
-      fetchJson<VersionCatalogItem[]>(port, `/api/version-catalog?workspaceId=${nextWorkspaceId}`),
-      fetchJson<UpgradePolicy[]>(port, `/api/upgrade-policies?workspaceId=${nextWorkspaceId}`),
-      fetchJson<UpgradePlan[]>(port, `/api/upgrade-plans?${planParams.toString()}`)
+      apiFetch<DeploymentTarget[]>(`/api/deployment-targets?workspaceId=${nextWorkspaceId}`),
+      apiFetch<ApiResponse<VersionCatalogItem[]>>(`/api/version-catalog?workspaceId=${nextWorkspaceId}`),
+      apiFetch<ApiResponse<UpgradePolicy[]>>(`/api/upgrade-policies?workspaceId=${nextWorkspaceId}`),
+      apiFetch<ApiResponse<UpgradePlan[]>>(`/api/upgrade-plans?${planParams.toString()}`)
     ])
 
     setTargets(targetRows)
-    setCatalog(catalogRows)
-    setPolicies(policyRows)
-    setPlans(planRows)
-    if (!selectedPlanId && planRows.length > 0) {
-      setSelectedPlanId(planRows[0].id)
+    setCatalog(catalogRows.success ? (catalogRows.data ?? []) : [])
+    setPolicies(policyRows.success ? (policyRows.data ?? []) : [])
+    setPlans(planRows.success ? (planRows.data ?? []) : [])
+    if (!selectedPlanId && planRows.success && planRows.data && planRows.data.length > 0) {
+      setSelectedPlanId(planRows.data[0].id)
     }
   }
 
@@ -135,11 +122,9 @@ export function UpgradePlansPage() {
   const selectedPlan = useMemo(() => plans.find(plan => plan.id === selectedPlanId) || null, [plans, selectedPlanId])
 
   const handleCreatePlan = async () => {
-    if (!apiPort) return
-    const response = await fetch(`http://127.0.0.1:${apiPort}/api/upgrade-plans`, {
+    const response = await apiFetch<ApiResponse<UpgradePlan>>('/api/upgrade-plans', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      body: JSON.stringify({
         workspaceId,
         targetId: form.targetId,
         policyId: form.policyId || null,
@@ -148,32 +133,28 @@ export function UpgradePlansPage() {
         releaseChannel: form.releaseChannel
       })
     })
-    const json = await response.json() as ApiResponse<UpgradePlan>
-    if (!json.success) {
-      alert(json.error)
+    if (!response.success) {
+      alert(response.error)
       return
     }
-    await refreshAll(apiPort)
-    setSelectedPlanId(json.data.id)
+    await refreshAll()
+    if (response.data) {
+      setSelectedPlanId((response.data as { id: string }).id)
+    }
     navigate(`/upgrade-plans?workspaceId=${workspaceId}&targetId=${encodeURIComponent(form.targetId)}`)
   }
 
   const runPlanAction = async (planId: string, action: 'dry-run' | 'execute' | 'rollback') => {
-    if (!apiPort) return
-    const response = await fetch(`http://127.0.0.1:${apiPort}/api/upgrade-plans/${planId}/${action}`, {
+    const response = await apiFetch<ApiResponse<unknown>>(`/api/upgrade-plans/${planId}/${action}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ actor: 'admin' })
     })
-    const json = await response.json() as ApiResponse<unknown>
-    if (!json.success) {
-      alert(json.error)
+    if (!response.success) {
+      alert(response.error)
       return
     }
-    await refreshAll(apiPort)
-    if (response.status === 202) {
-      alert('操作已进入审批等待，请到审批中心处理。')
-    }
+    await refreshAll()
+    alert('操作已进入审批等待，请到审批中心处理。')
   }
 
   if (loading) {
@@ -201,7 +182,7 @@ export function UpgradePlansPage() {
             <option value="FAILED">FAILED</option>
             <option value="ROLLED_BACK">ROLLED_BACK</option>
           </ThemeSelect>
-          <button onClick={() => apiPort && void refreshAll(apiPort, workspaceId, form.targetId, statusFilter)} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">应用筛选</button>
+          <button onClick={() => void refreshAll(workspaceId, form.targetId, statusFilter)} className="px-4 py-2 rounded-md bg-[hsl(var(--muted))] hover:opacity-90">应用筛选</button>
         </div>
       </SectionCard>
 
@@ -234,7 +215,7 @@ export function UpgradePlansPage() {
           </ThemeSelect>
         </div>
         <div className="mt-4">
-          <button onClick={handleCreatePlan} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">创建升级计划</button>
+          <button onClick={handleCreatePlan} className="px-4 py-2 rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">创建升级计划</button>
         </div>
       </SectionCard>
 
@@ -242,7 +223,7 @@ export function UpgradePlansPage() {
         <SectionCard title={`计划列表（${plans.length}）`} description="左侧查看计划状态，右侧查看预检查、审批和执行详情。">
           <div className="space-y-3">
             {plans.map(plan => (
-              <button key={plan.id} onClick={() => setSelectedPlanId(plan.id)} className={`w-full text-left border rounded-workshop-md p-4 ${selectedPlanId === plan.id ? 'border-[hsl(var(--primary))] bg-[hsl(var(--accent))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))]'}`}>
+              <button key={plan.id} onClick={() => setSelectedPlanId(plan.id)} className={`w-full text-left border rounded-md p-4 ${selectedPlanId === plan.id ? 'border-[hsl(var(--primary))] bg-[hsl(var(--accent))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))]'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{plan.target.name}</div>
@@ -262,8 +243,8 @@ export function UpgradePlansPage() {
           description={selectedPlan ? `${selectedPlan.component} · ${selectedPlan.currentVersion} → ${selectedPlan.targetVersion}` : '请选择左侧升级计划查看详情'}
           actions={selectedPlan ? (
             <>
-               <button onClick={() => runPlanAction(selectedPlan.id, 'dry-run')} className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">预检查</button>
-              <button onClick={() => runPlanAction(selectedPlan.id, 'execute')} className="px-3 py-2 text-sm rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">执行升级</button>
+               <button onClick={() => runPlanAction(selectedPlan.id, 'dry-run')} className="px-3 py-2 text-sm rounded-md bg-[hsl(var(--muted))] hover:opacity-90">预检查</button>
+              <button onClick={() => runPlanAction(selectedPlan.id, 'execute')} className="px-3 py-2 text-sm rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">执行升级</button>
               <button onClick={() => runPlanAction(selectedPlan.id, 'rollback')} className="rounded-full border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] px-3 py-2 text-sm font-medium text-[hsl(var(--destructive))] hover:bg-[hsl(var(--google-red)_/_0.18)] transition-colors">回滚</button>
             </>
           ) : undefined}
@@ -293,12 +274,12 @@ export function UpgradePlansPage() {
 
               <div>
                 <div className="text-sm font-medium mb-2">计划详情</div>
-                <pre className="p-3 rounded-workshop-md bg-[hsl(var(--muted))] text-xs font-mono overflow-auto max-h-80">{prettyJson(selectedPlan.planJson)}</pre>
+                <pre className="p-3 rounded-md bg-[hsl(var(--muted))] text-xs font-mono overflow-auto max-h-80">{prettyJson(selectedPlan.planJson)}</pre>
               </div>
 
               <div>
                 <div className="text-sm font-medium mb-2">预检查结果</div>
-                <pre className="p-3 rounded-workshop-md bg-[hsl(var(--muted))] text-xs font-mono overflow-auto max-h-80">{prettyJson(selectedPlan.dryRunResultJson || '{}')}</pre>
+                <pre className="p-3 rounded-md bg-[hsl(var(--muted))] text-xs font-mono overflow-auto max-h-80">{prettyJson(selectedPlan.dryRunResultJson || '{}')}</pre>
               </div>
 
               <div>
@@ -308,9 +289,9 @@ export function UpgradePlansPage() {
                 ) : (
                   <div className="space-y-2">
                     {selectedPlan.runs.map(run => (
-                      <div key={run.id} className="border border-[hsl(var(--border))] rounded-workshop-md p-3 text-sm">
+                      <div key={run.id} className="border border-[hsl(var(--border))] rounded-md p-3 text-sm">
                         <div className="font-mono">{run.id}</div>
-                        <div className="text-[hsl(var(--muted-foreground))]">{run.status} · {new Date(run.startedAt).toLocaleString('zh-CN')}</div>
+                        <div className="text-[hsl(var(--muted-foreground))]">{run.status} · {formatDateTime(run.startedAt)}</div>
                       </div>
                     ))}
                   </div>
@@ -330,13 +311,4 @@ function prettyJson(raw: string): string {
   } catch {
     return raw
   }
-}
-
-async function fetchJson<T>(port: number, path: string): Promise<T> {
-  const response = await fetch(`http://127.0.0.1:${port}${path}`)
-  const json = await response.json() as ApiResponse<T>
-  if (!json.success) {
-    throw new Error(json.error)
-  }
-  return json.data
 }

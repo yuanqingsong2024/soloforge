@@ -34,7 +34,7 @@ export function TicketCard({ ticket, onClick, isDragging }: Props) {
   return (
     <div
       onClick={onClick}
-      className={`cursor-pointer rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm transition-all duration-200 hover:border-[hsl(var(--google-blue)_/_0.16)] hover:shadow-workshop-md ${
+      className={`cursor-pointer rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-sm transition-all duration-200 hover:border-[hsl(var(--google-blue)_/_0.16)] hover:shadow-md ${
         isDragging ? 'rotate-3 scale-105' : ''
       }`}
     >

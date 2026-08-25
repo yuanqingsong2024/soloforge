@@ -201,7 +201,23 @@ export function registerOutboundMessagesRoutes(fastify: FastifyInstance): void {
 
       // 已审批的消息允许直接发送（避免重复创建审批）
       if (message.status === 'APPROVED') {
-        const result = await dispatchOutboundMessage(outboundMessageId, actor)
+        let result: unknown
+        try {
+          result = await dispatchOutboundMessage(outboundMessageId, actor)
+        } catch (sendError) {
+          // dispatchOutboundMessage 内部已执行 FAILED 状态更新，
+          // 此处 catch 仅将错误信息附加到响应返回，不返回 500 保证 sendResult 可赋值
+          const errMsg = sendError instanceof Error ? sendError.message : String(sendError)
+          try {
+            await prisma.outboundMessage.update({
+              where: { id: outboundMessageId },
+              data: { status: 'FAILED', lastError: errMsg }
+            })
+          } catch {
+            // 状态更新失败不影响错误感知
+          }
+          return { status: 'failed', error: errMsg }
+        }
 
         await writeAuditLogStrict({
           ticketId,
@@ -280,6 +296,19 @@ export function registerOutboundMessagesRoutes(fastify: FastifyInstance): void {
       const errMsg = error instanceof Error ? error.message : String(error)
 
       if (message) {
+        // 确保失败状态落盘（dispatch 内部 catch 可能提前退出）
+        try {
+          await prisma.outboundMessage.update({
+            where: { id: message.id },
+            data: {
+              status: 'FAILED',
+              lastError: errMsg
+            }
+          })
+        } catch {
+          // 状态更新失败，审计日志继续记录
+        }
+
         try {
           await writeAuditLogStrict({
             ticketId: message.ticketId || undefined,

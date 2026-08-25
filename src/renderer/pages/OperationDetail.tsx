@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { LoadingState } from '../components/ui/LoadingState'
-import { EmptyState } from '../components/ui/EmptyState'
+import { LoadingState, ErrorState, EmptyState, Button } from '../components/ui'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { translateEnum } from '../lib/i18n-helpers'
+import { useApiQuery } from '../hooks/useApiQuery'
 
 interface OperationStep {
   id: string
@@ -47,18 +47,6 @@ interface Operation {
   updatedAt: string
   phases: OperationPhase[]
 }
-
-interface ApiSuccess<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailure {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 
 function getStatusTone(status: string): 'success' | 'danger' | 'info' | 'warning' | 'muted' {
   switch (status) {
@@ -110,42 +98,20 @@ function parseJsonText(text?: string | null): string {
 export function OperationDetail() {
   const { t } = useTranslation(['common'])
   const { id } = useParams<{ id: string }>()
-  const [operation, setOperation] = useState<Operation | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const load = async () => {
-      if (!id) {
-        setError('缺少 Operation ID')
-        setLoading(false)
-        return
-      }
+  const { data, loading, error, refetch } = useApiQuery<ApiResponse<Operation>>(
+    id ? `/api/operations/${id}` : '/api/invalid',
+    { enabled: !!id }
+  )
 
-      try {
-        const port = await getApiPort()
-        const response = await fetch(`http://127.0.0.1:${port}/api/operations/${id}`)
-        const json = await response.json() as ApiResponse<Operation>
-        if (!response.ok || !json.success) {
-          throw new Error(json.success ? '获取 Operation 详情失败' : json.error)
-        }
-        setOperation(json.data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '获取 Operation 详情失败')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    void load()
-  }, [id])
+  const operation = data?.success ? data.data : null
 
   if (loading) {
     return <div className="p-6"><LoadingState message="加载操作详情中..." /></div>
   }
 
   if (error || !operation) {
-    return <div className="p-6"><EmptyState message={error || '操作任务不存在'} tone="danger" /></div>
+    return <div className="p-6"><ErrorState message={error || '操作任务不存在'} onRetry={refetch} /></div>
   }
 
   const relatedDeploymentJobs = Array.from(new Set(operation.phases.flatMap(phase => phase.steps.map(step => step.deploymentJobId).filter(Boolean) as string[])))
@@ -159,7 +125,7 @@ export function OperationDetail() {
     items: string[],
     routePrefix: string
   ) => (
-    <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
+    <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
       <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{title}</div>
       <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{count}</div>
       <div className="mt-3 space-y-2">
@@ -178,8 +144,8 @@ export function OperationDetail() {
         title={operation.title || operation.type}
         description={`${operation.type} · ${translateEnum(t, 'operationStatusMap', operation.status)}`}
         actions={
-          <Link to="/operations" className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
-            返回操作中心
+          <Link to="/operations">
+            <Button variant="secondary" size="sm">返回操作中心</Button>
           </Link>
         }
       />
@@ -250,11 +216,11 @@ export function OperationDetail() {
       <SectionCard title="阶段与步骤" description="按阶段与步骤展开执行结构、请求和结果。">
         <div className="space-y-4">
           {operation.phases.map(phase => (
-            <div key={phase.id} className="border border-[hsl(var(--border))] rounded-workshop-md overflow-hidden">
+            <div key={phase.id} className="border border-[hsl(var(--border))] rounded-md overflow-hidden">
               <div className="px-4 py-3 bg-[hsl(var(--muted))] flex items-center justify-between gap-3">
                 <div>
                   <div className="font-semibold text-[hsl(var(--foreground))]">阶段 {phase.orderNo}: {phase.name}</div>
-                  <div className="text-xs text-[hsl(var(--muted-foreground))]">{phase.startedAt ? `开始：${new Date(phase.startedAt).toLocaleString('zh-CN')}` : '未开始'}{phase.endedAt ? ` · 结束：${new Date(phase.endedAt).toLocaleString('zh-CN')}` : ''}</div>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))]">{phase.startedAt ? `开始：${formatDateTime(phase.startedAt)}` : '未开始'}{phase.endedAt ? ` · 结束：${formatDateTime(phase.endedAt)}` : ''}</div>
                 </div>
                 <StatusBadge label={translateEnum(t, 'operationStatusMap', phase.status)} tone={getStatusTone(phase.status)} />
               </div>
@@ -289,17 +255,17 @@ export function OperationDetail() {
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <div>
                           <div className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">请求</div>
-                          <pre className="text-xs font-mono p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto max-h-56">{parseJsonText(step.requestJson)}</pre>
+                          <pre className="text-xs font-mono p-3 rounded-md bg-[hsl(var(--muted))] overflow-auto max-h-56">{parseJsonText(step.requestJson)}</pre>
                         </div>
                         <div>
                           <div className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">结果</div>
-                          <pre className="text-xs font-mono p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto max-h-56">{parseJsonText(step.resultJson)}</pre>
+                          <pre className="text-xs font-mono p-3 rounded-md bg-[hsl(var(--muted))] overflow-auto max-h-56">{parseJsonText(step.resultJson)}</pre>
                         </div>
                       </div>
                       {step.logs && (
                         <div>
                           <div className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">日志</div>
-                          <pre className="text-xs font-mono p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto max-h-56 whitespace-pre-wrap">{step.logs}</pre>
+                          <pre className="text-xs font-mono p-3 rounded-md bg-[hsl(var(--muted))] overflow-auto max-h-56 whitespace-pre-wrap">{step.logs}</pre>
                         </div>
                       )}
                     </div>

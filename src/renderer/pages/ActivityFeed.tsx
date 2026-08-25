@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { readWorkspaceId } from '../lib/storage'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { LoadingState } from '../components/ui/LoadingState'
 import { EmptyState } from '../components/ui/EmptyState'
+import { Button } from '../components/ui/Button'
 import { useEventDrivenRefresh } from '../hooks/useEventDrivenRefresh'
 import { ThemeCheckbox, ThemeInput, ThemeSelect } from '../components/ui/FormFields'
 import { translateEnum } from '../lib/i18n-helpers'
@@ -30,18 +32,6 @@ interface EventRecord {
   traceId?: string | null
   createdAt: string
 }
-
-interface ApiSuccess<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailure {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 
 function severityClass(severity: string): string {
   switch (severity) {
@@ -71,7 +61,7 @@ function renderEventCard(
   formatSeverity: (severity: string) => string
 ) {
   return (
-    <div key={event.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+    <div key={event.id} className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
@@ -87,23 +77,23 @@ function renderEventCard(
           <div className="text-xs text-[hsl(var(--muted-foreground))] flex gap-3 flex-wrap">
             <span>Workspace: {event.workspaceId}</span>
             {event.targetId && <span>Target: {event.targetId}</span>}
-            <span>{new Date(event.createdAt).toLocaleString('zh-CN')}</span>
+            <span>{formatDateTime(event.createdAt)}</span>
           </div>
         </div>
         <div className="flex flex-col gap-2 shrink-0">
           {event.traceId && (
-            <button onClick={() => navigate(`/traces/${encodeURIComponent(event.traceId || '')}`)} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-3 py-1.5 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]">
+            <Button variant="outline" size="sm" onClick={() => navigate(`/traces/${encodeURIComponent(event.traceId || '')}`)}>
               查看链路
-            </button>
+            </Button>
           )}
-          <button onClick={() => handleJump(event)} className="rounded-full bg-[hsl(var(--primary))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90">
+          <Button size="sm" onClick={() => handleJump(event)}>
             跳转来源
-          </button>
+          </Button>
         </div>
       </div>
       <details className="mt-3">
         <summary className="cursor-pointer text-xs text-[hsl(var(--muted-foreground))]">展开 Payload</summary>
-        <pre className="mt-2 max-h-64 overflow-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-3 text-xs font-mono">{formatJson(event.payload)}</pre>
+        <pre className="mt-2 max-h-64 overflow-auto rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.52)] p-3 text-xs font-mono">{formatJson(event.payload)}</pre>
       </details>
     </div>
   )
@@ -112,7 +102,6 @@ function renderEventCard(
 export function ActivityFeed() {
   const { t } = useTranslation('common')
   const navigate = useNavigate()
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [events, setEvents] = useState<EventRecord[]>([])
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -129,51 +118,46 @@ export function ActivityFeed() {
   })
 
   useEffect(() => {
-    getApiPort().then(async port => {
-      setApiPort(port)
-      await Promise.all([fetchEvents(port), fetchWorkspaces(port)])
+    const init = async () => {
+      await Promise.all([fetchEvents(), fetchWorkspaces()])
       setLoading(false)
-    })
+    }
+    void init()
   }, [])
 
   const { lastEventPollAt } = useEventDrivenRefresh({
-    apiPort,
     workspaceId: filters.workspaceId,
     targetId: filters.targetId || undefined,
-    enabled: Boolean(autoRefresh && apiPort),
+    enabled: Boolean(autoRefresh),
     sourceTypes: filters.sourceType ? [filters.sourceType] : ['DEPLOYMENT_JOB', 'HOST_AGENT', 'CHANGE_REQUEST', 'BACKUP', 'COMMUNICATION', 'SYSTEM'],
     onRelevantEvent: async () => {
-      if (!apiPort) return
-      await fetchEvents(apiPort)
+      await fetchEvents()
     }
   })
 
-  const fetchWorkspaces = async (port: number) => {
-    const response = await fetch(`http://127.0.0.1:${port}/api/workspaces`)
-    const data = await response.json() as Workspace[]
+  const fetchWorkspaces = async () => {
+    const data = await apiFetch<Workspace[]>('/api/workspaces')
     setWorkspaces(Array.isArray(data) ? data : [])
   }
 
-  const fetchEvents = async (port: number, nextFilters = filters) => {
+  const fetchEvents = async (nextFilters = filters) => {
     const params = new URLSearchParams()
     for (const [key, value] of Object.entries(nextFilters)) {
       if (value) params.append(key, value)
     }
     params.append('limit', '200')
 
-    const response = await fetch(`http://127.0.0.1:${port}/api/event-records?${params.toString()}`)
-    const json = await response.json() as ApiResponse<EventRecord[]>
+    const json = await apiFetch<ApiResponse<EventRecord[]>>(`/api/event-records?${params.toString()}`)
     if (!json.success) {
       throw new Error(json.error)
     }
-    setEvents(json.data)
+    setEvents(json.data ?? [])
   }
 
   const handleApplyFilters = async () => {
-    if (!apiPort) return
     setLoading(true)
     try {
-      await fetchEvents(apiPort)
+      await fetchEvents()
     } finally {
       setLoading(false)
     }
@@ -226,12 +210,9 @@ export function ActivityFeed() {
               <ThemeCheckbox checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} />
               <span>事件驱动自动刷新</span>
             </label>
-            <button
-              onClick={handleApplyFilters}
-              className="rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90"
-            >
+            <Button onClick={handleApplyFilters}>
               刷新事件流
-            </button>
+            </Button>
           </div>
         }
       />

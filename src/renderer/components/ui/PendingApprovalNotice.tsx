@@ -18,7 +18,7 @@ export function PendingApprovalNotice({
   className = ''
 }: PendingApprovalNoticeProps) {
   return (
-    <div className={`rounded-workshop-lg border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.14)] p-4 shadow-workshop-sm ${className}`}>
+    <div className={`rounded-lg border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.14)] p-4 shadow-sm ${className}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{title}</div>

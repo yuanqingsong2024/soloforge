@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { LoadingState } from '../components/ui/LoadingState'
+import { LoadingState, Button } from '../components/ui'
 import { EmptyState } from '../components/ui/EmptyState'
 import { translateEnum } from '../lib/i18n-helpers'
+import { formatDateTime } from '../lib/i18n-formatters'
 
 interface AuditLog {
   id: string
@@ -35,31 +36,28 @@ export function AuditLogs() {
   
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [filters, setFilters] = useState(initialFilters)
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [expandedLog, setExpandedLog] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [reportGenerating, setReportGenerating] = useState(false)
   useEffect(() => {
     setFilters(initialFilters)
   }, [initialFilters])
 
   useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-      fetchLogs(port)
-    })
+    void fetchLogs()
   }, [])
 
-  const fetchLogs = async (port: number) => {
+  const fetchLogs = async () => {
     try {
       const params = new URLSearchParams()
       if (filters.ticketId) params.append('ticketId', filters.ticketId)
       if (filters.traceId) params.append('traceId', filters.traceId)
       if (filters.actor) params.append('actor', filters.actor)
 
-      const url = `http://127.0.0.1:${port}/api/audit-logs?${params}`
-      const response = await fetch(url)
-      const data = await response.json()
-      setLogs(data)
+      const url = `/api/audit-logs?${params}`
+      const data = await apiFetch<AuditLog[]>(url)
+      setLogs(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Failed to fetch audit logs:', error)
     } finally {
@@ -68,10 +66,8 @@ export function AuditLogs() {
   }
 
   const handleSearch = () => {
-    if (apiPort) {
-      setLoading(true)
-      fetchLogs(apiPort)
-    }
+    setLoading(true)
+    void fetchLogs()
   }
 
   const toggleExpand = (logId: string) => {
@@ -80,6 +76,83 @@ export function AuditLogs() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
+  }
+
+  // 导出审计日志
+  const exportLogs = async (format: 'json' | 'csv') => {
+    setExporting(true)
+    try {
+      const filterParams: Record<string, string> = {}
+      if (filters.traceId) filterParams.traceId = filters.traceId
+      if (filters.actor) filterParams.actor = filters.actor
+      if (filters.ticketId) filterParams.ticketId = filters.ticketId
+
+      const url = `/api/audit-export/export/${format}`
+      const response = await apiFetch<{ success: boolean; data: string; filename: string }>(url, {
+        method: 'POST',
+        body: JSON.stringify({
+          format,
+          filter: filterParams,
+          includeHashChain: true,
+          masked: true
+        })
+      })
+
+      if (response.success && response.data) {
+        // 创建下载
+        const blob = new Blob([response.data], { type: format === 'json' ? 'application/json' : 'text/csv' })
+        const downloadUrl = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = downloadUrl
+        link.download = response.filename || `audit-logs-${new Date().toISOString().split('T')[0]}.${format}`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(downloadUrl)
+      }
+    } catch (error) {
+      console.error('导出失败:', error)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // 生成报表
+  const generateReport = async () => {
+    setReportGenerating(true)
+    try {
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - 30) // 默认最近 30 天
+
+      const response = await apiFetch<{ success: boolean; data: string; filename: string }>(
+        '/api/audit-export/report/csv',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            workspaceId: '00000000-0000-0000-0000-000000000001',
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString()
+          })
+        }
+      )
+
+      if (response.success && response.data) {
+        const blob = new Blob([response.data], { type: 'text/csv' })
+        const downloadUrl = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = downloadUrl
+        link.download = response.filename || `audit-report-${new Date().toISOString().split('T')[0]}.csv`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(downloadUrl)
+      }
+    } catch (error) {
+      console.error('报表生成失败:', error)
+    } finally {
+      setReportGenerating(false)
+    }
   }
 
   if (loading) {
@@ -93,6 +166,19 @@ export function AuditLogs() {
       <PageHeader
         title={t('audit:pageTitle')}
         description={t('audit:pageDescription')}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => exportLogs('csv')} loading={exporting} disabled={loading}>
+              导出 CSV
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => exportLogs('json')} loading={exporting} disabled={loading}>
+              导出 JSON
+            </Button>
+            <Button size="sm" onClick={generateReport} loading={reportGenerating}>
+              生成报表
+            </Button>
+          </div>
+        }
       />
 
       <SectionCard className="mb-6">
@@ -130,14 +216,9 @@ export function AuditLogs() {
                      placeholder:text-[hsl(var(--muted-foreground))]
                      focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
           />
-          <button
-            onClick={handleSearch}
-            className="rounded-full px-4 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]
-                     hover:opacity-90 transition-opacity
-                     text-sm font-medium"
-          >
+          <Button size="sm" onClick={handleSearch}>
             {t('common:buttons.search')}
-          </button>
+          </Button>
         </div>
       </SectionCard>
 
@@ -184,7 +265,7 @@ export function AuditLogs() {
                         </>
                       )}
                       <span>•</span>
-                      <span>{new Date(log.ts).toLocaleString('zh-CN')}</span>
+                      <span>{formatDateTime(log.ts)}</span>
                     </div>
                   </div>
                   <svg
@@ -204,13 +285,13 @@ export function AuditLogs() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
                       <h4 className="font-medium text-sm text-[hsl(var(--foreground))] mb-2">{t('audit:requestLabel')}:</h4>
-                      <pre className="max-h-64 overflow-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--background))] p-3 text-xs font-mono text-[hsl(var(--foreground))]">
+                      <pre className="max-h-64 overflow-auto rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--background))] p-3 text-xs font-mono text-[hsl(var(--foreground))]">
                         {JSON.stringify(JSON.parse(log.request), null, 2)}
                       </pre>
                     </div>
                     <div>
                       <h4 className="font-medium text-sm text-[hsl(var(--foreground))] mb-2">{t('audit:responseLabel')}:</h4>
-                      <pre className="max-h-64 overflow-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--background))] p-3 text-xs font-mono text-[hsl(var(--foreground))]">
+                      <pre className="max-h-64 overflow-auto rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--background))] p-3 text-xs font-mono text-[hsl(var(--foreground))]">
                         {JSON.stringify(JSON.parse(log.response), null, 2)}
                       </pre>
                     </div>

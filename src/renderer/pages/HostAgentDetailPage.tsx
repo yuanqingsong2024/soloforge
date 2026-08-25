@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { Link, useParams } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState, ErrorState, Button } from '../components/ui'
+import { useApiQuery } from '../hooks/useApiQuery'
 import type { ReactNode } from 'react'
-import { LoadingState } from '../components/ui/LoadingState'
 
 interface AgentLogRow {
   id: string
@@ -50,10 +51,6 @@ interface HostAgentDetail {
   heartbeats: AgentHeartbeatRow[]
 }
 
-interface ApiOk<T> { success: true; data: T }
-interface ApiFail { success: false; error: string }
-type ApiResponse<T> = ApiOk<T> | ApiFail
-
 function prettyJson(raw: string | null | undefined): string {
   if (!raw) return '—'
   try {
@@ -65,19 +62,20 @@ function prettyJson(raw: string | null | undefined): string {
 
 export function HostAgentDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const [detail, setDetail] = useState<HostAgentDetail | null>(null)
+  
+  const { data: detail, loading, error, refetch } = useApiQuery<ApiResponse<HostAgentDetail>>(
+    id ? `/api/host-agents/${id}` : '/api/invalid',
+    { enabled: !!id }
+  )
 
-  useEffect(() => {
-    if (!id) return
-    getApiPort().then(async port => {
-      const response = await fetch(`http://127.0.0.1:${port}/api/host-agents/${id}`)
-      const json = await response.json() as ApiResponse<HostAgentDetail>
-      if (json.success) setDetail(json.data)
-    })
-  }, [id])
+  const agentData = detail?.success ? detail.data : null
 
-  if (!detail) {
+  if (loading) {
     return <LoadingState message="加载 Agent 详情中..." />
+  }
+
+  if (error || !agentData) {
+    return <ErrorState message={error || '加载失败'} onRetry={refetch} />
   }
 
   const renderDetailList = (
@@ -92,7 +90,7 @@ export function HostAgentDetailPage() {
     <SectionCard title={title} description={description}>
       <div className="space-y-3">
         {items.map(item => (
-          <details key={item.id} className="border border-[hsl(var(--border))] rounded-workshop-md p-3">
+          <details key={item.id} className="border border-[hsl(var(--border))] rounded-md p-3">
             <summary className="cursor-pointer">{item.content}</summary>
             <div className="mt-3">{item.body}</div>
           </details>
@@ -104,36 +102,36 @@ export function HostAgentDetailPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={detail.name}
-        description={`Host Agent 详情 · ${detail.hostname} · ${detail.status}`}
-        actions={<Link to="/agent-actions" className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))]">查看全部 Actions</Link>}
+        title={agentData.name}
+        description={`Host Agent 详情 · ${agentData.hostname} · ${agentData.status}`}
+        actions={<Link to="/agent-actions"><Button variant="secondary" size="sm">查看全部 Actions</Button></Link>}
       />
 
       <SectionCard title="基础信息" description="Agent、Workspace、Target 与安全边界说明。">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div><div className="text-[hsl(var(--muted-foreground))]">Workspace</div><div className="font-mono">{detail.workspaceId}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">Target</div><div>{detail.target?.name || '未绑定'} {detail.target ? `· ${detail.target.envType} · ${detail.target.targetType}` : ''}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">系统</div><div>{detail.osType} / {detail.arch}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">版本</div><div>{detail.agentVersion}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">最近心跳</div><div>{detail.lastHeartbeatAt ? new Date(detail.lastHeartbeatAt).toLocaleString('zh-CN') : '从未'}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">Workspace</div><div className="font-mono">{agentData.workspaceId}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">Target</div><div>{agentData.target?.name || '未绑定'} {agentData.target ? `· ${agentData.target.envType} · ${agentData.target.targetType}` : ''}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">系统</div><div>{agentData.osType} / {agentData.arch}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">版本</div><div>{agentData.agentVersion}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">最近心跳</div><div>{agentData.lastHeartbeatAt ? formatDateTime(agentData.lastHeartbeatAt) : '从未'}</div></div>
           <div><div className="text-[hsl(var(--muted-foreground))]">允许的安全动作说明</div><div>默认仅白名单动作；任意 shell 未开放；高危动作仍受审批、解锁和 policy 约束。</div></div>
         </div>
       </SectionCard>
 
       <SectionCard title="能力列表" description="capabilities_json 原始声明。">
-        <pre className="text-xs font-mono whitespace-pre-wrap p-4 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto">{prettyJson(detail.capabilitiesJson)}</pre>
+        <pre className="text-xs font-mono whitespace-pre-wrap p-4 rounded-md bg-[hsl(var(--muted))] overflow-auto">{prettyJson(agentData.capabilitiesJson)}</pre>
       </SectionCard>
 
       {renderDetailList(
-        `最近动作 (${detail.actions.length})`,
+        `最近动作 (${agentData.actions.length})`,
         '最近派发/执行过的 Agent Actions。',
-        detail.actions.map(action => ({
+        agentData.actions.map(action => ({
           id: action.id,
           content: (
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="font-medium">{action.actionType}</div>
-                <div className="text-xs text-[hsl(var(--muted-foreground))]">{new Date(action.createdAt).toLocaleString('zh-CN')} · {action.traceId}</div>
+                <div className="text-xs text-[hsl(var(--muted-foreground))]">{formatDateTime(action.createdAt)} · {action.traceId}</div>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm">{action.status}</span>
@@ -149,8 +147,8 @@ export function HostAgentDetailPage() {
           ),
           body: (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <pre className="text-xs font-mono whitespace-pre-wrap p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto">{prettyJson(action.requestJson)}</pre>
-              <pre className="text-xs font-mono whitespace-pre-wrap p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto">{prettyJson(action.resultJson || action.errorSummary || null)}</pre>
+              <pre className="text-xs font-mono whitespace-pre-wrap p-3 rounded-md bg-[hsl(var(--muted))] overflow-auto">{prettyJson(action.requestJson)}</pre>
+              <pre className="text-xs font-mono whitespace-pre-wrap p-3 rounded-md bg-[hsl(var(--muted))] overflow-auto">{prettyJson(action.resultJson || action.errorSummary || null)}</pre>
             </div>
           )
         }))
@@ -158,25 +156,25 @@ export function HostAgentDetailPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {renderDetailList(
-          `最近心跳 (${detail.heartbeats.length})`,
+          `最近心跳 (${agentData.heartbeats.length})`,
           '最新 heartbeat 样本。',
-          detail.heartbeats.map(heartbeat => ({
+          agentData.heartbeats.map(heartbeat => ({
             id: heartbeat.id,
-            content: <div className="text-sm">{new Date(heartbeat.createdAt).toLocaleString('zh-CN')}</div>,
-            body: <pre className="text-xs font-mono whitespace-pre-wrap p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto">{prettyJson(heartbeat.heartbeatJson)}</pre>
+            content: <div className="text-sm">{formatDateTime(heartbeat.createdAt)}</div>,
+            body: <pre className="text-xs font-mono whitespace-pre-wrap p-3 rounded-md bg-[hsl(var(--muted))] overflow-auto">{prettyJson(heartbeat.heartbeatJson)}</pre>
           }))
         )}
 
         {renderDetailList(
-          `最近日志 (${detail.logs.length})`,
+          `最近日志 (${agentData.logs.length})`,
           'Agent 结构化日志回传。',
-          detail.logs.map(log => ({
+          agentData.logs.map(log => ({
             id: log.id,
             content: <summary className="cursor-pointer text-sm">[{log.level}] {log.message}</summary>,
             body: (
               <>
-                <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{new Date(log.createdAt).toLocaleString('zh-CN')}</div>
-                <pre className="mt-3 text-xs font-mono whitespace-pre-wrap p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto">{prettyJson(log.dataJson)}</pre>
+                <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{formatDateTime(log.createdAt)}</div>
+                <pre className="mt-3 text-xs font-mono whitespace-pre-wrap p-3 rounded-md bg-[hsl(var(--muted))] overflow-auto">{prettyJson(log.dataJson)}</pre>
               </>
             )
           }))

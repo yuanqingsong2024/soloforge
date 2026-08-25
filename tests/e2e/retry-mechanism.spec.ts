@@ -209,8 +209,8 @@ async function ensureFailedMessage(page: import('@playwright/test').Page): Promi
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name: `${profileName}-comms`,
-      provider: 'openclaw',
-      openclawProfileId: openclawProfile.id,
+      provider: 'claude-code',
+      claudeCodeProfileId: openclawProfile.id,
       enabled: true
     })
   })

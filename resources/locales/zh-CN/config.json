@@ -8,6 +8,9 @@
     "diff": "差异对比",
     "snapshots": "历史快照"
   },
+  "rawJson": {
+    "title": "原始 JSON"
+  },
   "quickMode": {
     "title": "快速配置优先",
     "basicDesc": "当前为基础模式，优先使用表单配置，隐藏 Raw JSON 入口。",

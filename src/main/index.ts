@@ -11,6 +11,7 @@ import { initTrayAndNotifications, destroyTray } from './services/tray-service'
 import { offlineModeService } from './services/offline-mode-service'
 import { getOrCreateLocalApiToken } from './middleware/local-auth'
 import { isE2ETestMode } from './runtime-mode'
+import { prisma } from './services/db'
 
 process.env.SOLOFORGE_PACKAGED = app.isPackaged ? '1' : '0'
 
@@ -44,9 +45,83 @@ function shouldOpenDevTools(): boolean {
   return Boolean(process.env.VITE_DEV_SERVER_URL)
 }
 
+/** E2E 测试模式：在 migrate deploy 创建的空数据库中补种必要数据 */
+async function ensureE2ETestData(): Promise<void> {
+  try {
+    // 1. 确保默认 Pipeline（支持工单流水线）
+    const pipeline = await prisma.pipeline.upsert({
+      where: { name: '标准交付流程' },
+      update: { enabled: true },
+      create: {
+        name: '标准交付流程',
+        enabled: true,
+        steps: {
+          create: [
+            { order: 1, roleName: 'Support', inputArtifacts: '[]', outputArtifacts: '["CLIENT_MSG"]', requireApprovalActions: '[]', allowRework: false },
+            { order: 2, roleName: 'PM&Writer', inputArtifacts: '["CLIENT_MSG"]', outputArtifacts: '["PRD","PLAN"]', requireApprovalActions: '[]', allowRework: true },
+            { order: 3, roleName: 'Dev', inputArtifacts: '["PRD","PLAN"]', outputArtifacts: '["CODE_CHANGE"]', requireApprovalActions: '["MERGE_MAIN"]', allowRework: true },
+            { order: 4, roleName: 'QA', inputArtifacts: '["CODE_CHANGE"]', outputArtifacts: '["TEST_CASES"]', requireApprovalActions: '[]', allowRework: true },
+            { order: 5, roleName: 'Ops', inputArtifacts: '["CODE_CHANGE","TEST_CASES"]', outputArtifacts: '["DEPLOY"]', requireApprovalActions: '["DEPLOY_PROD"]', allowRework: false },
+            { order: 6, roleName: 'Support', inputArtifacts: '["DEPLOY"]', outputArtifacts: '["DELIVERY_LIST","CLIENT_MSG"]', requireApprovalActions: '["SEND_EXTERNAL"]', allowRework: false }
+          ]
+        }
+      }
+    })
+
+    // 2. 确保 ConnectionProfile（Local）
+    const connProfile = await prisma.connectionProfile.upsert({
+      where: { name: 'Local' },
+      update: {},
+      create: {
+        name: 'Local',
+        baseUrl: 'http://127.0.0.1:18789',
+        wsUrl: 'ws://127.0.0.1:18789',
+        authMode: 'token'
+      }
+    })
+
+    // 3. 确保 CommsProfile（provider='claude-code'，dispatchOutboundMessage 需要这个条件）
+    const commsProfile = await prisma.commsProfile.upsert({
+      where: { name: 'e2e-openclaw' },
+      update: { claudeCodeProfileId: connProfile.id, provider: 'claude-code' },
+      create: {
+        name: 'e2e-openclaw',
+        provider: 'claude-code',
+        claudeCodeProfileId: connProfile.id
+      }
+    })
+
+    // 4. 确保 CommsTarget（allowlisted=true，resolveAllowlistedTarget 需要这个条件）
+    const existingTarget = await prisma.commsTarget.findFirst({
+      where: { channel: 'e2e', to: 'e2e-test-target' }
+    })
+    if (!existingTarget) {
+      await prisma.commsTarget.create({
+        data: {
+          commsProfileId: commsProfile.id,
+          channel: 'e2e',
+          to: 'e2e-test-target',
+          displayName: 'E2E 测试目标',
+          allowlisted: true
+        }
+      })
+    }
+
+    console.log('[E2E] 测试数据补种完成: pipeline=%s, connProfile=%s, commsProfile=%s', pipeline.id, connProfile.id, commsProfile.id)
+  } catch (err) {
+    // 补种失败不阻塞启动，打日志供调试
+    console.warn('[E2E] 测试数据补种失败（不影响功能）:', err)
+  }
+}
+
 async function createWindow() {
   // 启动本地 API 服务器
   apiPort = await startServer()
+
+  // E2E 模式下补种 Pipeline 数据（migrate deploy 不运行 seed）
+  if (isE2ETestMode()) {
+    await ensureE2ETestData()
+  }
 
   const preloadPath = path.join(__dirname, '../preload/index.cjs')
   mainWindow = new BrowserWindow({

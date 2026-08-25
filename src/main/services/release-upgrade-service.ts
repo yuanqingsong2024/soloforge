@@ -1033,6 +1033,12 @@ export class ReleaseUpgradeService {
         return { version: result.stdout.trim(), source: 'SSH' as const, details: { containerName, image: result.stdout.trim() } }
       }
       return { version: formatTargetImage(metadata, metadata.imageTag || 'latest'), source: 'SSH' as const, details: { containerName, error: result.stderr, fallback: true } }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error)
+      if (errMsg.includes('凭证未找到')) {
+        return { version: formatTargetImage(metadata, metadata.imageTag || 'latest'), source: 'SSH' as const, details: { containerName, error: `SSH 凭证未配置，请在目标设置中配置 SSH 密码`, fallback: true } }
+      }
+      return { version: formatTargetImage(metadata, metadata.imageTag || 'latest'), source: 'SSH' as const, details: { containerName, error: errMsg, fallback: true } }
     } finally {
       ssh.disconnect()
     }
@@ -1062,6 +1068,12 @@ export class ReleaseUpgradeService {
       await ssh.connect()
       const result = await ssh.executeCommand(command, 10000)
       return { version: result.success ? result.stdout.trim() || 'unknown' : 'unknown', source: 'SSH' as const, details: { command, stderr: result.stderr || null } }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error)
+      if (errMsg.includes('凭证未找到')) {
+        return { version: 'unknown', source: 'SSH' as const, details: { command, error: `SSH 凭证未配置，请在目标设置中配置 SSH 密码`, fallback: true } }
+      }
+      return { version: 'unknown', source: 'SSH' as const, details: { command, error: errMsg, fallback: true } }
     } finally {
       ssh.disconnect()
     }

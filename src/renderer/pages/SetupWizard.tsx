@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { LoadingState } from '../components/ui/LoadingState'
 import { ThemeInput, ThemeSelect } from '../components/ui/FormFields'
 import { readWorkspaceId } from '../lib/storage'
 
@@ -25,7 +26,6 @@ interface PingResult {
 
 export function SetupWizard() {
   const navigate = useNavigate()
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [currentStep, setCurrentStep] = useState<WizardStep>(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,11 +49,6 @@ export function SetupWizard() {
   const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-      console.log('[SetupWizard] API Port:', port)
-    })
-
     const storedWorkspaceId = readWorkspaceId()
     if (storedWorkspaceId) {
       setWorkspaceId(storedWorkspaceId)
@@ -76,13 +71,12 @@ export function SetupWizard() {
   }
 
   const handleCreateProfile = async () => {
-    if (!apiPort) return
     if (!formData.name.trim()) {
       setError('连接名称不能为空')
       return
     }
     if (!formData.baseUrl.trim()) {
-      setError('OpenClaw 地址不能为空')
+      setError('Claude Code 地址不能为空')
       return
     }
     if (!formData.wsUrl.trim()) {
@@ -94,9 +88,8 @@ export function SetupWizard() {
     setError(null)
 
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/profiles`, {
+      const profile = await apiFetch<{ id: string }>('/api/profiles', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name.trim(),
           baseUrl: formData.baseUrl.trim(),
@@ -105,12 +98,6 @@ export function SetupWizard() {
         })
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || '创建连接配置失败')
-      }
-
-      const profile = await response.json()
       setProfileId(profile.id)
       setCurrentStep(2)
     } catch (err) {
@@ -122,7 +109,7 @@ export function SetupWizard() {
   }
 
   const handleSaveCredentials = async () => {
-    if (!apiPort || !profileId) return
+    if (!profileId) return
 
     if (formData.authMode === 'token' && !formData.token.trim()) {
       setError('Token 不能为空')
@@ -137,21 +124,15 @@ export function SetupWizard() {
     setError(null)
 
     try {
-      const body: any = {}
+      const body: Record<string, string> = {}
       if (formData.token.trim()) body.token = formData.token.trim()
       if (formData.password.trim()) body.password = formData.password.trim()
       if (formData.edgeToken.trim()) body.edgeToken = formData.edgeToken.trim()
 
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/profiles/${profileId}`, {
+      await apiFetch(`/api/profiles/${profileId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || '保存凭证失败')
-      }
 
       setCurrentStep(3)
       await handleAutoTestAndBind()
@@ -164,8 +145,8 @@ export function SetupWizard() {
   }
 
   const handleAutoTestAndBind = async () => {
-    if (!apiPort || !profileId) {
-      setError(`缺少必要参数：apiPort=${apiPort}, profileId=${profileId}`)
+    if (!profileId) {
+      setError(`缺少必要参数：profileId=${profileId}`)
       return
     }
 
@@ -173,7 +154,7 @@ export function SetupWizard() {
     setError(null)
 
     try {
-      console.log('[SetupWizard] 开始健康检查，API 端口:', apiPort)
+      console.log('[SetupWizard] 开始健康检查')
       
       // 先测试本地 API 服务器是否可用
       let apiHealthy = false
@@ -181,15 +162,13 @@ export function SetupWizard() {
       for (let i = 0; i < 3; i++) {
         try {
           console.log(`[SetupWizard] 健康检查尝试 ${i + 1}/3`)
-          const healthCheck = await fetch(`http://127.0.0.1:${apiPort}/api/health`, {
+          const healthCheck = await apiFetch<{ status: string }>('/api/health', {
             method: 'GET'
           })
-          console.log('[SetupWizard] 健康检查响应状态:', healthCheck.status)
-          if (healthCheck.ok) {
-            apiHealthy = true
-            console.log('[SetupWizard] 健康检查成功')
-            break
-          }
+          console.log('[SetupWizard] 健康检查响应:', healthCheck)
+          apiHealthy = true
+          console.log('[SetupWizard] 健康检查成功')
+          break
         } catch (err) {
           lastError = err instanceof Error ? err.message : String(err)
           console.error(`[SetupWizard] 健康检查失败 (尝试 ${i + 1}/3):`, lastError)
@@ -200,23 +179,15 @@ export function SetupWizard() {
       }
 
       if (!apiHealthy) {
-        throw new Error(`本地 API 服务器未响应 (端口 ${apiPort})。最后错误: ${lastError}`)
+        throw new Error(`本地 API 服务器未响应。最后错误: ${lastError}`)
       }
 
-      console.log('[SetupWizard] 开始 OpenClaw ping 测试')
-      const pingResponse = await fetch(`http://127.0.0.1:${apiPort}/api/openclaw/ping`, {
+      console.log('[SetupWizard] 开始 Claude Code ping 测试')
+      const pingData = await apiFetch<PingResult>('/api/openclaw/ping', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileId })
-      }).catch(err => {
-        throw new Error(`无法连接到本地 API 服务器 (端口 ${apiPort})：${err.message}`)
       })
 
-      if (!pingResponse.ok) {
-        throw new Error(`API 请求失败 (HTTP ${pingResponse.status})`)
-      }
-
-      const pingData = await pingResponse.json()
       console.log('[SetupWizard] Ping 结果:', pingData)
       setPingResult(pingData)
 
@@ -225,36 +196,20 @@ export function SetupWizard() {
         return
       }
 
-      const bindResponse = await fetch(`http://127.0.0.1:${apiPort}/api/workspaces/${workspaceId}/profiles`, {
+      await apiFetch(`/api/workspaces/${workspaceId}/profiles`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           profileId,
           isDefault: true
         })
-      }).catch(err => {
-        throw new Error(`绑定 Workspace 请求失败：${err.message}`)
       })
-
-      if (!bindResponse.ok) {
-        const errorData = await bindResponse.json()
-        throw new Error(errorData.message || '绑定 Workspace 失败')
-      }
 
       setBindingSuccess(true)
 
-      const completeResponse = await fetch(`http://127.0.0.1:${apiPort}/api/setup/complete`, {
+      await apiFetch('/api/setup/complete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId })
-      }).catch(err => {
-        throw new Error(`标记配置完成请求失败：${err.message}`)
       })
-
-      if (!completeResponse.ok) {
-        const errorData = await completeResponse.json()
-        throw new Error(errorData.message || '标记配置完成失败')
-      }
 
       setSetupComplete(true)
     } catch (err) {
@@ -323,7 +278,7 @@ export function SetupWizard() {
         }
       />
 
-      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+      <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
         <div className="flex items-center justify-between">
           {[
             { step: 1, label: '连接配置' },
@@ -333,7 +288,7 @@ export function SetupWizard() {
             <div key={item.step} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
                 <div
-                  className={`flex h-10 w-10 items-center justify-center rounded-full font-medium shadow-workshop-sm ${
+                  className={`flex h-10 w-10 items-center justify-center rounded-full font-medium shadow-sm ${
                     currentStep >= item.step
                       ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
                       : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
@@ -360,7 +315,7 @@ export function SetupWizard() {
       </div>
 
       {error && (
-        <div className="rounded-workshop-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-4 shadow-workshop-sm">
+        <div className="rounded-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-4 shadow-sm">
           <p className="text-sm text-[hsl(var(--destructive))]">{error}</p>
         </div>
       )}
@@ -541,20 +496,17 @@ export function SetupWizard() {
         <SectionCard title="测试与绑定" description="自动测试连接并绑定到当前 Workspace">
           <div className="space-y-4">
             {loading && (
-              <div className="text-center py-8">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-                <p className="mt-4 text-sm text-[hsl(var(--muted-foreground))]">正在测试连接...</p>
-              </div>
+          <LoadingState message="正在测试连接..." />
             )}
 
             {!loading && pingResult && (
               <div>
                 {pingResult.success ? (
-                  <div className="rounded-workshop-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] p-4 shadow-workshop-sm">
+                  <div className="rounded-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] p-4 shadow-sm">
                     <p className="text-sm text-[hsl(var(--success))]">✓ 连接测试成功</p>
                   </div>
                 ) : (
-                  <div className="rounded-workshop-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-4 shadow-workshop-sm">
+                  <div className="rounded-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-4 shadow-sm">
                     <p className="text-sm text-[hsl(var(--destructive))]">✗ 连接测试失败</p>
                     {pingResult.error && (
                       <p className="mt-2 text-sm text-[hsl(var(--destructive))]">{pingResult.error}</p>
@@ -587,14 +539,14 @@ export function SetupWizard() {
             )}
 
             {!loading && bindingSuccess && (
-              <div className="rounded-workshop-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] p-4 shadow-workshop-sm">
+              <div className="rounded-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] p-4 shadow-sm">
                 <p className="text-sm text-[hsl(var(--success))]">✓ Workspace 绑定成功</p>
               </div>
             )}
 
             {!loading && setupComplete && (
               <div className="space-y-4">
-                <div className="rounded-workshop-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] p-6 shadow-workshop-sm">
+                <div className="rounded-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] p-6 shadow-sm">
                   <h3 className="text-lg font-semibold text-[hsl(var(--success))] mb-4">✓ 配置完成！</h3>
                   <div className="space-y-2 text-sm text-[hsl(var(--success))]">
                     <p><strong>连接名称：</strong>{formData.name}</p>

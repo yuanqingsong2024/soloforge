@@ -1,10 +1,14 @@
 import './lib/i18n'
 
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { LanguageProvider } from './contexts/LanguageContext'
+import { PluginProvider } from './components/plugin'
+import { KeyboardShortcutsHelp, useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { LoadingState } from './components/ui/LoadingState'
+import { ErrorBoundary } from './components/ui/ErrorBoundary'
 
 const Dashboard = lazy(() => import('./pages/Dashboard').then((module) => ({ default: module.Dashboard })))
 const TicketBoard = lazy(() => import('./pages/TicketBoard').then((module) => ({ default: module.TicketBoard })))
@@ -47,25 +51,46 @@ const HelpPage = lazy(() => import('./pages/HelpPage').then((module) => ({ defau
 const AutoSetupWizard = lazy(() => import('./pages/AutoSetupWizard').then((module) => ({ default: module.AutoSetupWizard })))
 const SetupWizard = lazy(() => import('./pages/SetupWizard').then((module) => ({ default: module.SetupWizard })))
 const DoctorPage = lazy(() => import('./pages/DoctorPage').then((module) => ({ default: module.DoctorPage })))
+const HermesWorkers = lazy(() => import('./pages/HermesWorkers').then((module) => ({ default: module.default })))
+const PluginManagementPage = lazy(() => import('./pages/PluginManagementPage').then((module) => ({ default: module.PluginManagementPage })))
+
+// 预加载映射
+const prefetchMap: Record<string, () => Promise<unknown>> = {
+  '/': () => import('./pages/Dashboard'),
+  '/tickets': () => import('./pages/TicketBoard'),
+  '/team': () => import('./pages/TeamManagement'),
+  '/approvals': () => import('./pages/ApprovalCenter'),
+  '/audit': () => import('./pages/AuditLogs'),
+}
+
+// 预加载 Hook
+function useRoutePrefetch() {
+  useEffect(() => {
+    // 空闲时预加载常用页面
+    if ('requestIdleCallback' in window) {
+      (window as Window & { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback!(() => {
+        Object.values(prefetchMap).forEach(preload => preload())
+      })
+    }
+  }, [])
+}
 
 function App() {
+  // 启用全局键盘快捷键
+  const { showHelp, setShowHelp } = useKeyboardShortcuts({ enabled: true })
+  // 预加载常用页面
+  useRoutePrefetch()
+
   return (
     <ThemeProvider>
       <LanguageProvider>
-        <HashRouter>
+        <PluginProvider>
+          <HashRouter>
           <Layout>
-            <Suspense
-              fallback={
-                <div className="flex h-screen items-center justify-center">
-                  <div className="text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-                    <p className="mt-4 text-sm text-[hsl(var(--muted-foreground))]">加载中...</p>
-                  </div>
-                </div>
-              }
-            >
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
+            <ErrorBoundary>
+              <Suspense fallback={<LoadingState message="加载中..." fullPage className="min-h-screen" />}>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
                 <Route path="/auto-setup" element={<AutoSetupWizard />} />
                 <Route path="/setup/wizard" element={<SetupWizard />} />
                 <Route path="/tickets" element={<TicketBoard />} />
@@ -106,10 +131,16 @@ function App() {
                 <Route path="/deployment-jobs/:id" element={<DeploymentJobDetail />} />
                 <Route path="/help" element={<HelpPage />} />
                 <Route path="/doctor" element={<DoctorPage />} />
+                <Route path="/hermes-workers" element={<HermesWorkers />} />
+                <Route path="/plugins" element={<PluginManagementPage />} />
               </Routes>
-            </Suspense>
+              </Suspense>
+            </ErrorBoundary>
           </Layout>
+          {/* 全局快捷键帮助弹窗 */}
+          <KeyboardShortcutsHelp isOpen={showHelp} onClose={() => setShowHelp(false)} />
         </HashRouter>
+        </PluginProvider>
       </LanguageProvider>
     </ThemeProvider>
   )

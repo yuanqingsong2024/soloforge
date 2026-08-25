@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { LoadingState } from '../components/ui/LoadingState'
-import { EmptyState } from '../components/ui/EmptyState'
+import { LoadingState, ErrorState, Button } from '../components/ui'
 import { translateEnum } from '../lib/i18n-helpers'
+import { useApiQuery } from '../hooks/useApiQuery'
 
 interface DeploymentTargetSummary {
   id: string
@@ -64,42 +63,18 @@ function parseResultMeta(text?: string | null): ParsedDeploymentJobResult | null
 export function DeploymentJobDetail() {
   const { t } = useTranslation(['common'])
   const { id } = useParams<{ id: string }>()
-  const [job, setJob] = useState<DeploymentJob | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const load = async () => {
-      if (!id) {
-        setError('缺少 Deployment Job ID')
-        setLoading(false)
-        return
-      }
-
-      try {
-        const port = await getApiPort()
-        const response = await fetch(`http://127.0.0.1:${port}/api/deployment-jobs/${id}`)
-        const data = await response.json() as DeploymentJob | null
-        if (!response.ok || !data) {
-          throw new Error('获取 Deployment Job 详情失败')
-        }
-        setJob(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '获取 Deployment Job 详情失败')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    void load()
-  }, [id])
+  const { data: job, loading, error, refetch } = useApiQuery<DeploymentJob>(
+    id ? `/api/deployment-jobs/${id}` : '/api/invalid',
+    { enabled: !!id }
+  )
 
   if (loading) {
     return <LoadingState message="加载 Deployment Job 中..." />
   }
 
   if (error || !job) {
-    return <EmptyState message={error || 'Deployment Job 不存在'} tone="danger" />
+    return <ErrorState message={error || '加载失败'} onRetry={refetch} />
   }
 
   const parsedResult = parseResultMeta(job.resultJson)
@@ -112,11 +87,11 @@ export function DeploymentJobDetail() {
         description={`${jobStatusText} · ${job.target.name}`}
         actions={
           <div className="flex items-center gap-2">
-            <Link to="/deployments" className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">
-              返回部署管理
+            <Link to="/deployments">
+              <Button variant="secondary" size="sm">返回部署管理</Button>
             </Link>
-            <Link to={`/deployments/${job.targetId}`} className="px-4 py-2 text-sm rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90">
-              查看部署详情
+            <Link to={`/deployments/${job.targetId}`}>
+              <Button size="sm">查看部署详情</Button>
             </Link>
           </div>
         }
@@ -128,8 +103,8 @@ export function DeploymentJobDetail() {
           <div><div className="text-[hsl(var(--muted-foreground))]">状态</div><div className="text-[hsl(var(--foreground))]">{jobStatusText}</div></div>
           <div><div className="text-[hsl(var(--muted-foreground))]">Target</div><div className="text-[hsl(var(--foreground))]">{job.target.name}</div></div>
           <div><div className="text-[hsl(var(--muted-foreground))]">Trace ID</div><div className="font-mono text-[hsl(var(--foreground))]">{job.traceId}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">创建时间</div><div className="text-[hsl(var(--foreground))]">{new Date(job.createdAt).toLocaleString('zh-CN')}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">更新时间</div><div className="text-[hsl(var(--foreground))]">{new Date(job.updatedAt).toLocaleString('zh-CN')}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">创建时间</div><div className="text-[hsl(var(--foreground))]">{formatDateTime(job.createdAt)}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">更新时间</div><div className="text-[hsl(var(--foreground))]">{formatDateTime(job.updatedAt)}</div></div>
           <div className="md:col-span-2"><div className="text-[hsl(var(--muted-foreground))]">错误</div><div className="text-[hsl(var(--foreground))]">{job.lastError || '—'}</div></div>
           {parsedResult?.actionId && (
             <div>
@@ -154,17 +129,17 @@ export function DeploymentJobDetail() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div>
             <div className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-2">请求</div>
-            <pre className="text-xs font-mono p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto max-h-80">{parseJsonText(job.requestJson)}</pre>
+            <pre className="text-xs font-mono p-3 rounded-md bg-[hsl(var(--muted))] overflow-auto max-h-80">{parseJsonText(job.requestJson)}</pre>
           </div>
           <div>
             <div className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-2">结果</div>
-            <pre className="text-xs font-mono p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto max-h-80">{parseJsonText(job.resultJson)}</pre>
+            <pre className="text-xs font-mono p-3 rounded-md bg-[hsl(var(--muted))] overflow-auto max-h-80">{parseJsonText(job.resultJson)}</pre>
           </div>
         </div>
         {job.logs && (
           <div className="mt-4">
             <div className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-2">日志</div>
-            <pre className="text-xs font-mono p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto max-h-80 whitespace-pre-wrap">{job.logs}</pre>
+            <pre className="text-xs font-mono p-3 rounded-md bg-[hsl(var(--muted))] overflow-auto max-h-80 whitespace-pre-wrap">{job.logs}</pre>
           </div>
         )}
       </SectionCard>

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { getApiPort } from '../lib/api'
-import { EmptyState } from '../components/ui/EmptyState'
+import { apiFetch, ApiResponse } from '../lib/api'
+import { EmptyState, Button } from '../components/ui'
 import { ThemeCheckbox, ThemeInput, ThemeTextarea } from '../components/ui/FormFields'
 import { readWorkspaceId } from '../lib/storage'
 
@@ -42,18 +43,6 @@ interface BackupHistoryItem {
   traceId: string | null
 }
 
-interface ApiSuccessResponse<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailResponse {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccessResponse<T> | ApiFailResponse
-
 export function BackupRestore() {
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -69,13 +58,11 @@ export function BackupRestore() {
 
   const fetchHistory = async () => {
     try {
-      const port = await getApiPort()
-      const response = await fetch(`http://127.0.0.1:${port}/api/backup/history?workspaceId=${encodeURIComponent(workspaceId)}`)
-      const result = await response.json() as ApiResponse<BackupHistoryItem[]>
-      if (!response.ok || !result.success) {
-        throw new Error(result.success ? '获取备份历史失败' : result.error)
+      const result = await apiFetch<ApiResponse<BackupHistoryItem[]>>(`/api/backup/history?workspaceId=${encodeURIComponent(workspaceId)}`)
+      if (!result.success) {
+        throw new Error(result.error)
       }
-      setHistory(result.data)
+      setHistory(result.data ?? [])
     } catch (error) {
       console.error('Fetch backup history failed:', error)
     }
@@ -90,10 +77,8 @@ export function BackupRestore() {
 
     setExporting(true)
     try {
-      const port = await getApiPort()
-      const response = await fetch(`http://127.0.0.1:${port}/api/backup/export`, {
+      const result = await apiFetch<ApiResponse<BackupPack>>('/api/backup/export', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workspaceId,
           exportedBy: 'admin',
@@ -101,10 +86,12 @@ export function BackupRestore() {
           includeSnapshots
         })
       })
+      if (!result.success) {
+        throw new Error(result.error)
+      }
 
-      const result = await response.json() as ApiResponse<BackupPack>
-      if (!response.ok || !result.success) {
-        throw new Error(result.success ? '导出失败' : result.error)
+      if (!result.data) {
+        throw new Error('导出结果为空')
       }
 
       setExportedPackText(JSON.stringify(result.data, null, 2))
@@ -135,10 +122,8 @@ export function BackupRestore() {
     setImporting(true)
     try {
       const backupPack = JSON.parse(importPackText) as BackupPack
-      const port = await getApiPort()
-      const response = await fetch(`http://127.0.0.1:${port}/api/backup/import`, {
+      const result = await apiFetch<ApiResponse<ImportResult>>('/api/backup/import', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           backupPack,
           importedBy: 'admin',
@@ -146,10 +131,12 @@ export function BackupRestore() {
           targetWorkspaceId: createNewWorkspace ? undefined : targetWorkspaceId || undefined
         })
       })
+      if (!result.success) {
+        throw new Error(result.error)
+      }
 
-      const result = await response.json() as ApiResponse<ImportResult>
-      if (!response.ok || !result.success) {
-        throw new Error(result.success ? '导入失败' : result.error)
+      if (!result.data) {
+        throw new Error('导入结果为空')
       }
 
       const summary = [
@@ -175,7 +162,7 @@ export function BackupRestore() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard title="导出备份包">
           <div className="space-y-4">
-            <div className="p-3 bg-[hsl(var(--muted))] rounded-workshop-md text-sm text-[hsl(var(--muted-foreground))]">
+            <div className="p-3 bg-[hsl(var(--muted))] rounded-md text-sm text-[hsl(var(--muted-foreground))]">
               当前 Workspace：<span className="font-mono">{workspaceId}</span>
             </div>
 
@@ -190,21 +177,13 @@ export function BackupRestore() {
             </label>
 
             <div className="flex gap-3">
-              <button
-                onClick={handleExport}
-                disabled={exporting}
-                className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50"
-              >
-                {exporting ? '导出中...' : '生成备份包'}
-              </button>
+              <Button onClick={handleExport} loading={exporting}>
+                生成备份包
+              </Button>
 
-              <button
-                onClick={handleCopyExport}
-                disabled={!exportedPackText}
-                className="px-4 py-2 bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50"
-              >
+              <Button variant="secondary" onClick={handleCopyExport} disabled={!exportedPackText}>
                 复制 JSON
-              </button>
+              </Button>
             </div>
 
             <ThemeTextarea
@@ -215,7 +194,7 @@ export function BackupRestore() {
               className="text-xs font-mono"
             />
 
-            <div className="p-3 bg-[hsl(var(--muted))] rounded-workshop-md">
+            <div className="p-3 bg-[hsl(var(--muted))] rounded-md">
               <ul className="text-xs text-[hsl(var(--muted-foreground))] space-y-1 list-disc list-inside">
                 <li>导出的是脱敏后的 JSON 备份包，不包含 Keychain 中的明文凭证</li>
                 <li>适合跨设备迁移、问题排查和人工审阅</li>
@@ -250,15 +229,11 @@ export function BackupRestore() {
               className="text-xs font-mono"
             />
 
-            <button
-              onClick={handleImport}
-              disabled={importing || !importPackText.trim()}
-              className="w-full px-4 py-2 bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))] rounded-workshop-md hover:opacity-90 disabled:opacity-50"
-            >
-              {importing ? '导入中...' : '导入备份包'}
-            </button>
+            <Button className="w-full" onClick={handleImport} loading={importing} disabled={!importPackText.trim()}>
+              导入备份包
+            </Button>
 
-            <div className="p-3 bg-[hsl(var(--muted))] rounded-workshop-md">
+            <div className="p-3 bg-[hsl(var(--muted))] rounded-md">
               <ul className="text-xs text-[hsl(var(--muted-foreground))] space-y-1 list-disc list-inside">
                 <li>建议优先导入为新 Workspace，避免覆盖现有数据</li>
                 <li>导入后如提示缺少凭证，请到连接设置或相关页面重新填写</li>
@@ -275,12 +250,12 @@ export function BackupRestore() {
             <EmptyState message="暂无备份历史" />
           ) : (
             history.map(item => (
-              <div key={item.id} data-testid={`backup-history-item-${item.id}`} className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
+              <div key={item.id} data-testid={`backup-history-item-${item.id}`} className="border border-[hsl(var(--border))] rounded-md p-4">
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <div>
                     <div className="text-sm font-medium text-[hsl(var(--foreground))]">{item.workspaceName}</div>
                     <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                      导出人：{item.exportedBy} · 条目数：{item.itemCount} · {new Date(item.exportedAt).toLocaleString('zh-CN')}
+                      导出人：{item.exportedBy} · 条目数：{item.itemCount} · {formatDateTime(item.exportedAt)}
                     </div>
                   </div>
                   <div className="text-xs font-mono text-[hsl(var(--muted-foreground))] break-all">

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { LoadingState } from '../components/ui/LoadingState'
-import { EmptyState } from '../components/ui/EmptyState'
+import { LoadingState, ErrorState, Button } from '../components/ui'
+import { useApiQuery } from '../hooks/useApiQuery'
 
 interface WorkspaceSummary {
   id: string
@@ -29,18 +30,6 @@ interface ChangeRequestDetailData {
   workspace: WorkspaceSummary
 }
 
-interface ApiSuccess<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailure {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
-
 function prettyJson(raw: string): string {
   try {
     return JSON.stringify(JSON.parse(raw), null, 2)
@@ -52,58 +41,31 @@ function prettyJson(raw: string): string {
 export function ChangeRequestDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [apiPort, setApiPort] = useState<number | null>(null)
-  const [detail, setDetail] = useState<ChangeRequestDetailData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<'execute' | 'rollback' | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
 
-  useEffect(() => {
-    getApiPort().then(async port => {
-      setApiPort(port)
-      if (!id) {
-        setError('缺少变更单 ID')
-        setLoading(false)
-        return
-      }
-      await fetchDetail(port, id)
-    })
-  }, [id])
+  const { data, loading, error, refetch } = useApiQuery<ApiResponse<ChangeRequestDetailData>>(
+    id ? `/api/change-requests/${encodeURIComponent(id)}` : '/api/invalid',
+    { enabled: !!id }
+  )
 
-  const fetchDetail = async (port: number, changeRequestId: string) => {
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await fetch(`http://127.0.0.1:${port}/api/change-requests/${encodeURIComponent(changeRequestId)}`)
-      const result = await response.json() as ApiResponse<ChangeRequestDetailData>
-      if (!response.ok || !result.success) {
-        throw new Error(result.success ? '获取变更单详情失败' : result.error)
-      }
-      setDetail(result.data)
-    } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : '获取变更单详情失败')
-      setDetail(null)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const detail = data?.success ? data.data : null
 
   const handleAction = async (action: 'execute' | 'rollback') => {
-    if (!apiPort || !id) return
+    if (!id) return
 
     setActionLoading(action)
     setActionMessage(null)
 
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/change-requests/${encodeURIComponent(id)}/${action}`, {
-        method: 'POST'
-      })
-      const result = await response.json() as ApiResponse<unknown> | { status?: string; approvalId?: string; message?: string }
+      const result = await apiFetch<ApiResponse<unknown> | { status?: string; approvalId?: string; message?: string }>(
+        `/api/change-requests/${encodeURIComponent(id)}/${action}`,
+        { method: 'POST' }
+      )
 
       if ('success' in result) {
-        if (!response.ok || !result.success) {
-          throw new Error(result.success ? `变更单${action === 'execute' ? '执行' : '回滚'}失败` : result.error)
+        if (!result.success) {
+          throw new Error(result.error)
         }
         setActionMessage(`变更单${action === 'execute' ? '执行' : '回滚'}成功`) 
       } else if (result.status === 'pending_approval') {
@@ -112,7 +74,7 @@ export function ChangeRequestDetail() {
         setActionMessage(result.message || `变更单${action === 'execute' ? '执行' : '回滚'}请求已提交`)
       }
 
-      await fetchDetail(apiPort, id)
+      await refetch()
     } catch (actionError) {
       setActionMessage(actionError instanceof Error ? actionError.message : '操作失败')
     } finally {
@@ -130,9 +92,9 @@ export function ChangeRequestDetail() {
         <PageHeader
           title="变更单详情"
           description="加载失败"
-          actions={<button onClick={() => navigate('/changes')} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))]">返回列表</button>}
+          actions={<Button variant="secondary" size="sm" onClick={() => navigate('/changes')}>返回列表</Button>}
         />
-        <EmptyState message={error || '变更单不存在'} tone="danger" />
+        <ErrorState message={error || '变更单不存在'} onRetry={refetch} />
       </div>
     )
   }
@@ -147,14 +109,14 @@ export function ChangeRequestDetail() {
         description={`变更单详情 · ${detail.type} · ${detail.status}`}
         actions={(
           <>
-            <Link to="/changes" className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))] text-[hsl(var(--foreground))]">
-              返回列表
+            <Link to="/changes">
+              <Button variant="secondary" size="sm">返回列表</Button>
             </Link>
             <button
               type="button"
               disabled={!canExecute || actionLoading !== null}
               onClick={() => handleAction('execute')}
-              className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
+              className="px-4 py-2 rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
             >
               {actionLoading === 'execute' ? '执行中...' : '执行变更'}
             </button>
@@ -171,7 +133,7 @@ export function ChangeRequestDetail() {
       />
 
       {actionMessage && (
-        <div className="px-4 py-3 rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-sm text-[hsl(var(--foreground))]">
+        <div className="px-4 py-3 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-sm text-[hsl(var(--foreground))]">
           {actionMessage}
         </div>
       )}
@@ -186,8 +148,8 @@ export function ChangeRequestDetail() {
           <div><div className="text-[hsl(var(--muted-foreground))]">Job ID</div><div className="font-mono break-all">{detail.jobId || '—'}</div></div>
           <div><div className="text-[hsl(var(--muted-foreground))]">Trace ID</div><div className="font-mono break-all">{detail.traceId}</div></div>
           <div><div className="text-[hsl(var(--muted-foreground))]">创建者</div><div>{detail.createdBy}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">创建时间</div><div>{new Date(detail.createdAt).toLocaleString('zh-CN')}</div></div>
-          <div><div className="text-[hsl(var(--muted-foreground))]">更新时间</div><div>{new Date(detail.updatedAt).toLocaleString('zh-CN')}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">创建时间</div><div>{formatDateTime(detail.createdAt)}</div></div>
+          <div><div className="text-[hsl(var(--muted-foreground))]">更新时间</div><div>{formatDateTime(detail.updatedAt)}</div></div>
         </div>
       </SectionCard>
 
@@ -196,7 +158,7 @@ export function ChangeRequestDetail() {
       </SectionCard>
 
       <SectionCard title="Diff 内容" description="原始 diffJson，便于排查与人工核验。">
-        <pre className="text-xs font-mono whitespace-pre-wrap p-4 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto">
+        <pre className="text-xs font-mono whitespace-pre-wrap p-4 rounded-md bg-[hsl(var(--muted))] overflow-auto">
           {prettyJson(detail.diffJson)}
         </pre>
       </SectionCard>

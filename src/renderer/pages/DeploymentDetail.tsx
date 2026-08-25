@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
-import { LoadingState } from '../components/ui/LoadingState'
+import { LoadingState, Button } from '../components/ui'
 import { EmptyState } from '../components/ui/EmptyState'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { PendingApprovalNotice } from '../components/ui/PendingApprovalNotice'
@@ -71,18 +72,6 @@ interface UpgradePlanSummary {
   updatedAt: string
 }
 
-interface ApiSuccess<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailure {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
-
 type TabType = 'overview' | 'service' | 'logs' | 'jobs'
 
 interface ParsedDeploymentJobResult {
@@ -124,7 +113,6 @@ export function DeploymentDetail() {
   const { t } = useTranslation(['common', 'deployment'])
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [target, setTarget] = useState<DeploymentTarget | null>(null)
   const [jobs, setJobs] = useState<DeploymentJob[]>([])
   const [hostAgents, setHostAgents] = useState<HostAgentSummary[]>([])
@@ -138,47 +126,39 @@ export function DeploymentDetail() {
   const [autoRefreshLogs, setAutoRefreshLogs] = useState(false)
   const [autoRefreshJobs, setAutoRefreshJobs] = useState(true)
   const [lastJobsRefreshAt, setLastJobsRefreshAt] = useState<string | null>(null)
+  
   useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-      if (id) {
-        fetchTarget(port, id)
-        fetchJobs(port, id)
-      }
-    })
+    if (id) {
+      void Promise.all([fetchTarget(id), fetchJobs(id)])
+    }
   }, [id])
 
   useEffect(() => {
-    if (autoRefreshLogs && apiPort && id && activeTab === 'logs') {
+    if (autoRefreshLogs && id && activeTab === 'logs') {
       const interval = setInterval(() => {
-        fetchLogs(apiPort, id)
+        void fetchLogs(id)
       }, 5000)
       return () => clearInterval(interval)
     }
-  }, [autoRefreshLogs, apiPort, id, activeTab])
+  }, [autoRefreshLogs, id, activeTab])
 
   const hasActiveInstallJob = jobs.some(job => job.type === 'OPENCLAW_BOOTSTRAP_INSTALL' && job.status === 'RUNNING')
 
   const { lastEventPollAt } = useEventDrivenRefresh({
-    apiPort,
     targetId: id,
     enabled: Boolean(autoRefreshJobs && activeTab === 'jobs' && hasActiveInstallJob),
     hasActiveWork: hasActiveInstallJob,
     onRelevantEvent: async () => {
-      if (!apiPort || !id) return
-      await Promise.all([fetchJobs(apiPort, id), fetchTarget(apiPort, id)])
+      if (!id) return
+      await Promise.all([fetchJobs(id), fetchTarget(id)])
     }
   })
 
-  const fetchTarget = async (port: number, targetId: string) => {
+  const fetchTarget = async (targetId: string) => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/deployment-targets/${targetId}`)
-      if (!response.ok) {
-        throw new Error('获取部署目标失败')
-      }
-      const data = await response.json()
+      const data = await apiFetch<DeploymentTarget>(`/api/deployment-targets/${targetId}`)
       setTarget(data)
-      await Promise.all([fetchHostAgents(port, targetId), fetchUpgradePlans(port, data.workspaceId, targetId)])
+      await Promise.all([fetchHostAgents(targetId), fetchUpgradePlans(data.workspaceId, targetId)])
     } catch (err) {
       console.error('Failed to fetch target:', err)
       setError(err instanceof Error ? err.message : '获取部署目标失败')
@@ -187,38 +167,32 @@ export function DeploymentDetail() {
     }
   }
 
-  const fetchHostAgents = async (port: number, targetId: string) => {
+  const fetchHostAgents = async (targetId: string) => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/host-agents?targetId=${encodeURIComponent(targetId)}`)
-      const json = await response.json() as ApiResponse<HostAgentSummary[]>
+      const json = await apiFetch<ApiResponse<HostAgentSummary[]>>(`/api/host-agents?targetId=${encodeURIComponent(targetId)}`)
       if (json.success) {
-        setHostAgents(json.data)
+        setHostAgents(json.data ?? [])
       }
     } catch (err) {
       console.error('Failed to fetch host agents:', err)
     }
   }
 
-  const fetchUpgradePlans = async (port: number, workspaceId: string, targetId: string) => {
+  const fetchUpgradePlans = async (workspaceId: string, targetId: string) => {
     try {
       const params = new URLSearchParams({ workspaceId, targetId })
-      const response = await fetch(`http://127.0.0.1:${port}/api/upgrade-plans?${params.toString()}`)
-      const json = await response.json() as ApiResponse<UpgradePlanSummary[]>
+      const json = await apiFetch<ApiResponse<UpgradePlanSummary[]>>(`/api/upgrade-plans?${params.toString()}`)
       if (json.success) {
-        setUpgradePlans(json.data)
+        setUpgradePlans(json.data ?? [])
       }
     } catch (err) {
       console.error('Failed to fetch upgrade plans:', err)
     }
   }
 
-  const fetchJobs = async (port: number, targetId: string) => {
+  const fetchJobs = async (targetId: string) => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/deployment-jobs?targetId=${targetId}`)
-      if (!response.ok) {
-        throw new Error('获取作业历史失败')
-      }
-      const data = await response.json()
+      const data = await apiFetch<DeploymentJob[]>(`/api/deployment-jobs?targetId=${targetId}`)
       setJobs(data)
       setLastJobsRefreshAt(new Date().toISOString())
     } catch (err) {
@@ -226,14 +200,10 @@ export function DeploymentDetail() {
     }
   }
 
-  const fetchLogs = async (port: number, targetId: string) => {
+  const fetchLogs = async (targetId: string) => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/deployment-targets/${targetId}/logs?lines=100`)
-      if (!response.ok) {
-        throw new Error('获取日志失败')
-      }
-      const data = await response.json()
-      setLogs(data.logs || '暂无日志')
+      const data = await apiFetch<{ logs?: string }>(`/api/deployment-targets/${targetId}/logs?lines=100`)
+      setLogs(data?.logs || '暂无日志')
     } catch (err) {
       console.error('Failed to fetch logs:', err)
       setLogs('获取日志失败')
@@ -241,32 +211,24 @@ export function DeploymentDetail() {
   }
 
   const handleServiceAction = async (action: 'start' | 'stop' | 'restart' | 'upgrade') => {
-    if (!apiPort || !id) return
+    if (!id) return
 
     setActionLoading(action)
     setPendingApproval(null)
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/deployment-targets/${id}/${action}`, {
+      const result = await apiFetch<{ status?: string; approvalId?: string; message?: string }>(`/api/deployment-targets/${id}/${action}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       })
 
-      const result = await response.json()
-
       if (result.status === 'pending_approval') {
-        setPendingApproval({ action, approvalId: result.approvalId })
+        setPendingApproval({ action, approvalId: result.approvalId || '' })
         return
-      }
-
-      if (!response.ok) {
-        throw new Error(result.message || `${action} 操作失败`)
       }
 
       alert(`${action} 操作成功`)
       if (id) {
-        fetchTarget(apiPort, id)
-        fetchJobs(apiPort, id)
+        await Promise.all([fetchTarget(id), fetchJobs(id)])
       }
     } catch (err) {
       console.error(`Failed to ${action}:`, err)
@@ -277,12 +239,11 @@ export function DeploymentDetail() {
   }
 
   const handleHealthCheck = async () => {
-    if (!apiPort || !id) return
+    if (!id) return
 
     setActionLoading('health')
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/deployment-targets/${id}/health`)
-      const result: HealthCheckResult = await response.json()
+      const result = await apiFetch<HealthCheckResult>(`/api/deployment-targets/${id}/health`)
 
       if (result.healthy) {
         alert(`健康检查通过\n\n${result.message || '服务运行正常'}`)
@@ -291,7 +252,7 @@ export function DeploymentDetail() {
       }
 
       if (id) {
-        fetchTarget(apiPort, id)
+        await fetchTarget(id)
       }
     } catch (err) {
       console.error('Health check failed:', err)
@@ -379,7 +340,7 @@ export function DeploymentDetail() {
     items: Array<{ id: string; label: string }>,
     routePrefix: string
   ) => (
-    <div className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
+    <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4">
       <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{title}</div>
       <div className="mt-2 text-2xl font-semibold text-[hsl(var(--foreground))]">{count}</div>
       <div className="mt-3 space-y-2">
@@ -398,12 +359,9 @@ export function DeploymentDetail() {
         title={target.name}
         description={`部署类型: ${target.targetType} | 环境: ${target.envType}`}
         actions={
-          <button
-            onClick={() => navigate('/deployments')}
-            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-4 py-2.5 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
-          >
+          <Button variant="secondary" onClick={() => navigate('/deployments')}>
             返回列表
-          </button>
+          </Button>
         }
       />
 
@@ -418,60 +376,48 @@ export function DeploymentDetail() {
         />
       )}
 
-      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-workshop-sm">
+      <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-sm">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('deployment:detail.environmentConsole')}</div>
             <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{t('deployment:detail.environmentConsoleDesc')}</div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleHealthCheck}
-              disabled={actionLoading !== null}
-              className="rounded-full bg-[hsl(var(--primary))] px-4 py-2 text-xs font-medium text-[hsl(var(--primary-foreground))] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {actionLoading === 'health' ? t('deployment:detail.checking') : t('deployment:actions.health')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('logs')
-                if (apiPort && id) fetchLogs(apiPort, id)
-              }}
-              className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-4 py-2 text-xs font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
-            >
+            <Button size="sm" onClick={handleHealthCheck} loading={actionLoading === 'health'} disabled={actionLoading !== null}>
+              {t('deployment:actions.health')}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => { setActiveTab('logs'); if (id) void fetchLogs(id) }}>
               {t('deployment:actions.logs')}
-            </button>
+            </Button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <Link to="/health-monitoring" className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 transition-colors hover:bg-[hsl(var(--accent)_/_0.5)]">
+          <Link to="/health-monitoring" className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 transition-colors hover:bg-[hsl(var(--accent)_/_0.5)]">
             <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{t('deployment:detail.health')}</div>
             <div className="mt-2 text-xl font-semibold text-[hsl(var(--foreground))]">{translateEnum(t, 'deploymentStatusMap', target.status)}</div>
-            <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{target.lastCheckAt ? new Date(target.lastCheckAt).toLocaleString('zh-CN') : t('deployment:never')}</div>
+            <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{target.lastCheckAt ? formatDateTime(target.lastCheckAt) : t('deployment:never')}</div>
           </Link>
 
-          <Link to={`/host-agents?workspaceId=${target.workspaceId}&targetId=${target.id}`} className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 transition-colors hover:bg-[hsl(var(--accent)_/_0.5)]">
+          <Link to={`/host-agents?workspaceId=${target.workspaceId}&targetId=${target.id}`} className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 transition-colors hover:bg-[hsl(var(--accent)_/_0.5)]">
             <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{t('deployment:detail.hostAgents')}</div>
             <div className="mt-2 text-xl font-semibold text-[hsl(var(--foreground))]">{onlineAgents}/{hostAgents.length}</div>
             <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{t('deployment:detail.onlineTotal')}</div>
           </Link>
 
-          <Link to={`/operations?workspaceId=${target.workspaceId}&targetId=${target.id}`} className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 text-left transition-colors hover:bg-[hsl(var(--accent)_/_0.5)]">
+          <Link to={`/operations?workspaceId=${target.workspaceId}&targetId=${target.id}`} className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 text-left transition-colors hover:bg-[hsl(var(--accent)_/_0.5)]">
             <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{t('deployment:detail.operations')}</div>
             <div className="mt-2 text-xl font-semibold text-[hsl(var(--foreground))]">{runningJobs}/{jobs.length}</div>
             <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{failedJobs > 0 ? t('deployment:detail.failedJobs', { count: failedJobs }) : t('deployment:detail.noFailedJobs')}</div>
           </Link>
 
-          <Link to={`/upgrade-plans?workspaceId=${target.workspaceId}&targetId=${target.id}`} className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 transition-colors hover:bg-[hsl(var(--accent)_/_0.5)]">
+          <Link to={`/upgrade-plans?workspaceId=${target.workspaceId}&targetId=${target.id}`} className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 transition-colors hover:bg-[hsl(var(--accent)_/_0.5)]">
             <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{t('deployment:detail.releases')}</div>
             <div className="mt-2 text-xl font-semibold text-[hsl(var(--foreground))]">{pendingUpgradePlans}/{upgradePlans.length}</div>
             <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{t('deployment:detail.pendingTotal')}</div>
           </Link>
 
-          <Link to={latestTraceId ? `/audit?traceId=${encodeURIComponent(latestTraceId)}` : '/audit'} className="rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 transition-colors hover:bg-[hsl(var(--accent)_/_0.5)]">
+          <Link to={latestTraceId ? `/audit?traceId=${encodeURIComponent(latestTraceId)}` : '/audit'} className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 transition-colors hover:bg-[hsl(var(--accent)_/_0.5)]">
             <div className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{t('deployment:detail.audit')}</div>
             <div className="mt-2 text-xl font-semibold text-[hsl(var(--foreground))]">{t('deployment:detail.traceChain')}</div>
             <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{t('deployment:detail.auditDesc')}</div>
@@ -479,7 +425,7 @@ export function DeploymentDetail() {
         </div>
       </div>
 
-      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-workshop-sm">
+      <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-sm">
         <div className="mb-4">
           <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t('deployment:detail.relatedOverview')}</div>
           <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{t('deployment:detail.relatedOverviewDesc')}</div>
@@ -492,7 +438,7 @@ export function DeploymentDetail() {
         </div>
       </div>
 
-      <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-workshop-sm">
+      <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-5 shadow-sm">
         <div className="mb-4">
           <div className="text-sm font-semibold text-[hsl(var(--foreground))]">部署生命周期时间线</div>
           <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">按时间顺序概览部署目标创建、作业推进和健康检查。</div>
@@ -506,7 +452,7 @@ export function DeploymentDetail() {
                   <div className="text-sm font-medium text-[hsl(var(--foreground))]">{item.title}</div>
                   <div className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">{item.subtitle}</div>
                 </div>
-                <div className="text-xs text-[hsl(var(--muted-foreground))]">{new Date(item.timestamp).toLocaleString('zh-CN')}</div>
+                <div className="text-xs text-[hsl(var(--muted-foreground))]">{formatDateTime(item.timestamp)}</div>
               </div>
             </div>
           ))}
@@ -514,7 +460,7 @@ export function DeploymentDetail() {
       </div>
 
       {/* Tabs */}
-      <div className="overflow-hidden rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm">
+      <div className="overflow-hidden rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-sm">
         <div className="border-b border-[hsl(var(--border))]">
           <nav className="flex flex-wrap gap-2 px-4 py-3" aria-label="Tabs">
             {[
@@ -527,14 +473,14 @@ export function DeploymentDetail() {
                 key={tab.id}
                 onClick={() => {
                   setActiveTab(tab.id as TabType)
-                  if (tab.id === 'logs' && apiPort && id) {
-                    fetchLogs(apiPort, id)
+                  if (tab.id === 'logs' && id) {
+                    void fetchLogs(id)
                   }
                 }}
                 className={`
                   rounded-full px-4 py-2.5 text-sm font-medium transition-colors
                   ${activeTab === tab.id
-                    ? 'bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))] shadow-workshop-sm'
+                    ? 'bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))] shadow-sm'
                     : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
                   }
                 `}
@@ -617,7 +563,7 @@ export function DeploymentDetail() {
                     最后检查
                   </label>
                   <p className="text-[hsl(var(--foreground))]">
-                    {target.lastCheckAt ? new Date(target.lastCheckAt).toLocaleString('zh-CN') : '从未'}
+                    {target.lastCheckAt ? formatDateTime(target.lastCheckAt) : '从未'}
                   </p>
                 </div>
                 <div>
@@ -637,7 +583,7 @@ export function DeploymentDetail() {
                     创建时间
                   </label>
                   <p className="text-[hsl(var(--foreground))]">
-                    {new Date(target.createdAt).toLocaleString('zh-CN')}
+                    {formatDateTime(target.createdAt)}
                   </p>
                 </div>
               </div>
@@ -686,7 +632,7 @@ export function DeploymentDetail() {
               </div>
 
               {target.envType === 'PROD' && (
-                <div className="rounded-workshop-lg border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.16)] p-4 shadow-workshop-sm">
+                <div className="rounded-lg border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.16)] p-4 shadow-sm">
                   <p className="text-sm text-[hsl(var(--foreground))]">
                     <strong>注意：</strong>此部署目标为生产环境，服务管理操作需要审批。
                   </p>
@@ -698,7 +644,7 @@ export function DeploymentDetail() {
           {/* Logs Tab */}
           {activeTab === 'logs' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+              <div className="flex items-center justify-between rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
                 <div className="flex items-center space-x-4">
                     <label className="flex items-center space-x-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.52)] px-3 py-2">
                     <ThemeCheckbox checked={autoRefreshLogs} onChange={(e) => setAutoRefreshLogs(e.target.checked)} />
@@ -707,7 +653,7 @@ export function DeploymentDetail() {
                 </div>
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => apiPort && id && fetchLogs(apiPort, id)}
+                    onClick={() => id && void fetchLogs(id)}
                     className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-3 py-1.5 text-sm text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
                   >
                     刷新
@@ -720,7 +666,7 @@ export function DeploymentDetail() {
                   </button>
                 </div>
               </div>
-              <pre className="h-96 overflow-x-auto overflow-y-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(224_24%_10%)] p-4 font-mono text-xs text-[hsl(var(--google-green))] shadow-workshop-sm">
+              <pre className="h-96 overflow-x-auto overflow-y-auto rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(224_24%_10%)] p-4 font-mono text-xs text-[hsl(var(--google-green))] shadow-sm">
                 {logs}
               </pre>
             </div>
@@ -729,7 +675,7 @@ export function DeploymentDetail() {
           {/* Jobs History Tab */}
           {activeTab === 'jobs' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
                 <div className="space-y-1">
                   <div className="text-sm font-medium text-[hsl(var(--foreground))]">安装作业监控</div>
                   <div className="text-xs text-[hsl(var(--muted-foreground))]">
@@ -743,7 +689,7 @@ export function DeploymentDetail() {
                     <span className="text-sm text-[hsl(var(--muted-foreground))]">运行中自动刷新</span>
                   </label>
                   <button
-                    onClick={() => apiPort && id && fetchJobs(apiPort, id)}
+                    onClick={() => id && void fetchJobs(id)}
                     className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.62)] px-3 py-1.5 text-sm text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--accent))]"
                   >
                     刷新作业
@@ -754,7 +700,7 @@ export function DeploymentDetail() {
               {jobs.length === 0 ? (
                 <EmptyState message="暂无作业历史" className="py-8" />
               ) : (
-                 <div className="overflow-x-auto rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-workshop-sm">
+                 <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] shadow-sm">
                    <table className="w-full">
                      <thead className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted)_/_0.56)]">
                        <tr>
@@ -801,10 +747,10 @@ export function DeploymentDetail() {
                               />
                           </td>
                           <td className="px-4 py-3 text-sm text-[hsl(var(--muted-foreground))]">
-                            {job.updatedAt ? new Date(job.updatedAt).toLocaleString('zh-CN') : '-'}
+                            {job.updatedAt ? formatDateTime(job.updatedAt) : '-'}
                           </td>
                           <td className="px-4 py-3 text-sm text-[hsl(var(--muted-foreground))]">
-                            {job.status === 'SUCCEEDED' || job.status === 'FAILED' || job.status === 'CANCELED' ? new Date(job.updatedAt).toLocaleString('zh-CN') : '-'}
+                            {job.status === 'SUCCEEDED' || job.status === 'FAILED' || job.status === 'CANCELED' ? formatDateTime(job.updatedAt) : '-'}
                           </td>
                            <td className="px-4 py-3 text-sm text-[hsl(var(--destructive))]">
                             {job.lastError || parseJobResult(job.resultJson)}

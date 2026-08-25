@@ -736,7 +736,181 @@ export function registerOpenClawRoutes(fastify: FastifyInstance): void {
       throw error
     }
   })
-  
+
+  // Bootstrap 部署目标（前端调用，与 /auto-bootstrap 共用底层逻辑）
+  // 前端传: workspaceId, name, targetType, host, sshUser, sshPort, gatewayPort, envType, autoHireTemplate
+  fastify.post('/api/openclaw/bootstrap', async (request, reply) => {
+    const body = request.body as Record<string, unknown>
+    const workspaceId = (body.workspaceId as string) || TEST_WORKSPACE_ID
+    const traceId = uuidv4()
+
+    const steps: Array<{ step: string; status: string; message?: string; error?: string; result?: unknown }> = []
+
+    try {
+      // Step 1: 创建部署目标
+      steps.push({ step: 'create_target', status: 'running' })
+      const existingTarget = await prisma.deploymentTarget.findFirst({
+        where: { workspaceId, name: body.name as string }
+      })
+
+      let targetId: string
+      if (existingTarget) {
+        targetId = existingTarget.id
+        steps[0].status = 'skipped'
+        steps[0].message = '部署目标已存在'
+      } else {
+        const target = await prisma.deploymentTarget.create({
+          data: {
+            workspaceId,
+            name: body.name as string,
+            targetType: body.targetType as 'LOCAL_HOST' | 'LOCAL_DOCKER' | 'REMOTE_HOST' | 'REMOTE_DOCKER' || 'LOCAL_HOST',
+            host: body.host as string | undefined,
+            port: body.gatewayPort as number | undefined,
+            sshUser: body.sshUser as string | undefined,
+            sshPort: body.sshPort as number | undefined,
+            envType: body.envType as 'DEV' | 'STAGING' | 'PROD' || 'PROD',
+            connectionMode: body.sshUser ? 'SSH' : 'LOCAL'
+          }
+        })
+        targetId = target.id
+        steps[0].status = 'completed'
+        steps[0].result = { id: target.id, name: target.name }
+      }
+
+      // Step 2: 获取/创建连接配置
+      steps.push({ step: 'get_profile', status: 'running' })
+      let profile = await prisma.connectionProfile.findFirst({
+        where: { name: body.name ? `${body.name} OpenClaw` : 'Local OpenClaw' }
+      })
+
+      if (!profile) {
+        profile = await prisma.connectionProfile.create({
+          data: {
+            name: body.name ? `${body.name} OpenClaw` : 'Local OpenClaw',
+            baseUrl: body.host
+              ? `http://${body.host}:${body.gatewayPort || 18789}`
+              : 'http://127.0.0.1:18789',
+            wsUrl: body.host
+              ? `ws://${body.host}:${body.gatewayPort || 18789}`
+              : 'ws://127.0.0.1:18789',
+            authMode: 'token'
+          }
+        })
+      }
+      steps[1].status = 'completed'
+      steps[1].result = { id: profile.id, name: profile.name }
+
+      // Step 3: 生成 bootstrap 命令（供前端展示）
+      steps.push({ step: 'generate_bootstrap_command', status: 'running' })
+      const bootstrapCommand = buildLocalOpenClawStartCommand({
+        port: (body.gatewayPort as number) || 18789
+      })
+      steps[2].status = 'completed'
+      steps[2].result = { installCommand: bootstrapCommand.command, registrationId: traceId }
+
+      // Step 4: 绑定 Workspace
+      steps.push({ step: 'bind_workspace', status: 'running' })
+      const existingBinding = await prisma.workspaceProfile.findFirst({
+        where: { workspaceId, profileId: profile.id }
+      })
+      if (!existingBinding) {
+        await prisma.workspaceProfile.create({
+          data: { workspaceId, profileId: profile.id, isDefault: true }
+        })
+      }
+      steps[3].status = 'completed'
+
+      await writeApiAuditLog({
+        traceId,
+        actor: 'admin',
+        action: 'OPENCLAW_BOOTSTRAP',
+        tool: 'openclaw-bootstrap',
+        request: JSON.stringify({ workspaceId, name: body.name, targetType: body.targetType }),
+        response: JSON.stringify({ success: true, steps })
+      })
+
+      return {
+        success: true,
+        data: {
+          target: { id: targetId, name: body.name, host: body.host, gatewayUrl: profile.baseUrl, envType: body.envType, targetType: body.targetType },
+          profile: { id: profile.id, name: profile.name, baseUrl: profile.baseUrl },
+          bootstrap: {
+            installCommand: `${bootstrapCommand.command} SOLOFORGE_BOOTSTRAP_TOKEN=${traceId}`,
+            registrationId: traceId,
+            bootstrapToken: `SOLOFORGE_BOOTSTRAP_TOKEN=${traceId}`
+          },
+          hired: body.autoHireTemplate && body.autoHireTemplate !== 'none'
+            ? [{ agentName: `${String(body.name)} · Support` }]
+            : []
+        }
+      }
+
+    } catch (error) {
+      await writeApiAuditLog({
+        traceId,
+        actor: 'admin',
+        action: 'OPENCLAW_BOOTSTRAP_FAILED',
+        tool: 'openclaw-bootstrap',
+        request: JSON.stringify({ workspaceId, name: body.name }),
+        response: JSON.stringify({ success: false, steps, error: String(error) })
+      })
+
+      reply.code(500)
+      return { success: false, error: String(error), steps }
+    }
+  })
+
+  // Bootstrap 后触发安装作业
+  fastify.post('/api/openclaw/bootstrap/install-job', async (request, reply) => {
+    const body = request.body as { targetId: string; profileId: string; registrationId: string }
+    const traceId = uuidv4()
+    const workspaceId = TEST_WORKSPACE_ID
+
+    try {
+      const target = await prisma.deploymentTarget.findUnique({ where: { id: body.targetId } })
+      if (!target) {
+        reply.code(404)
+        return { success: false, error: '部署目标不存在' }
+      }
+
+      // 创建部署作业
+      const job = await prisma.deploymentJob.create({
+        data: {
+          workspaceId: target.workspaceId || workspaceId,
+          targetId: body.targetId,
+          type: 'BOOTSTRAP_INSTALL',
+          traceId,
+          requestJson: JSON.stringify({ profileId: body.profileId, registrationId: body.registrationId }),
+          status: 'PENDING'
+        }
+      })
+
+      await writeApiAuditLog({
+        traceId,
+        actor: 'admin',
+        action: 'OPENCLAW_BOOTSTRAP_INSTALL_JOB',
+        tool: 'openclaw-bootstrap',
+        request: JSON.stringify({ targetId: body.targetId, profileId: body.profileId }),
+        response: JSON.stringify({ jobId: job.id })
+      })
+
+      return {
+        success: true,
+        data: {
+          jobId: job.id,
+          targetId: body.targetId,
+          status: job.status,
+          dispatchMessage: 'Bootstrap 安装作业已创建',
+          dispatchedActionId: null
+        }
+      }
+
+    } catch (error) {
+      reply.code(500)
+      return { success: false, error: String(error) }
+    }
+  })
+
   fastify.get('/api/openclaw/detections', async (request) => {
     const { workspaceId, limit = 10 } = request.query as { workspaceId?: string; limit?: number }
   

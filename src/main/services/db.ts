@@ -18,12 +18,12 @@ import { logger } from './logger'
  * 全局唯一 PrismaClient 实例
  *
  * 日志策略：
- * - 开发模式：打印 query/warn/error，便于调试
- * - 生产模式：仅打印 error，减少日志噪音
+ * - 开发模式：仅 warn/error，避免过多日志导致 EPIPE 错误
+ * - 生产模式：仅 error
  */
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development'
-    ? ['query', 'warn', 'error']
+    ? ['warn', 'error']
     : ['error']
 })
 
@@ -40,6 +40,7 @@ let pragmaOptimized = false
  * - cache_size：64MB 内存缓存
  * - temp_store=MEMORY：临时表走内存
  * - mmap_size：256MB 内存映射，减少 I/O
+ * - busy_timeout=30000：30秒超时（网络驱动器必需）
  *
  * 幂等：多次调用安全，仅首次执行
  */
@@ -48,12 +49,15 @@ export async function optimizeSqlite(): Promise<void> {
   pragmaOptimized = true
 
   try {
+    // 等待 Prisma 连接就绪（处理网络驱动器延迟）
+    await prisma.$connect()
     await prisma.$executeRaw`PRAGMA journal_mode = WAL`
     await prisma.$executeRaw`PRAGMA synchronous = NORMAL`
     await prisma.$executeRaw`PRAGMA cache_size = -64000`
     await prisma.$executeRaw`PRAGMA temp_store = MEMORY`
     await prisma.$executeRaw`PRAGMA mmap_size = 268435456`
-    logger.info('[DB] SQLite PRAGMA 优化已应用: WAL/NORMAL/64MB-cache/256MB-mmap')
+    await prisma.$executeRaw`PRAGMA busy_timeout = 30000`
+    logger.info('[DB] SQLite PRAGMA 优化已应用: WAL/NORMAL/64MB-cache/256MB-mmap/30s-timeout')
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error)
     logger.error(`[DB] SQLite PRAGMA 优化失败: ${errMsg}`)

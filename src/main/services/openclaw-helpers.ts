@@ -255,7 +255,7 @@ async function dispatchOutboundMessage(
     throw new Error('目标未加入 allowlist，禁止发送')
   }
 
-  if (allowlistedTarget.commsProfile.provider !== 'openclaw' || !allowlistedTarget.commsProfile.claudeCodeProfileId) {
+  if (allowlistedTarget.commsProfile.provider !== 'claude-code' || !allowlistedTarget.commsProfile.claudeCodeProfileId) {
     throw new Error('当前仅支持通过 OpenClaw provider 发送')
   }
 
@@ -333,61 +333,74 @@ async function dispatchOutboundMessage(
 
     return { traceId, result: providerResult }
   } catch (error) {
+    // 即使后续操作失败，也要先将消息状态更新为 FAILED（避免消息卡在 APPROVED）
     const classified = classifySendError(error)
     const nextAttempts = message.attempts + 1
     const nextRetryAt = classified.retriable ? computeNextRetryAt(nextAttempts) : null
 
-    await prisma.outboundMessage.update({
-      where: { id: outboundMessageId },
-      data: {
-        status: 'FAILED',
-        lastError: `${classified.category}: ${classified.message}`,
-        attempts: nextAttempts,
-        nextRetryAt
-      }
-    })
-
-    await writeAuditLog({
-      workspaceId: message.workspaceId,
-      ticketId: message.ticketId || undefined,
-      traceId,
-      actor,
-      action: 'OUTBOUND_FAILED',
-      tool: message.provider,
-      approvalId: message.approvalId || undefined,
-      templateId: message.templateId || undefined,
-      outboundMessageId: message.id,
-      request: {
-        outboundMessageId: message.id,
-        channel: message.channel,
-        to: maskTarget(message.to)
-        },
-      response: {
-        category: classified.category,
-        retriable: classified.retriable,
-        message: classified.message,
-        nextRetryAt: nextRetryAt ? nextRetryAt.toISOString() : null
+    try {
+      await prisma.outboundMessage.update({
+        where: { id: outboundMessageId },
+        data: {
+          status: 'FAILED',
+          lastError: `${classified.category}: ${classified.message}`,
+          attempts: nextAttempts,
+          nextRetryAt
         }
-    })
+      })
+    } catch {
+      // 状态更新失败不影响后续审计
+    }
 
-    await emitApiEvent({
-      workspaceId: message.workspaceId,
-      sourceType: 'COMMUNICATION',
-      sourceId: message.id,
-      eventType: 'COMMUNICATION_FAILED',
-      severity: 'ERROR',
-      title: '通知发送失败',
-      summary: `${message.channel} 发送失败：${classified.message}`,
-      payload: {
+    try {
+      await writeAuditLog({
+        workspaceId: message.workspaceId,
+        ticketId: message.ticketId || undefined,
+        traceId,
+        actor,
+        action: 'OUTBOUND_FAILED',
+        tool: message.provider,
+        approvalId: message.approvalId || undefined,
+        templateId: message.templateId || undefined,
         outboundMessageId: message.id,
-        channel: message.channel,
-        toMasked: maskTarget(message.to),
-        category: classified.category,
-        retriable: classified.retriable,
-        nextRetryAt: nextRetryAt ? nextRetryAt.toISOString() : null
-      },
-      traceId
-    })
+        request: {
+          outboundMessageId: message.id,
+          channel: message.channel,
+          to: maskTarget(message.to)
+          },
+        response: {
+          category: classified.category,
+          retriable: classified.retriable,
+          message: classified.message,
+          nextRetryAt: nextRetryAt ? nextRetryAt.toISOString() : null
+          }
+      })
+    } catch {
+      // 审计日志失败不影响后续
+    }
+
+    try {
+      await emitApiEvent({
+        workspaceId: message.workspaceId,
+        sourceType: 'COMMUNICATION',
+        sourceId: message.id,
+        eventType: 'COMMUNICATION_FAILED',
+        severity: 'ERROR',
+        title: '通知发送失败',
+        summary: `${message.channel} 发送失败：${classified.message}`,
+        payload: {
+          outboundMessageId: message.id,
+          channel: message.channel,
+          toMasked: maskTarget(message.to),
+          category: classified.category,
+          retriable: classified.retriable,
+          nextRetryAt: nextRetryAt ? nextRetryAt.toISOString() : null
+        },
+        traceId
+      })
+    } catch {
+      // 事件发送失败不影响后续
+    }
 
     throw new Error(`${classified.category}: ${classified.message}`)
   }

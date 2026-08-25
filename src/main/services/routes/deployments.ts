@@ -208,22 +208,45 @@ export function registerDeploymentRoutes(fastify: FastifyInstance): void {
     })
   })
 
-  // 创建部署作业
-  fastify.post('/api/deployment-jobs', async (request) => {
+  // 创建部署作业（需审批）
+  fastify.post('/api/deployment-jobs', async (request, reply) => {
     const body = request.body as CreateDeploymentJobBody
     const traceId = uuidv4()
     const actor = 'admin'
 
-    const job = await prisma.deploymentJob.create({
-      data: {
-        workspaceId: body.workspaceId,
-        targetId: body.targetId,
-        type: body.type,
-        traceId,
-        requestJson: JSON.stringify(body.requestJson),
-        status: 'PENDING'
+    const target = await prisma.deploymentTarget.findUnique({ where: { id: body.targetId } })
+    if (!target) {
+      reply.code(404)
+      return { success: false, error: '部署目标不存在' }
+    }
+
+    const approvalResult = await ApprovalGuard.executeProtected(
+      'DEPLOY_PROD',
+      { targetId: body.targetId, targetName: target.name, workspaceId: body.workspaceId },
+      actor,
+      async () => {
+        return await prisma.deploymentJob.create({
+          data: {
+            workspaceId: body.workspaceId,
+            targetId: body.targetId,
+            type: body.type,
+            traceId,
+            requestJson: JSON.stringify(body.requestJson),
+            status: 'PENDING'
+          }
+        })
       }
-    })
+    )
+
+    if (approvalResult.needsApproval) {
+      return { status: 'pending_approval', approvalId: approvalResult.approvalId }
+    }
+
+    const job = approvalResult.result
+    if (!job) {
+      reply.code(500)
+      return { success: false, error: '创建部署作业失败：审批流程异常' }
+    }
 
     await writeAuditLog({
       workspaceId: body.workspaceId,
@@ -389,6 +412,141 @@ export function registerDeploymentRoutes(fastify: FastifyInstance): void {
     })
 
     return result
+  })
+
+  // 服务控制操作：start / stop / restart / upgrade
+  for (const action of ['start', 'stop', 'restart', 'upgrade'] as const) {
+    fastify.post(`/api/deployment-targets/:id/${action}`, async (request, reply) => {
+      const { id } = request.params as { id: string }
+      const traceId = uuidv4()
+      const actor = 'admin'
+
+      const target = await prisma.deploymentTarget.findUnique({ where: { id } })
+      if (!target) {
+        reply.code(404)
+        return { success: false, error: '部署目标不存在' }
+      }
+
+      const approvalResult = await ApprovalGuard.executeProtected(
+        'DEPLOY_PROD',
+        { targetId: id, targetName: target.name, action },
+        actor,
+        async () => {
+          const boundAgent = await prisma.hostAgent.findFirst({
+            where: { workspaceId: target.workspaceId, targetId: id, status: 'ONLINE' },
+            orderBy: { updatedAt: 'desc' }
+          })
+
+          if (boundAgent) {
+            // HostAgent 仅支持 RESTART_GATEWAY；start/stop 由 DeploymentTemplate 处理
+            if (action !== 'restart') {
+              return { success: false, message: `${action} 操作需要通过部署模板路径执行` }
+            }
+            const actionResult = await HostAgentService.runActionAndWait({
+              workspaceId: target.workspaceId,
+              targetId: id,
+              hostAgentId: boundAgent.id,
+              actionType: 'RESTART_GATEWAY',
+              request: {},
+              actor,
+              traceId,
+              timeoutSeconds: 120
+            }, 120_000)
+
+            return { success: actionResult?.status === 'SUCCEEDED', result: actionResult }
+          }
+
+          const template = DeploymentTemplateFactory.getTemplate(
+            target.targetType as 'LOCAL_HOST' | 'LOCAL_DOCKER' | 'REMOTE_HOST' | 'REMOTE_DOCKER'
+          )
+
+          switch (action) {
+            case 'start': return await template.start({})
+            case 'stop': return await template.stop({})
+            case 'restart': return template.restart ? await template.restart({}) : { success: false, message: '此目标类型不支持 restart' }
+            case 'upgrade': return template.upgrade ? await template.upgrade({ version: 'latest' }) : { success: false, message: '此目标类型不支持 upgrade' }
+          }
+        }
+      )
+
+      if (approvalResult.needsApproval) {
+        return { status: 'pending_approval', approvalId: approvalResult.approvalId }
+      }
+
+      await writeAuditLog({
+        workspaceId: target.workspaceId,
+        traceId,
+        actor,
+        action: `DEPLOYMENT_TARGET_${action.toUpperCase()}`,
+        tool: 'deployment',
+        request: { targetId: id, action },
+        response: approvalResult.result
+      })
+
+      return { status: 'ok', ...approvalResult.result }
+    })
+  }
+
+  // 安装部署
+  fastify.post('/api/deployment-targets/:id/install', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const traceId = uuidv4()
+    const actor = 'admin'
+
+    const target = await prisma.deploymentTarget.findUnique({ where: { id } })
+    if (!target) {
+      reply.code(404)
+      return { success: false, error: '部署目标不存在' }
+    }
+
+    const approvalResult = await ApprovalGuard.executeProtected(
+      'DEPLOY_PROD',
+      { targetId: id, targetName: target.name, action: 'install' },
+      actor,
+      async () => {
+        const job = await prisma.deploymentJob.create({
+          data: {
+            workspaceId: target.workspaceId,
+            targetId: id,
+            type: 'INSTALL',
+            traceId,
+            requestJson: JSON.stringify({}),
+            status: 'PENDING'
+          }
+        })
+
+        await emitApiEvent({
+          workspaceId: target.workspaceId,
+          targetId: id,
+          sourceType: 'DEPLOYMENT_JOB',
+          sourceId: job.id,
+          eventType: 'DEPLOYMENT_STARTED',
+          severity: 'INFO',
+          title: '部署作业已创建',
+          summary: `目标 ${target.name} 安装作业已进入队列`,
+          payload: job,
+          traceId
+        })
+
+        return { jobId: job.id, status: job.status }
+      }
+    )
+
+    if (approvalResult.needsApproval) {
+      return { status: 'pending_approval', approvalId: approvalResult.approvalId }
+    }
+
+    await writeAuditLog({
+      workspaceId: target.workspaceId,
+      traceId,
+      actor,
+      action: 'DEPLOYMENT_INSTALL',
+      tool: 'deployment',
+      request: { targetId: id },
+      response: approvalResult.result
+    })
+
+    return { status: 'ok', ...approvalResult.result }
   })
 
   // 获取日志

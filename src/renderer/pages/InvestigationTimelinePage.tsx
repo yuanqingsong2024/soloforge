@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { EmptyState } from '../components/ui/EmptyState'
+import { EmptyState, Button } from '../components/ui'
 import { ThemeInput, ThemeSelect } from '../components/ui/FormFields'
 import { EventRecord } from '../components/investigation/types'
 import { eventRowSeverityStyle, severityColor, severityDotColor, sourceTypeColor, SourceTypeIcon, traceCardSeverityStyle } from '../components/investigation/styles'
@@ -15,18 +15,6 @@ interface Workspace {
   id: string
   name: string
 }
-
-interface ApiSuccess<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailure {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 
 function summaryEntries(event: EventRecord): Array<{ label: string; value: string }> {
   const payload = (event.payload && typeof event.payload === 'object') ? event.payload as Record<string, unknown> : {}
@@ -59,7 +47,6 @@ function summaryEntries(event: EventRecord): Array<{ label: string; value: strin
 export function InvestigationTimelinePage() {
   const { t } = useTranslation('common')
   const navigate = useNavigate()
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [events, setEvents] = useState<EventRecord[]>([])
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -74,39 +61,34 @@ export function InvestigationTimelinePage() {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    getApiPort().then(async port => {
-      setApiPort(port)
-      await Promise.all([fetchEvents(port), fetchWorkspaces(port)])
+    void (async () => {
+      await Promise.all([fetchEvents(), fetchWorkspaces()])
       setLoading(false)
-    })
+    })()
   }, [])
 
-  const fetchWorkspaces = async (port: number) => {
-    const response = await fetch(`http://127.0.0.1:${port}/api/workspaces`)
-    const data = await response.json() as Workspace[]
+  const fetchWorkspaces = async () => {
+    const data = await apiFetch<Workspace[]>('/api/workspaces')
     setWorkspaces(Array.isArray(data) ? data : [])
   }
 
-  const fetchEvents = async (port: number, nextFilters = filters) => {
+  const fetchEvents = async (nextFilters = filters) => {
     const params = new URLSearchParams()
     for (const [key, value] of Object.entries(nextFilters)) {
       if (value) params.append(key, value)
     }
     params.append('limit', '200')
 
-    const response = await fetch(`http://127.0.0.1:${port}/api/event-records?${params.toString()}`)
-    const json = await response.json() as ApiResponse<EventRecord[]>
-    if (!json.success) {
-      throw new Error(json.error)
+    const json = await apiFetch<ApiResponse<EventRecord[]>>(`/api/event-records?${params.toString()}`)
+    if (json.success && json.data) {
+      setEvents(json.data)
     }
-    setEvents(json.data)
   }
 
   const handleApplyFilters = async () => {
-    if (!apiPort) return
     setLoading(true)
     try {
-      await fetchEvents(apiPort)
+      await fetchEvents()
     } finally {
       setLoading(false)
     }
@@ -175,9 +157,9 @@ export function InvestigationTimelinePage() {
         title="Investigation Timeline"
         description="统一查看跨对象事件轨迹，按 Trace 聚合 Operation / Deployment Job / Host Agent / Alert 链路"
         actions={
-          <button onClick={handleApplyFilters} className="rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90">
+          <Button onClick={handleApplyFilters}>
             刷新时间线
-          </button>
+          </Button>
         }
       />
 
@@ -206,7 +188,7 @@ export function InvestigationTimelinePage() {
         <SectionCard title={`Trace 分组 (${groupedByTrace.length})`} description="按 Trace 聚合事件，先看整体链路，再深入单条事件。">
           <div className="space-y-4">
             {groupedByTrace.map(group => (
-              <div key={group.traceId} className={`rounded-workshop-lg border p-4 shadow-workshop-sm transition-colors ${traceCardSeverityStyle(group.highestSeverity)}`}>
+              <div key={group.traceId} className={`rounded-lg border p-4 shadow-sm transition-colors ${traceCardSeverityStyle(group.highestSeverity)}`}>
                 <div className="flex items-center justify-between gap-3 mb-3">
                   <div>
                     <div className="text-xs text-[hsl(var(--muted-foreground))] flex items-center gap-1.5">
@@ -216,9 +198,9 @@ export function InvestigationTimelinePage() {
                     <div className="font-mono text-sm text-[hsl(var(--foreground))]">{group.traceId}</div>
                   </div>
                   {!group.traceId.startsWith('no-trace:') && (
-                    <button onClick={() => navigate(`/traces/${encodeURIComponent(group.traceId)}`)} className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-1.5 text-xs text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]">
+                    <Button variant="secondary" size="sm" onClick={() => navigate(`/traces/${encodeURIComponent(group.traceId)}`)}>
                       查看完整链路
-                    </button>
+                    </Button>
                   )}
                 </div>
 
@@ -228,7 +210,7 @@ export function InvestigationTimelinePage() {
                       const collapseKey = `${group.traceId}:${sourceType}`
                       const isCollapsed = collapsedGroups[collapseKey] ?? false
                       return (
-                     <div key={sourceType} className="rounded-workshop-md border border-[hsl(var(--border)_/_0.72)] bg-[hsl(var(--background)_/_0.28)] p-3">
+                     <div key={sourceType} className="rounded-md border border-[hsl(var(--border)_/_0.72)] bg-[hsl(var(--background)_/_0.28)] p-3">
                       <div className="mb-3 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className={`flex items-center gap-1.5 rounded-sm px-2 py-1 text-[11px] border ${sourceTypeColor(sourceType)}`}>
@@ -271,9 +253,9 @@ export function InvestigationTimelinePage() {
                                 )}
                               </div>
                               <div className="flex items-center gap-2 mt-2 sm:mt-0 opacity-80 hover:opacity-100 transition-opacity">
-                                <button onClick={() => handleJump(event)} className="rounded-sm border border-[hsl(var(--border))] bg-[hsl(var(--background)_/_0.5)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]">
-                                  来源 &rarr;
-                                </button>
+                                <Button variant="ghost" size="sm" onClick={() => handleJump(event)}>
+                                  来源 →
+                                </Button>
                               </div>
                             </div>
                           </div>

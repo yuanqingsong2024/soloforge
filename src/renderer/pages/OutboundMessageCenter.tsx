@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getApiPort } from '../lib/api'
+import { formatDateTime } from '../lib/i18n-formatters'
+import { apiFetch } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { LoadingState } from '../components/ui/LoadingState'
@@ -32,42 +33,35 @@ interface OutboundMessage {
 
 export function OutboundMessageCenter() {
   const { t } = useTranslation(['common'])
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [messages, setMessages] = useState<OutboundMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<'all' | OutboundMessage['status']>('all')
   const [channelFilter, setChannelFilter] = useState('all')
 
   useEffect(() => {
-    getApiPort().then(async (port) => {
-      setApiPort(port)
-      await fetchMessages(port)
+    void (async () => {
+      await fetchMessages()
       setLoading(false)
-    })
+    })()
   }, [])
 
-  const fetchMessages = async (port: number) => {
+  const fetchMessages = async () => {
     const params = new URLSearchParams()
     if (statusFilter !== 'all') params.set('status', statusFilter)
     if (channelFilter !== 'all') params.set('channel', channelFilter)
     const query = params.toString() ? `?${params.toString()}` : ''
-    const response = await fetch(`http://127.0.0.1:${port}/api/outbound-messages${query}`)
-    const data = await response.json()
+    const data = await apiFetch<OutboundMessage[]>(`/api/outbound-messages${query}`)
     setMessages(data)
   }
 
   useEffect(() => {
-    if (!apiPort) return
-    fetchMessages(apiPort)
-  }, [statusFilter, channelFilter, apiPort])
+    void fetchMessages()
+  }, [statusFilter, channelFilter])
 
   const handleSend = async (messageId: string) => {
-    if (!apiPort) return
-
-    const response = await fetch(`http://127.0.0.1:${apiPort}/api/outbound-messages/${messageId}/send`, {
+    const data = await apiFetch<{ status?: string; message?: string; approvalId?: string }>(`/api/outbound-messages/${messageId}/send`, {
       method: 'POST'
     })
-    const data = await response.json()
 
     if (data.status === 'blocked_allowlist') {
       alert(data.message)
@@ -77,16 +71,13 @@ export function OutboundMessageCenter() {
       alert('消息发送成功')
     }
 
-    await fetchMessages(apiPort)
+    await fetchMessages()
   }
 
   const handleRetry = async (messageId: string) => {
-    if (!apiPort) return
-
-    const response = await fetch(`http://127.0.0.1:${apiPort}/api/outbound-messages/${messageId}/retry`, {
+    const data = await apiFetch<{ status?: string; message?: string }>(`/api/outbound-messages/${messageId}/retry`, {
       method: 'POST'
     })
-    const data = await response.json()
 
     if (data.status === 'sent') {
       alert('重试发送成功')
@@ -94,7 +85,7 @@ export function OutboundMessageCenter() {
       alert(data.message || '重试未执行')
     }
 
-    await fetchMessages(apiPort)
+    await fetchMessages()
   }
 
   const grouped = {
@@ -140,7 +131,7 @@ export function OutboundMessageCenter() {
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1 text-xs rounded-workshop-md ${statusFilter === status ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}
+              className={`px-3 py-1 text-xs rounded-md ${statusFilter === status ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}
             >
               {status === 'all' ? '全部' : translateEnum(t, 'outboundMessageStatusMap', status)}
             </button>
@@ -149,7 +140,7 @@ export function OutboundMessageCenter() {
           <select
             value={channelFilter}
             onChange={e => setChannelFilter(e.target.value)}
-            className="px-3 py-1 text-xs rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
+            className="px-3 py-1 text-xs rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))]"
           >
             <option value="all">全部渠道</option>
             {channels.map(channel => <option key={channel} value={channel}>{channel}</option>)}
@@ -192,7 +183,7 @@ function MessageCard({
 }) {
   const { t } = useTranslation(['common'])
   return (
-    <div data-testid={`message-card-${message.id}`} className="p-3 border border-[hsl(var(--border))] rounded-workshop-md">
+    <div data-testid={`message-card-${message.id}`} className="p-3 border border-[hsl(var(--border))] rounded-md">
       <div className="flex justify-between items-start mb-2 gap-2">
         <div>
           <p className="text-sm font-medium text-[hsl(var(--foreground))]">
@@ -209,10 +200,10 @@ function MessageCard({
 
       <div className="text-xs text-[hsl(var(--muted-foreground))] space-y-1">
         <p>trace_id: {message.traceId}</p>
-        <p>创建时间: {new Date(message.createdAt).toLocaleString('zh-CN')}</p>
-        {message.lastSentAt && <p>发送时间: {new Date(message.lastSentAt).toLocaleString('zh-CN')}</p>}
+        <p>创建时间: {formatDateTime(message.createdAt)}</p>
+        {message.lastSentAt && <p>发送时间: {formatDateTime(message.lastSentAt)}</p>}
         <p>尝试次数: {message.attempts}</p>
-        {message.nextRetryAt && <p>下次重试: {new Date(message.nextRetryAt).toLocaleString('zh-CN')}</p>}
+        {message.nextRetryAt && <p>下次重试: {formatDateTime(message.nextRetryAt)}</p>}
         {message.approvalId && <p>approval_id: {message.approvalId}</p>}
         {message.providerMessageId && <p>provider_message_id: {message.providerMessageId}</p>}
         {message.lastError && <p className="text-[hsl(var(--destructive))]">错误: {message.lastError}</p>}
@@ -222,7 +213,7 @@ function MessageCard({
         {onSend && message.status === 'DRAFT' && (
           <button
             onClick={() => onSend(message.id)}
-            className="px-3 py-1 text-xs rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+            className="px-3 py-1 text-xs rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
           >
             发送（走审批）
           </button>
@@ -230,7 +221,7 @@ function MessageCard({
         {onRetry && message.status === 'FAILED' && (
           <button
             onClick={() => onRetry(message.id)}
-            className="px-3 py-1 text-xs rounded-workshop-md bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))]"
+            className="px-3 py-1 text-xs rounded-md bg-[hsl(var(--warning))] text-[hsl(var(--warning-foreground))]"
           >
             重试发送
           </button>

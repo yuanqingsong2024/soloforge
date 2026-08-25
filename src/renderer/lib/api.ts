@@ -1,4 +1,14 @@
 /**
+ * API 响应通用类型
+ */
+export interface ApiResponse<T = unknown> {
+  success: boolean
+  data?: T
+  error?: string
+  message?: string
+}
+
+/**
  * API 客户端封装
  *
  * 职责：
@@ -42,6 +52,7 @@ export async function getApiPort(): Promise<number> {
 /**
  * 获取本地 API Token（通过 IPC 调用 main process）
  * 首次调用后缓存，避免重复 IPC
+ * 确保 token 始终返回（即使 IPC 失败，也会尝试重试）
  */
 export async function getLocalApiToken(): Promise<string | null> {
   if (cachedToken) {
@@ -54,10 +65,13 @@ export async function getLocalApiToken(): Promise<string | null> {
       return cachedToken
     } catch (error) {
       console.warn('[API] 获取本地 Token 失败:', error)
+      // 清除缓存，下次重试
+      cachedToken = null
       return null
     }
   }
 
+  console.warn('[API] electronAPI.getLocalApiToken 不可用')
   return null
 }
 

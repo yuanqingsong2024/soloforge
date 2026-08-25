@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { ThemeCheckbox, ThemeInput, ThemeTextarea } from '../components/ui/FormFields'
 import { readWorkspaceId } from '../lib/storage'
-
-interface ApiSuccess<T> { success: true; data: T }
-interface ApiFailure { success: false; error: string }
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 
 interface UpgradePolicy {
   id: string
@@ -25,7 +21,6 @@ interface UpgradePolicy {
 const DEFAULT_WORKSPACE_ID = readWorkspaceId()
 
 export function ReleasePoliciesPage() {
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [policies, setPolicies] = useState<UpgradePolicy[]>([])
   const [form, setForm] = useState({
     name: '',
@@ -40,31 +35,26 @@ export function ReleasePoliciesPage() {
   })
 
   useEffect(() => {
-    getApiPort().then(async port => {
-      setApiPort(port)
-      await refresh(port)
-    })
+    void (async () => {
+      await refresh()
+    })()
   }, [])
 
-  const refresh = async (port: number) => {
-    const response = await fetch(`http://127.0.0.1:${port}/api/upgrade-policies?workspaceId=${DEFAULT_WORKSPACE_ID}`)
-    const json = await response.json() as ApiResponse<UpgradePolicy[]>
-    if (json.success) setPolicies(json.data)
+  const refresh = async () => {
+    const json = await apiFetch<ApiResponse<UpgradePolicy[]>>(`/api/upgrade-policies?workspaceId=${DEFAULT_WORKSPACE_ID}`)
+    if (json.success && json.data) setPolicies(json.data)
   }
 
   const savePolicy = async () => {
-    if (!apiPort) return
-    const response = await fetch(`http://127.0.0.1:${apiPort}/api/upgrade-policies`, {
+    const response = await apiFetch<ApiResponse<UpgradePolicy>>('/api/upgrade-policies', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workspaceId: DEFAULT_WORKSPACE_ID, ...form })
     })
-    const json = await response.json() as ApiResponse<UpgradePolicy>
-    if (!json.success) {
-      alert(json.error)
+    if (!response.success) {
+      alert(response.error ?? '保存失败')
       return
     }
-    await refresh(apiPort)
+    await refresh()
   }
 
   return (
@@ -82,13 +72,13 @@ export function ReleasePoliciesPage() {
           <label className="flex items-center gap-2 text-sm"><ThemeCheckbox checked={form.requireMaintenanceWindow} onChange={e => setForm(prev => ({ ...prev, requireMaintenanceWindow: e.target.checked }))} /> 强制维护窗口</label>
           <label className="flex items-center gap-2 text-sm"><ThemeCheckbox checked={form.allowAutoRollback} onChange={e => setForm(prev => ({ ...prev, allowAutoRollback: e.target.checked }))} /> 允许自动回滚</label>
         </div>
-        <div className="mt-4"><button onClick={savePolicy} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">保存策略</button></div>
+        <div className="mt-4"><button onClick={savePolicy} className="px-4 py-2 rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">保存策略</button></div>
       </SectionCard>
 
       <SectionCard title={`策略列表 (${policies.length})`}>
         <div className="space-y-3">
           {policies.map(policy => (
-            <div key={policy.id} className="border border-[hsl(var(--border))] rounded-workshop-md p-4">
+            <div key={policy.id} className="border border-[hsl(var(--border))] rounded-md p-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <div className="font-semibold">{policy.name}</div>

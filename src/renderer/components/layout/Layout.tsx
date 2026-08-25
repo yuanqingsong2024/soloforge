@@ -1,8 +1,10 @@
 import React from 'react'
+import { apiFetch } from '../../lib/api'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import { OfflineIndicator } from '../ui/OfflineIndicator'
 import { useTheme } from '../../contexts/ThemeContext'
 
 function getTitleContext(pathname: string, t: (key: string) => string): { section: string; page: string } {
@@ -58,15 +60,10 @@ function getTitleContextAction(pathname: string): { backTo: string; id?: string 
 }
 
 async function resolveDynamicTitle(pathname: string): Promise<string | null> {
-  const params = new URLSearchParams(window.location.search)
-  const apiPort = params.get('apiPort')
-  if (!apiPort) return null
-
-  const requestJson = async <T,>(url: string): Promise<T | null> => {
+  const requestJson = async <T,>(endpoint: string): Promise<T | null> => {
     try {
-      const response = await fetch(url)
-      if (!response.ok) return null
-      return await response.json() as T
+      const data = await apiFetch<T>(endpoint)
+      return data
     } catch {
       return null
     }
@@ -74,25 +71,25 @@ async function resolveDynamicTitle(pathname: string): Promise<string | null> {
 
   const changeMatch = pathname.match(/^\/changes\/([^/]+)$/)
   if (changeMatch) {
-    const data = await requestJson<{ success?: boolean; data?: { title?: string } }>(`http://127.0.0.1:${apiPort}/api/change-requests/${changeMatch[1]}`)
+    const data = await requestJson<{ success?: boolean; data?: { title?: string } }>(`/api/change-requests/${changeMatch[1]}`)
     return data?.success && data.data?.title ? data.data.title : null
   }
 
   const ticketMatch = pathname.match(/^\/tickets\/([^/]+)$/)
   if (ticketMatch) {
-    const data = await requestJson<{ success?: boolean; data?: { title?: string } }>(`http://127.0.0.1:${apiPort}/api/tickets/${ticketMatch[1]}`)
+    const data = await requestJson<{ success?: boolean; data?: { title?: string } }>(`/api/tickets/${ticketMatch[1]}`)
     return data?.success && data.data?.title ? data.data.title : null
   }
 
   const deploymentMatch = pathname.match(/^\/deployments\/([^/]+)$/)
   if (deploymentMatch) {
-    const data = await requestJson<{ id?: string; name?: string }>(`http://127.0.0.1:${apiPort}/api/deployment-targets/${deploymentMatch[1]}`)
+    const data = await requestJson<{ id?: string; name?: string }>(`/api/deployment-targets/${deploymentMatch[1]}`)
     return data?.name || null
   }
 
   const hostAgentMatch = pathname.match(/^\/host-agents\/([^/]+)$/)
   if (hostAgentMatch) {
-    const data = await requestJson<{ success?: boolean; data?: { name?: string } }>(`http://127.0.0.1:${apiPort}/api/host-agents/${hostAgentMatch[1]}`)
+    const data = await requestJson<{ success?: boolean; data?: { name?: string } }>(`/api/host-agents/${hostAgentMatch[1]}`)
     return data?.success && data.data?.name ? data.data.name : null
   }
 
@@ -103,7 +100,7 @@ function WindowTitleBar() {
   const { t } = useTranslation(['navigation', 'common'])
   const { effectiveTheme } = useTheme()
   const [maximized, setMaximized] = React.useState(false)
-  const [platform, setPlatform] = React.useState<NodeJS.Platform>('win32')
+  const [platform, setPlatform] = React.useState<string>('win32')
   const location = useLocation()
   const navigate = useNavigate()
   const titleContext = React.useMemo(() => getTitleContext(location.pathname, t), [location.pathname, t])
@@ -336,6 +333,8 @@ export function Layout({ children }: LayoutProps) {
           </main>
         </div>
       </div>
+      {/* 离线状态指示器 */}
+      <OfflineIndicator />
     </div>
   )
 }

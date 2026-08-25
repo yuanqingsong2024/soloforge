@@ -1,5 +1,6 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
+import { readLocalStorage } from './storage'
 
 const localeModules = import.meta.glob(
   '../../../resources/locales/**/*.json',
@@ -18,10 +19,23 @@ function buildResources() {
   return resources
 }
 
+// 获取保存的语言设置，默认为 zh-CN
+function getInitialLanguage(): string {
+  try {
+    const saved = readLocalStorage('soloforge-language')
+    if (saved === 'zh-CN' || saved === 'en-US') {
+      return saved
+    }
+  } catch {
+    // ignore
+  }
+  return 'zh-CN'
+}
+
 i18n
   .use(initReactI18next)
   .init({
-    lng: 'zh-CN',
+    lng: getInitialLanguage(),
     fallbackLng: 'zh-CN',
     resources: buildResources(),
     ns: [

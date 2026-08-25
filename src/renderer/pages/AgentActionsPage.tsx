@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { Link } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { EmptyState } from '../components/ui/EmptyState'
+import { EmptyState, Button } from '../components/ui'
 import { ThemeInput } from '../components/ui/FormFields'
 import { readWorkspaceId } from '../lib/storage'
 
@@ -24,10 +25,6 @@ interface AgentActionRow {
   logs: Array<{ id: string; level: string; message: string; dataJson: string; createdAt: string }>
 }
 
-interface ApiOk<T> { success: true; data: T }
-interface ApiFail { success: false; error: string }
-type ApiResponse<T> = ApiOk<T> | ApiFail
-
 function prettyJson(raw: string | null | undefined): string {
   if (!raw) return '—'
   try {
@@ -38,7 +35,6 @@ function prettyJson(raw: string | null | undefined): string {
 }
 
 export function AgentActionsPage() {
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [rows, setRows] = useState<AgentActionRow[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [filters, setFilters] = useState({
@@ -50,20 +46,16 @@ export function AgentActionsPage() {
   })
 
   useEffect(() => {
-    getApiPort().then(async port => {
-      setApiPort(port)
-      await load(port)
-    })
+    void load()
   }, [])
 
-  const load = async (port: number) => {
+  const load = async () => {
     const params = new URLSearchParams()
     for (const [key, value] of Object.entries(filters)) {
       if (value) params.set(key, value)
     }
-    const response = await fetch(`http://127.0.0.1:${port}/api/agent-actions?${params.toString()}`)
-    const json = await response.json() as ApiResponse<AgentActionRow[]>
-    if (json.success) {
+    const json = await apiFetch<ApiResponse<AgentActionRow[]>>(`/api/agent-actions?${params.toString()}`)
+    if (json.success && json.data) {
       setRows(json.data)
       if (!selectedId && json.data.length > 0) setSelectedId(json.data[0].id)
     }
@@ -83,7 +75,7 @@ export function AgentActionsPage() {
           <ThemeInput value={filters.actionType} onChange={event => setFilters(prev => ({ ...prev, actionType: event.target.value }))} placeholder="Action Type" />
           <div className="flex gap-2">
             <ThemeInput value={filters.status} onChange={event => setFilters(prev => ({ ...prev, status: event.target.value }))} placeholder="Status" className="flex-1" />
-            <button onClick={() => apiPort && void load(apiPort)} className="px-4 py-2 rounded-workshop-md bg-[hsl(var(--muted))] hover:opacity-90">刷新</button>
+            <Button variant="secondary" size="sm" onClick={() => void load()}>刷新</Button>
           </div>
         </div>
       </SectionCard>
@@ -92,12 +84,12 @@ export function AgentActionsPage() {
         <SectionCard title={`动作列表 (${rows.length})`} description="左侧快速定位失败 / 阻塞 / 超时动作。">
           <div className="space-y-3">
             {rows.map(row => (
-              <button key={row.id} onClick={() => setSelectedId(row.id)} className={`w-full text-left p-4 rounded-workshop-md border ${selectedId === row.id ? 'border-[hsl(var(--primary))] bg-[hsl(var(--accent))]' : 'border-[hsl(var(--border))]'}`}>
+              <button key={row.id} onClick={() => setSelectedId(row.id)} className={`w-full text-left p-4 rounded-md border ${selectedId === row.id ? 'border-[hsl(var(--primary))] bg-[hsl(var(--accent))]' : 'border-[hsl(var(--border))]'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-semibold">{row.actionType}</div>
                     <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{row.hostAgent.name} · {row.target.name}</div>
-                    <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{new Date(row.createdAt).toLocaleString('zh-CN')}</div>
+                    <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{formatDateTime(row.createdAt)}</div>
                   </div>
                   <span className="text-sm">{row.status}</span>
                 </div>
@@ -125,14 +117,14 @@ export function AgentActionsPage() {
                 <div><div className="text-[hsl(var(--muted-foreground))]">状态</div><div>{selected.status}</div></div>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <pre className="text-xs font-mono p-4 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto whitespace-pre-wrap">{prettyJson(selected.requestJson)}</pre>
-                <pre className="text-xs font-mono p-4 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto whitespace-pre-wrap">{prettyJson(selected.resultJson || selected.errorSummary || null)}</pre>
+                <pre className="text-xs font-mono p-4 rounded-md bg-[hsl(var(--muted))] overflow-auto whitespace-pre-wrap">{prettyJson(selected.requestJson)}</pre>
+                <pre className="text-xs font-mono p-4 rounded-md bg-[hsl(var(--muted))] overflow-auto whitespace-pre-wrap">{prettyJson(selected.resultJson || selected.errorSummary || null)}</pre>
               </div>
               <div className="space-y-2">
                 {selected.logs.map(log => (
-                  <details key={log.id} className="border border-[hsl(var(--border))] rounded-workshop-md p-3">
+                  <details key={log.id} className="border border-[hsl(var(--border))] rounded-md p-3">
                     <summary className="cursor-pointer text-sm">[{log.level}] {log.message}</summary>
-                    <pre className="mt-3 text-xs font-mono p-3 rounded-workshop-md bg-[hsl(var(--muted))] overflow-auto whitespace-pre-wrap">{prettyJson(log.dataJson)}</pre>
+                    <pre className="mt-3 text-xs font-mono p-3 rounded-md bg-[hsl(var(--muted))] overflow-auto whitespace-pre-wrap">{prettyJson(log.dataJson)}</pre>
                   </details>
                 ))}
               </div>

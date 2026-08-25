@@ -34,6 +34,8 @@
     "reject": "Reject"
   },
   "status": {
+    "pass": "Pass",
+    "fail": "Fail",
     "draft": "Draft",
     "pendingApproval": "Pending Approval",
     "approved": "Approved",
@@ -119,7 +121,9 @@
     "warning": "Warning",
     "error": "Error",
     "high": "High",
-    "critical": "Critical"
+    "critical": "Critical",
+    "low": "Low",
+    "medium": "Medium"
   },
   "systemActions": {
     "globalSearch": "Global Search",

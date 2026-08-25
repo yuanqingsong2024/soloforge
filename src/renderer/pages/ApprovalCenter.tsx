@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
+import { apiFetch } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { LoadingState } from '../components/ui/LoadingState'
+import { LoadingState, Button } from '../components/ui'
 import { EmptyState } from '../components/ui/EmptyState'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { getToneByStatus } from '../lib/status-badge'
@@ -39,27 +40,22 @@ export function ApprovalCenter() {
   
   const [approvals, setApprovals] = useState<Approval[]>([])
   const [filter, setFilter] = useState<'all' | 'PENDING' | 'APPROVED' | 'REJECTED'>(initialFilter)
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   useEffect(() => {
     setFilter(initialFilter)
   }, [initialFilter])
 
   useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-      fetchApprovals(port)
-    })
+    void fetchApprovals()
   }, [filter])
 
-  const fetchApprovals = async (port: number) => {
+  const fetchApprovals = async () => {
     try {
       const url = filter === 'all'
-        ? `http://127.0.0.1:${port}/api/approvals`
-        : `http://127.0.0.1:${port}/api/approvals?status=${filter}`
+        ? '/api/approvals'
+        : `/api/approvals?status=${filter}`
       
-      const response = await fetch(url)
-      const data = await response.json()
+      const data = await apiFetch<Approval[]>(url)
       setApprovals(data)
     } catch (error) {
       console.error('Failed to fetch approvals:', error)
@@ -69,36 +65,34 @@ export function ApprovalCenter() {
   }
 
   const handleApprove = async (approvalId: string) => {
-    if (!apiPort || !confirm(t('approval:actions.confirmApprove'))) return
+    if (!confirm(t('approval:actions.confirmApprove'))) return
 
     try {
-      await fetch(`http://127.0.0.1:${apiPort}/api/approvals/${approvalId}`, {
+      await apiFetch(`/api/approvals/${approvalId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'APPROVED',
           approvedBy: 'admin'
         })
       })
-      fetchApprovals(apiPort)
+      void fetchApprovals()
     } catch (error) {
       console.error('Failed to approve:', error)
     }
   }
 
   const handleReject = async (approvalId: string) => {
-    if (!apiPort || !confirm(t('approval:actions.confirmReject'))) return
+    if (!confirm(t('approval:actions.confirmReject'))) return
 
     try {
-      await fetch(`http://127.0.0.1:${apiPort}/api/approvals/${approvalId}`, {
+      await apiFetch(`/api/approvals/${approvalId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'REJECTED',
           approvedBy: 'admin'
         })
       })
-      fetchApprovals(apiPort)
+      void fetchApprovals()
     } catch (error) {
       console.error('Failed to reject:', error)
     }
@@ -117,7 +111,7 @@ export function ApprovalCenter() {
         description={t('approval:pageDescription')}
       />
 
-      <div className="mb-6 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-2 shadow-workshop-sm">
+      <div className="mb-6 rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-2 shadow-sm">
         <nav className="flex flex-wrap gap-2">
           {(['PENDING', 'APPROVED', 'REJECTED', 'all'] as const).map(status => {
             const count = status === 'all' ? approvals.length : approvals.filter(a => a.status === status).length
@@ -128,7 +122,7 @@ export function ApprovalCenter() {
                 onClick={() => setFilter(status)}
                 className={`rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
                   filter === status
-                    ? 'bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))] shadow-workshop-sm'
+                    ? 'bg-[hsl(var(--google-blue)_/_0.12)] text-[hsl(var(--google-blue))] shadow-sm'
                     : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
                 }`}
               >
@@ -161,7 +155,7 @@ export function ApprovalCenter() {
                       {t('approval:detail.relatedTicket')}: {approval.ticket.title}
                     </p>
                   )}
-                  <div className="mt-4 rounded-workshop-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4">
+                  <div className="mt-4 rounded-lg border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.56)] p-4">
                     <p className="text-sm font-medium text-[hsl(var(--foreground))] mb-2">{t('approval:requestContent')}:</p>
                     <pre data-testid={`approval-payload-${approval.id}`} className="text-xs text-[hsl(var(--muted-foreground))] whitespace-pre-wrap font-mono">
                       {JSON.stringify(JSON.parse(approval.payload), null, 2)}
@@ -176,29 +170,27 @@ export function ApprovalCenter() {
                       </>
                     )}
                     <span>•</span>
-                    <span>{new Date(approval.createdAt).toLocaleString('zh-CN')}</span>
+                    <span>{formatDateTime(approval.createdAt)}</span>
                   </div>
                 </div>
                 {approval.status === 'PENDING' && (
                   <div className="ml-4 flex gap-2">
-                    <button
+                    <Button
                       data-testid={`approval-approve-${approval.id}`}
                       onClick={() => handleApprove(approval.id)}
-                      className="rounded-full border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] px-4 py-2 text-sm font-medium text-[hsl(var(--success))]
-                               transition-colors duration-200 hover:bg-[hsl(var(--google-green)_/_0.18)]
-                               text-sm font-medium"
+                      variant="outline"
+                      size="sm"
                     >
                       {t('common:buttons.approve')}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       data-testid={`approval-reject-${approval.id}`}
                       onClick={() => handleReject(approval.id)}
-                      className="rounded-full border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] px-4 py-2 text-sm font-medium text-[hsl(var(--destructive))]
-                               transition-colors duration-200 hover:bg-[hsl(var(--google-red)_/_0.18)]
-                               text-sm font-medium"
+                      variant="destructive"
+                      size="sm"
                     >
                       {t('common:buttons.reject')}
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>

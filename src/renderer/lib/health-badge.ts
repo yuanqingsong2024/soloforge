@@ -64,7 +64,7 @@ export function getHealthSeverityBadgeClass(severity: string, bordered = false):
 }
 
 export function getHealthErrorPanelClass(): string {
-  return 'rounded-workshop-md border border-[hsl(var(--destructive)_/_0.20)] bg-[hsl(var(--destructive)_/_0.08)] p-4'
+  return 'rounded-md border border-[hsl(var(--destructive)_/_0.20)] bg-[hsl(var(--destructive)_/_0.08)] p-4'
 }
 
 export function getHealthMetricBadgeClass(kind: HealthMetricKind): string {

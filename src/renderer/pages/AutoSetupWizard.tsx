@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { getApiPort } from '../lib/api'
+import { apiFetch } from '../lib/api'
 import { readWorkspaceId } from '../lib/storage'
 
 type WizardPhase = 'detect' | 'mode' | 'bootstrap' | 'complete'
@@ -228,7 +228,6 @@ function PlayIcon() {
 
 export function AutoSetupWizard() {
   const navigate = useNavigate()
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [phase, setPhase] = useState<WizardPhase>('detect')
   const [workspaceId, setWorkspaceId] = useState(DEFAULT_WORKSPACE_ID)
   const [imageName, setImageName] = useState(DEFAULT_IMAGE_NAME)
@@ -245,10 +244,6 @@ export function AutoSetupWizard() {
   const [stepStatuses, setStepStatuses] = useState<Record<StepKey, StepStatus>>(buildInitialStepStatuses)
 
   useEffect(() => {
-    getApiPort().then((port) => {
-      setApiPort(port)
-    })
-
     const storedWorkspaceId = readWorkspaceId()
     if (storedWorkspaceId) {
       setWorkspaceId(storedWorkspaceId)
@@ -282,11 +277,6 @@ export function AutoSetupWizard() {
   }
 
   const handleDetect = async () => {
-    if (!apiPort) {
-      setError('本地 API 端口尚未就绪，请稍后重试')
-      return
-    }
-
     setIsDetecting(true)
     setError(null)
     setDetection(null)
@@ -303,15 +293,12 @@ export function AutoSetupWizard() {
         detect: 'running'
       }))
 
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/openclaw/detect`, {
+      const data = await apiFetch<DetectionResponse>('/api/openclaw/detect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId })
       })
 
-      const data = (await response.json()) as DetectionResponse
-
-      if (!response.ok || !data.success) {
+      if (!data.success) {
         throw new Error('自动检测失败，请检查本地服务状态')
       }
 
@@ -341,11 +328,6 @@ export function AutoSetupWizard() {
   }
 
   const handleBootstrap = async () => {
-    if (!apiPort) {
-      setError('本地 API 端口尚未就绪，请稍后重试')
-      return
-    }
-
     if (selectedMode === 'manual') {
       navigate('/setup/wizard')
       return
@@ -363,9 +345,8 @@ export function AutoSetupWizard() {
     setStepStatuses(buildBootstrapSeedStatuses(nextSkipDeploy))
 
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/openclaw/auto-bootstrap`, {
+      const data = await apiFetch<BootstrapResponse>('/api/openclaw/auto-bootstrap', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workspaceId,
           imageName,
@@ -373,11 +354,10 @@ export function AutoSetupWizard() {
         })
       })
 
-      const data = (await response.json()) as BootstrapResponse
       applyBootstrapSteps(data.steps || [], nextSkipDeploy)
       setBootstrapResult(data)
 
-      if (!response.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.message || '自动引导失败，请根据步骤信息排查')
       }
 
@@ -391,8 +371,8 @@ export function AutoSetupWizard() {
   }
 
   const handleStartOpenClaw = async (mode: 'docker' | 'native') => {
-    if (!apiPort || !detectionId) {
-      setError('缺少检测记录，无法启动 OpenClaw')
+    if (!detectionId) {
+      setError('缺少检测记录，无法启动 Claude Code')
       return
     }
 
@@ -401,9 +381,8 @@ export function AutoSetupWizard() {
     setStartMessage(null)
 
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/openclaw/start`, {
+      const data = await apiFetch<{ success: boolean; message?: string }>('/api/openclaw/start', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workspaceId,
           detectionId,
@@ -412,14 +391,13 @@ export function AutoSetupWizard() {
         })
       })
 
-      const data = await response.json() as { success: boolean; message?: string; error?: string }
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || data.error || '启动 OpenClaw 失败')
+      if (!data.success) {
+        throw new Error(data.message || '启动 Claude Code 失败')
       }
 
       setStartMessage('启动命令已提交，正在重新检测状态...')
       await handleDetect()
-      setStartMessage('OpenClaw 已启动，状态已刷新。')
+      setStartMessage('Claude Code 已启动，状态已刷新。')
       setShowRunningHint(true)
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : '启动 OpenClaw 失败'
@@ -476,7 +454,7 @@ export function AutoSetupWizard() {
           ].map((item) => (
             <div
               key={item.key}
-              className={`rounded-workshop-lg border px-4 py-3 shadow-workshop-sm ${
+              className={`rounded-lg border px-4 py-3 shadow-sm ${
                 item.active
                   ? 'border-[hsl(var(--primary)_/_0.24)] bg-[hsl(var(--primary)_/_0.08)]'
                   : 'border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))]'
@@ -489,7 +467,7 @@ export function AutoSetupWizard() {
       </SectionCard>
 
       {error && (
-        <div className="rounded-workshop-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-4 shadow-workshop-sm">
+        <div className="rounded-lg border border-[hsl(var(--google-red)_/_0.18)] bg-[hsl(var(--google-red)_/_0.12)] p-4 shadow-sm">
           <p className="text-sm text-[hsl(var(--destructive))]">{error}</p>
         </div>
       )}
@@ -510,7 +488,7 @@ export function AutoSetupWizard() {
             return (
               <div
                 key={item.key}
-                className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm"
+                className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm"
               >
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="space-y-1">
@@ -542,7 +520,7 @@ export function AutoSetupWizard() {
           <div className="flex flex-wrap gap-3">
             <button
               onClick={handleDetect}
-              disabled={isDetecting || isBootstrapping || apiPort === null}
+              disabled={isDetecting || isBootstrapping}
               className="rounded-full bg-[hsl(var(--primary))] px-6 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isDetecting ? '检测中...' : '开始自动检测'}
@@ -557,7 +535,7 @@ export function AutoSetupWizard() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--background))] p-4">
+            <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--background))] p-4">
               <p className="mb-3 text-sm font-medium text-[hsl(var(--foreground))]">运行参数</p>
               <div className="space-y-4">
                 <div>
@@ -587,13 +565,13 @@ export function AutoSetupWizard() {
               </div>
             </div>
 
-            <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--background))] p-4">
+            <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--background))] p-4">
               <p className="mb-3 text-sm font-medium text-[hsl(var(--foreground))]">检测结果</p>
               {!detection ? (
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">尚未执行检测。点击“开始自动检测”后，这里会显示端口与 Docker 环境情况。</p>
               ) : (
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-workshop-md border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--background))] p-3 text-sm text-[hsl(var(--muted-foreground))]">
+                  <div className="rounded-md border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--background))] p-3 text-sm text-[hsl(var(--muted-foreground))]">
                     <div className="mb-3 flex items-center justify-between gap-3 border-b border-[hsl(var(--border)_/_0.6)] pb-2">
                       <p className="text-sm font-semibold text-[hsl(var(--foreground))]">状态</p>
                       <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-xs text-[hsl(var(--muted-foreground))]">检测信息</span>
@@ -634,7 +612,7 @@ export function AutoSetupWizard() {
                     </p>
                   </div>
 
-                  <div className="rounded-workshop-md border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--background))] p-3 space-y-2 lg:min-w-0 lg:justify-self-end">
+                  <div className="rounded-md border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--background))] p-3 space-y-2 lg:min-w-0 lg:justify-self-end">
                     <div className="flex items-center justify-between gap-3 border-b border-[hsl(var(--border)_/_0.6)] pb-2">
                       <p className="text-sm font-semibold text-[hsl(var(--foreground))]">操作</p>
                       <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-xs text-[hsl(var(--muted-foreground))]">启动控制</span>
@@ -701,7 +679,7 @@ export function AutoSetupWizard() {
                   key={option.mode}
                   type="button"
                   onClick={() => handleModeChange(option.mode)}
-                  className={`rounded-workshop-lg border p-4 text-left shadow-workshop-sm transition-colors ${
+                  className={`rounded-lg border p-4 text-left shadow-sm transition-colors ${
                     selected
                       ? 'border-[hsl(var(--primary)_/_0.24)] bg-[hsl(var(--primary)_/_0.08)]'
                       : 'border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] hover:bg-[hsl(var(--accent)_/_0.35)]'
@@ -773,7 +751,7 @@ export function AutoSetupWizard() {
       <SectionCard title="完成状态" description="成功后可直接进入首页或配置中心继续操作。">
         {isComplete ? (
           <div className="space-y-4">
-            <div className="rounded-workshop-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] p-6 shadow-workshop-sm">
+            <div className="rounded-lg border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] p-6 shadow-sm">
               <h3 className="mb-3 text-lg font-semibold text-[hsl(var(--success))]">✓ 自动配置完成</h3>
               <div className="space-y-2 text-sm text-[hsl(var(--success))]">
                 <p>连接档案已创建并绑定到当前 Workspace。</p>
@@ -797,7 +775,7 @@ export function AutoSetupWizard() {
             </div>
           </div>
         ) : (
-          <div className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+          <div className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
               {phase === 'complete' && !bootstrapResult?.success
                 ? '自动引导未完成，请查看上方失败步骤并重试。'

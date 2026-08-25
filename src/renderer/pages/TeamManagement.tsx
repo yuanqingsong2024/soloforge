@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getApiPort } from '../lib/api'
+import { apiFetch } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
+import { Button } from '../components/ui'
 import { translateEnum } from '../lib/i18n-helpers'
 import { ThemeSelect } from '../components/ui/FormFields'
+import { readWorkspaceId } from '../lib/storage'
 
 interface Role {
   id: string
@@ -16,6 +18,7 @@ interface Role {
 interface Agent {
   id: string
   name: string
+  workspaceId: string
   roleId: string
   model: string
   runtime: string
@@ -62,7 +65,6 @@ interface HireResponse {
 
 export function TeamManagement() {
   const { t } = useTranslation(['team', 'common'])
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [roles, setRoles] = useState<Role[]>([])
   const [agents, setAgents] = useState<Agent[]>([])
   const [tools, setTools] = useState<Tool[]>([])
@@ -77,71 +79,64 @@ export function TeamManagement() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    getApiPort().then(async (port) => {
-      setApiPort(port)
-      await fetchAll(port)
-    })
+    void (async () => {
+      await fetchAll()
+    })()
   }, [])
 
-  const fetchAll = async (port: number) => {
-    const [rolesRes, agentsRes, toolsRes, matrixRes, profilesRes] = await Promise.all([
-      fetch(`http://127.0.0.1:${port}/api/roles`),
-      fetch(`http://127.0.0.1:${port}/api/agents`),
-      fetch(`http://127.0.0.1:${port}/api/tools`),
-      fetch(`http://127.0.0.1:${port}/api/agent-tools`),
-      fetch(`http://127.0.0.1:${port}/api/profiles`)
+  const fetchAll = async () => {
+    const wid = readWorkspaceId()
+    const [fetchedRoles, fetchedAgents, fetchedTools, fetchedMatrix, fetchedProfiles] = await Promise.all([
+      apiFetch<Role[]>('/api/roles'),
+      apiFetch<Agent[]>(`/api/agents?workspaceId=${encodeURIComponent(wid)}`),
+      apiFetch<Tool[]>('/api/tools'),
+      apiFetch<AgentTool[]>(`/api/agent-tools?workspaceId=${encodeURIComponent(wid)}`),
+      apiFetch<ConnectionProfile[]>('/api/profiles')
     ])
 
-    setRoles(await rolesRes.json())
-    setAgents(await agentsRes.json())
-    setTools(await toolsRes.json())
-    setAgentTools(await matrixRes.json())
-    const fetchedProfiles = await profilesRes.json() as ConnectionProfile[]
+    setRoles(fetchedRoles)
+    setAgents(fetchedAgents)
+    setTools(fetchedTools)
+    setAgentTools(fetchedMatrix)
     setProfiles(fetchedProfiles)
     setHireProfileId(current => current || fetchedProfiles[0]?.id || '')
   }
 
   const toggleAgent = async (agent: Agent) => {
-    if (!apiPort) return
-    await fetch(`http://127.0.0.1:${apiPort}/api/agents/${agent.id}`, {
+    await apiFetch(`/api/agents/${agent.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: !agent.enabled })
     })
-    await fetchAll(apiPort)
+    await fetchAll()
   }
 
   const toggleAuth = async (agentId: string, toolId: string) => {
-    if (!apiPort) return
     const existed = agentTools.find(item => item.agentId === agentId && item.toolId === toolId)
     if (existed) {
-      await fetch(`http://127.0.0.1:${apiPort}/api/agent-tools/${existed.id}`, { method: 'DELETE' })
+      await apiFetch(`/api/agent-tools/${existed.id}`, { method: 'DELETE' })
     } else {
-      await fetch(`http://127.0.0.1:${apiPort}/api/agent-tools`, {
+      await apiFetch('/api/agent-tools', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ agentId, toolId, permissionJson: JSON.stringify({ level: 'full' }) })
       })
     }
-    await fetchAll(apiPort)
+    await fetchAll()
   }
 
   const handleHire = async () => {
-    if (!apiPort || !hireProfileId) return
+    if (!hireProfileId) return
     setHireLoading(true)
     setHireMessage(null)
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/team/hire`, {
+      const result = await apiFetch<HireResponse>('/api/team/hire', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileId: hireProfileId, template: hireTemplate })
+        body: JSON.stringify({ profileId: hireProfileId, template: hireTemplate, workspaceId: readWorkspaceId() })
       })
-      const result = await response.json() as HireResponse
-      if (!response.ok || !result.success || !result.data) {
+      if (!result.success || !result.data) {
         throw new Error(result.error || '一键招聘失败')
       }
       setHireMessage(`已基于 ${result.data.profileName} 完成 ${result.data.hired.length} 名员工招聘：${result.data.hired.map(item => item.agentName).join('、')}`)
-      await fetchAll(apiPort)
+      await fetchAll()
     } catch (error) {
       setHireMessage(error instanceof Error ? error.message : '一键招聘失败')
     } finally {
@@ -150,25 +145,20 @@ export function TeamManagement() {
   }
 
   const handleSyncToOpenClaw = async () => {
-    if (!apiPort) return
-
     setSyncStatus('syncing')
     setApprovalId(null)
     setErrorMessage(null)
 
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/agents/sync-to-openclaw`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      })
-
-      const result = await response.json() as {
+      const result = await apiFetch<{
         status?: string
         approvalId?: string
         success?: boolean
         error?: string
-      }
+      }>('/api/agents/sync-to-openclaw', {
+        method: 'POST',
+        body: JSON.stringify({ workspaceId: readWorkspaceId() })
+      })
 
       if (result.status === 'pending_approval') {
         setSyncStatus('pending_approval')
@@ -176,8 +166,8 @@ export function TeamManagement() {
         return
       }
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || '同步到 OpenClaw 失败')
+      if (!result.success) {
+        throw new Error(result.error || '同步到 Claude Code 失败')
       }
 
       setSyncStatus('success')
@@ -218,13 +208,9 @@ export function TeamManagement() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-2 border-t border-[hsl(var(--border))]">
-            <button
-              onClick={handleHire}
-              disabled={!hireProfileId || hireLoading}
-              className="px-6 py-3 rounded-workshop-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-medium transition-all hover:opacity-90 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
-            >
-              {hireLoading ? '招聘中...' : '一键招聘'}
-            </button>
+            <Button onClick={handleHire} loading={hireLoading} disabled={!hireProfileId}>
+              一键招聘
+            </Button>
             <p className="text-xs text-[hsl(var(--muted-foreground))] leading-relaxed">
               默认不会自动授予 CRITICAL 工具，避免越权。
             </p>
@@ -232,7 +218,7 @@ export function TeamManagement() {
         </div>
 
         {hireMessage && (
-          <div className="mt-6 text-sm rounded-workshop-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-4">
+          <div className="mt-6 text-sm rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-4">
             {hireMessage}
           </div>
         )}
@@ -242,7 +228,7 @@ export function TeamManagement() {
         <SectionCard title={`岗位 (${roles.length})`}>
           <div className="space-y-2">
             {roles.map(role => (
-              <div key={role.id} className="p-2 border border-[hsl(var(--border))] rounded-workshop-md">
+              <div key={role.id} className="p-2 border border-[hsl(var(--border))] rounded-md">
                 <p className="font-medium">{role.name}</p>
                 <p className="text-xs text-[hsl(var(--muted-foreground))]">{role.description}</p>
               </div>
@@ -253,29 +239,22 @@ export function TeamManagement() {
         <SectionCard title={`员工 (${agents.length})`}>
           <div className="space-y-2">
             {agents.map(agent => (
-              <div key={agent.id} className="flex items-center justify-between gap-3 p-2 border border-[hsl(var(--border))] rounded-workshop-md">
+              <div key={agent.id} className="flex items-center justify-between gap-3 p-2 border border-[hsl(var(--border))] rounded-md">
                 <div className="min-w-0">
                   <p className="font-medium">{agent.name}</p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">{agent.role?.name || '未绑定岗位'} / {agent.model}</p>
                 </div>
-                <button
-                  onClick={() => toggleAgent(agent)}
-                  className="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium border border-[hsl(var(--border))] bg-[hsl(var(--muted))]"
-                >
+                <Button variant="secondary" size="sm" onClick={() => toggleAgent(agent)}>
                   {agent.enabled ? '禁用' : '启用'}
-                </button>
+                </Button>
               </div>
             ))}
           </div>
 
           <div className="mt-6 flex items-center gap-4">
-            <button
-              onClick={handleSyncToOpenClaw}
-              disabled={syncStatus === 'syncing' || !apiPort}
-              className="px-4 py-2 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
-            >
-              {syncStatus === 'syncing' ? '同步中...' : '同步到 OpenClaw'}
-            </button>
+            <Button onClick={handleSyncToOpenClaw} loading={syncStatus === 'syncing'}>
+              同步到 OpenClaw
+            </Button>
 
             {syncStatus === 'pending_approval' && (
               <div className="flex items-center gap-2">
@@ -302,7 +281,7 @@ export function TeamManagement() {
         <SectionCard title={`工具 (${tools.length})`}>
           <div className="space-y-2">
             {tools.map(tool => (
-              <div key={tool.id} className="p-2 border border-[hsl(var(--border))] rounded-workshop-md">
+              <div key={tool.id} className="p-2 border border-[hsl(var(--border))] rounded-md">
                 <p className="font-medium">{tool.name}</p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">{tool.scope} / {translateEnum(t, 'toolRiskLevelMap', tool.riskClass)}</p>
               </div>
@@ -332,7 +311,7 @@ export function TeamManagement() {
                       <td key={tool.id} className="p-2 text-center">
                         <button
                           onClick={() => toggleAuth(agent.id, tool.id)}
-                          className={`w-7 h-7 rounded-workshop-md border ${authorized ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''}`}
+                          className={`w-7 h-7 rounded-md border ${authorized ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''}`}
                         >
                           {authorized ? '✓' : ''}
                         </button>

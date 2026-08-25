@@ -77,6 +77,15 @@
     "title": "Pipeline",
     "currentStep": "Current Step",
     "nextStep": "Next Step",
-    "progress": "Progress"
+    "progress": "Progress",
+    "advanceSuccess": "Pipeline advanced to next step",
+    "advanceFailed": "Failed to advance pipeline",
+    "needsApproval": "Approval required, IDs: {{ids}}",
+    "rollbackSuccess": "Pipeline rolled back to previous step",
+    "rollbackFailed": "Failed to rollback pipeline"
+  },
+  "jobs": {
+    "retrySuccess": "Job retry submitted",
+    "retryFailed": "Failed to retry job"
   }
 }

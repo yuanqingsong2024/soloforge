@@ -157,6 +157,7 @@
     "activityFeedPreviewDesc": "最近事件的高信号摘要，可跳转查看完整活动流。"
   },
   "messages": {
+    "loading": "加载中...",
     "autoRefreshFailed": "自动刷新失败：{{error}}",
     "refreshed": "已刷新：{{time}}",
     "runningDoctorCheck": "正在运行 Doctor 检查...",
@@ -251,8 +252,12 @@
   },
   "setupBanner": {
     "title": "欢迎使用 SoloForge",
-    "description": "检测到您尚未完成 OpenClaw 连接配置，点击下方按钮快速配置",
+    "description": "检测到您尚未完成 Claude Code 连接配置，点击下方按钮快速配置",
     "startSetup": "开始配置",
     "skipSetup": "稍后配置"
+  },
+  "a11y": {
+    "skipToMain": "跳转到主内容区",
+    "mainRegion": "主内容区域"
   }
 }

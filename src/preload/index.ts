@@ -22,5 +22,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPlatform: () => ipcRenderer.sendSync('system:get-platform'),
   onApiPort: (callback: (port: number) => void) => {
     ipcRenderer.on('api-port', (_event, port) => callback(port))
+  },
+  // 离线模式
+  offline: {
+    getStatus: () => ipcRenderer.invoke('offline:getStatus'),
+    getPendingOperations: () => ipcRenderer.invoke('offline:getPendingOperations'),
+    clearPendingOperations: () => ipcRenderer.invoke('offline:clearPendingOperations'),
+    retrySync: () => ipcRenderer.invoke('offline:retrySync'),
+    onStatusChanged: (callback: (status: unknown) => void) => {
+      ipcRenderer.on('offline:statusChanged', (_event, status) => callback(status))
+    }
   }
 })

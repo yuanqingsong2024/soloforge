@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4285F4"/>
+      <stop offset="50%" style="stop-color:#34A853"/>
+      <stop offset="100%" style="stop-color:#FBBC05"/>
+    </linearGradient>
+    <linearGradient id="innerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="flameGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#FF6B35"/>
+      <stop offset="50%" style="stop-color:#F7931E"/>
+      <stop offset="100%" style="stop-color:#FBBC05"/>
+    </linearGradient>
+  </defs>
+  
+  <rect width="64" height="64" rx="12" fill="url(#bgGrad)"/>
+  <circle cx="32" cy="32" r="22" fill="url(#innerGrad)"/>
+  
+  <!-- 简化火焰 -->
+  <path d="M32 14 
+           C36 22 42 26 42 32
+           C42 38 36 42 32 44
+           C28 42 22 38 22 32
+           C22 26 28 22 32 14Z" 
+        fill="url(#flameGrad)"/>
+</svg>

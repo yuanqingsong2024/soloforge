@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { useNavigate } from 'react-router-dom'
-import { getApiPort } from '../lib/api'
-import { LoadingState } from '../components/ui/LoadingState'
+import { apiFetch } from '../lib/api'
+import { LoadingState, Button } from '../components/ui'
 import { EmptyState } from '../components/ui/EmptyState'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { getToneByStatus } from '../lib/status-badge'
@@ -22,19 +23,15 @@ interface ChangeRequest {
 export function Changes() {
   const navigate = useNavigate()
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([])
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterType, setFilterType] = useState<string>('all')
 
   useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-      fetchChangeRequests(port)
-    })
+    void fetchChangeRequests()
   }, [])
 
-  const fetchChangeRequests = async (port: number, status?: string, type?: string) => {
+  const fetchChangeRequests = async (status?: string, type?: string) => {
     try {
       setLoading(true)
       const workspaceId = readWorkspaceId()
@@ -42,8 +39,7 @@ export function Changes() {
       if (status && status !== 'all') params.append('status', status)
       if (type && type !== 'all') params.append('type', type)
       
-      const response = await fetch(`http://127.0.0.1:${port}/api/workspaces/${workspaceId}/change-requests?${params}`)
-      const data = await response.json()
+      const data = await apiFetch<{ data: ChangeRequest[] }>(`/api/workspaces/${workspaceId}/change-requests?${params}`)
       setChangeRequests(data.data || [])
     } catch (error) {
       console.error('获取变更单失败:', error)
@@ -55,9 +51,7 @@ export function Changes() {
   const handleFilterChange = (status: string, type: string) => {
     setFilterStatus(status)
     setFilterType(type)
-    if (apiPort) {
-      fetchChangeRequests(apiPort, status, type)
-    }
+    void fetchChangeRequests(status, type)
   }
 
   const getStatusLabel = (status: string) => {
@@ -100,15 +94,12 @@ export function Changes() {
           </p>
           <div className="flex items-center gap-4 text-xs text-[hsl(var(--muted-foreground))]">
             <span>创建者: {cr.createdBy}</span>
-            <span>创建时间: {new Date(cr.createdAt).toLocaleString('zh-CN')}</span>
+            <span>创建时间: {formatDateTime(cr.createdAt)}</span>
           </div>
         </div>
-        <button
-          onClick={() => navigate(`/changes/${cr.id}`)}
-          className="ml-4 px-3 py-1 text-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-sm hover:opacity-90 transition-opacity"
-        >
+        <Button size="sm" onClick={() => navigate(`/changes/${cr.id}`)}>
           查看详情
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -137,7 +128,7 @@ export function Changes() {
           <select
             value={filterStatus}
             onChange={(e) => handleFilterChange(e.target.value, filterType)}
-            className="px-3 py-2 border border-[hsl(var(--border))] rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+            className="px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
           >
             <option value="all">全部</option>
             <option value="DRAFT">草稿</option>
@@ -156,7 +147,7 @@ export function Changes() {
           <select
             value={filterType}
             onChange={(e) => handleFilterChange(filterStatus, e.target.value)}
-            className="px-3 py-2 border border-[hsl(var(--border))] rounded-workshop-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+            className="px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
           >
             <option value="all">全部</option>
             <option value="CONFIG">配置</option>
@@ -169,7 +160,7 @@ export function Changes() {
       </div>
 
       {/* 变更单列表 */}
-      <div className="bg-[hsl(var(--card))] rounded-workshop-md shadow-workshop-sm border border-[hsl(var(--border))]">
+      <div className="bg-[hsl(var(--card))] rounded-md shadow-sm border border-[hsl(var(--border))]">
         {changeRequests.length === 0 ? (
           <EmptyState message="暂无变更单" className="m-4" />
         ) : (

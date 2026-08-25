@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { getApiPort } from '../lib/api'
+import { formatDateTime } from '../lib/i18n-formatters'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { LoadingState } from '../components/ui/LoadingState'
+import { LoadingState, Button } from '../components/ui'
 import { EmptyState } from '../components/ui/EmptyState'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { FormError, FormField, FormHint, FormLabel, ThemeCheckbox, ThemeInput, ThemeNumberInput, ThemeTextarea } from '../components/ui/FormFields'
@@ -24,18 +25,6 @@ interface NotificationPolicy {
   createdAt: string
   updatedAt: string
 }
-
-interface ApiSuccess<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailure {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
 
 interface PolicyTestResponse {
   matched: boolean
@@ -195,28 +184,18 @@ function PolicyTemplateAndActions({ formData, setFormData, editingPolicy, onCanc
       </FormField>
 
       <div className="flex gap-3 pt-4">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="px-4 py-2 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-colors disabled:opacity-50"
-        >
-          {isSubmitting ? '提交中...' : (editingPolicy ? '保存' : '创建')}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isSubmitting}
-          className="px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors disabled:opacity-50"
-        >
+        <Button type="submit" loading={isSubmitting}>
+          {editingPolicy ? '保存' : '创建'}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={isSubmitting}>
           取消
-        </button>
+        </Button>
       </div>
     </>
   )
 }
 
 export function NotificationPoliciesPage() {
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [policies, setPolicies] = useState<NotificationPolicy[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -283,14 +262,14 @@ export function NotificationPoliciesPage() {
   const renderJsonBlock = (label: string, value: unknown) => (
     <div>
       <div className="font-medium text-[hsl(var(--foreground))]">{label}</div>
-      <pre className="mt-1 overflow-x-auto rounded-workshop-md border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.5)] p-2">
+      <pre className="mt-1 overflow-x-auto rounded-md border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.5)] p-2">
         {JSON.stringify(value, null, 2)}
       </pre>
     </div>
   )
 
   const renderPolicyCard = (policy: NotificationPolicy) => (
-    <div key={policy.id} className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+    <div key={policy.id} className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-3">
@@ -302,29 +281,20 @@ export function NotificationPoliciesPage() {
           )}
           <div className="mt-2 space-y-1 text-xs text-[hsl(var(--muted-foreground))]">
             <div>冷却: {policy.cooldownSeconds}s | 去重窗口: {policy.dedupeWindowSeconds}s</div>
-            <div>创建于: {new Date(policy.createdAt).toLocaleString('zh-CN')}</div>
+            <div>创建于: {formatDateTime(policy.createdAt)}</div>
           </div>
         </div>
 
         <div className="flex gap-2">
-          <button
-            onClick={() => handleTest(policy.id)}
-            className="rounded-full border border-[hsl(268_65%_70%_/_0.18)] bg-[hsl(268_65%_70%_/_0.12)] px-3 py-1.5 text-xs font-medium text-[hsl(268_45%_45%)] hover:bg-[hsl(268_65%_70%_/_0.18)] transition-colors"
-          >
+          <Button variant="secondary" size="sm" onClick={() => handleTest(policy.id)}>
             测试
-          </button>
-          <button
-            onClick={() => handleToggleEnabled(policy)}
-            className="rounded-full border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--google-yellow)_/_0.28)] transition-colors"
-          >
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => handleToggleEnabled(policy)}>
             {policy.enabled ? '禁用' : '启用'}
-          </button>
-          <button
-            onClick={() => handleEdit(policy)}
-            className="rounded-full border border-[hsl(var(--google-blue)_/_0.16)] bg-[hsl(var(--google-blue)_/_0.12)] px-3 py-1.5 text-xs font-medium text-[hsl(var(--google-blue))] hover:bg-[hsl(var(--google-blue)_/_0.18)] transition-colors"
-          >
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => handleEdit(policy)}>
             编辑
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -339,7 +309,7 @@ export function NotificationPoliciesPage() {
           {policy.quietHours != null && renderJsonBlock('静默时段:', policy.quietHours)}
           <div>
             <div className="font-medium text-[hsl(var(--foreground))]">消息模板:</div>
-            <pre className="mt-1 overflow-x-auto rounded-workshop-md border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.5)] p-2 whitespace-pre-wrap">
+            <pre className="mt-1 overflow-x-auto rounded-md border border-[hsl(var(--border)_/_0.8)] bg-[hsl(var(--muted)_/_0.5)] p-2 whitespace-pre-wrap">
               {policy.messageTemplate}
             </pre>
           </div>
@@ -349,20 +319,17 @@ export function NotificationPoliciesPage() {
   )
 
   useEffect(() => {
-    getApiPort().then(async port => {
-      setApiPort(port)
-      await fetchPolicies(port)
+    void (async () => {
+      await fetchPolicies()
       setLoading(false)
-    })
+    })()
   }, [])
 
-  const fetchPolicies = async (port: number) => {
-    const response = await fetch(`http://127.0.0.1:${port}/api/notification-policies?workspaceId=${workspaceId}`)
-    const json = await response.json() as ApiResponse<NotificationPolicy[]>
-    if (!json.success) {
-      throw new Error(json.error)
+  const fetchPolicies = async () => {
+    const json = await apiFetch<ApiResponse<NotificationPolicy[]>>(`/api/notification-policies?workspaceId=${workspaceId}`)
+    if (json.success && json.data) {
+      setPolicies(json.data)
     }
-    setPolicies(json.data)
   }
 
   const handleCreate = () => {
@@ -407,7 +374,6 @@ export function NotificationPoliciesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!apiPort) return
 
     if (isSubmitting) return
 
@@ -437,24 +403,22 @@ export function NotificationPoliciesPage() {
       }
 
       const url = editingPolicy
-        ? `http://127.0.0.1:${apiPort}/api/notification-policies/${editingPolicy.id}`
-        : `http://127.0.0.1:${apiPort}/api/notification-policies`
+        ? `/api/notification-policies/${editingPolicy.id}`
+        : '/api/notification-policies'
 
       const method = editingPolicy ? 'PUT' : 'POST'
 
-      const response = await fetch(url, {
+      const json = await apiFetch<ApiResponse<NotificationPolicy>>(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
 
-      const json = await response.json() as ApiResponse<NotificationPolicy>
       if (!json.success) {
         setFormError(`保存失败：${json.error}`)
         return
       }
 
-      await fetchPolicies(apiPort)
+      await fetchPolicies()
       setShowForm(false)
       setEditingPolicy(null)
       setFormError(null)
@@ -466,8 +430,6 @@ export function NotificationPoliciesPage() {
   }
 
   const handleTest = async (policyId: string) => {
-    if (!apiPort) return
-
     const sampleEvent = {
       workspaceId,
       sourceType: 'DEPLOYMENT',
@@ -480,22 +442,20 @@ export function NotificationPoliciesPage() {
     }
 
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/notification-policies/${policyId}/test`, {
+      const json = await apiFetch<ApiResponse<PolicyTestResponse>>(`/api/notification-policies/${policyId}/test`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event: sampleEvent })
       })
 
-      const json = await response.json() as ApiResponse<PolicyTestResponse>
       if (!json.success) {
         setTestResult(`测试失败: ${json.error}`)
         return
       }
 
-      if (json.data.matched) {
-        setTestResult(`✅ 策略匹配成功！\n\n渲染消息:\n${json.data.renderedMessage}`)
+      if (json.data?.matched) {
+        setTestResult(`✅ 策略匹配成功！\n\n渲染消息:\n${json.data?.renderedMessage ?? ''}`)
       } else {
-        setTestResult(`❌ 策略不匹配\n\n原因: ${json.data.reason || '未知'}`)
+        setTestResult(`❌ 策略不匹配\n\n原因: ${json.data?.reason || '未知'}`)
       }
     } catch (err: unknown) {
       setTestResult(`测试失败: ${getErrorMessage(err)}`)
@@ -503,27 +463,23 @@ export function NotificationPoliciesPage() {
   }
 
   const handleToggleEnabled = async (policy: NotificationPolicy) => {
-    if (!apiPort) return
-
     setPageError(null)
 
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/notification-policies/${policy.id}`, {
+      const json = await apiFetch<ApiResponse<NotificationPolicy>>(`/api/notification-policies/${policy.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...policy,
           enabled: !policy.enabled
         })
       })
 
-      const json = await response.json() as ApiResponse<NotificationPolicy>
-      if (!json.success) {
-        setPageError(`切换策略状态失败：${json.error}`)
+      if (!json.success || !json.data) {
+        setPageError(`切换策略状态失败：${json.error ?? '未知错误'}`)
         return
       }
 
-      await fetchPolicies(apiPort)
+      await fetchPolicies()
     } catch (err: unknown) {
       setPageError(`切换策略状态失败：${getErrorMessage(err)}`)
     }
@@ -561,7 +517,7 @@ export function NotificationPoliciesPage() {
       />
 
       {pageError && (
-        <div className="mt-4 rounded-workshop-lg border border-[hsl(var(--destructive)_/_0.25)] bg-[hsl(var(--destructive)_/_0.08)] px-4 py-3 text-sm text-[hsl(var(--destructive))]">
+        <div className="mt-4 rounded-lg border border-[hsl(var(--destructive)_/_0.25)] bg-[hsl(var(--destructive)_/_0.08)] px-4 py-3 text-sm text-[hsl(var(--destructive))]">
           {pageError}
         </div>
       )}
@@ -570,7 +526,7 @@ export function NotificationPoliciesPage() {
         <SectionCard title={editingPolicy ? '编辑策略' : '新建策略'} className="mt-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             {formError && (
-              <div className="rounded-workshop-lg border border-[hsl(var(--destructive)_/_0.25)] bg-[hsl(var(--destructive)_/_0.08)] px-4 py-3 text-sm text-[hsl(var(--destructive))]">
+              <div className="rounded-lg border border-[hsl(var(--destructive)_/_0.25)] bg-[hsl(var(--destructive)_/_0.08)] px-4 py-3 text-sm text-[hsl(var(--destructive))]">
                 {formError}
               </div>
             )}
@@ -587,7 +543,7 @@ export function NotificationPoliciesPage() {
           </form>
 
           {testResult && (
-            <div className="mt-4 rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.5)] p-4">
+            <div className="mt-4 rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--muted)_/_0.5)] p-4">
               <pre className="text-sm whitespace-pre-wrap">{testResult}</pre>
             </div>
           )}

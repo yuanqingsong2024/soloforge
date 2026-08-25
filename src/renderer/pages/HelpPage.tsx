@@ -35,7 +35,7 @@ export function HelpPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
         {/* 左侧目录导航 */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <nav className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-workshop-sm">
+          <nav className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-4 shadow-sm">
             <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
               {t('help:navigation.title')}
             </div>
@@ -45,7 +45,7 @@ export function HelpPage() {
                   <button
                     type="button"
                     onClick={() => scrollToSection(section.id)}
-                    className={`w-full rounded-workshop-md px-3 py-2 text-left text-sm transition-colors ${
+                    className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
                       activeSection === section.id
                         ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
                         : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent)_/_0.5)] hover:text-[hsl(var(--foreground))]'
@@ -62,7 +62,7 @@ export function HelpPage() {
         {/* 右侧内容区 */}
         <main className="space-y-8">
           {/* 快速开始 */}
-          <section id="quick-start" className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+          <section id="quick-start" className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
             <h2 className="mb-4 text-2xl font-bold text-[hsl(var(--foreground))]">{t('help:quickStart.title')}</h2>
             <div className="space-y-4 text-sm text-[hsl(var(--foreground))]">
               <p>{t('help:quickStart.intro')}</p>
@@ -76,7 +76,7 @@ export function HelpPage() {
           </section>
 
           {/* 工单管理 */}
-          <section id="tickets" className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+          <section id="tickets" className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
             <h2 className="mb-4 text-2xl font-bold text-[hsl(var(--foreground))]">{t('help:tickets.title')}</h2>
             <div className="space-y-4 text-sm text-[hsl(var(--foreground))]">
               <p>{t('help:tickets.intro')}</p>
@@ -94,7 +94,7 @@ export function HelpPage() {
           </section>
 
           {/* 团队管理 */}
-          <section id="team" className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+          <section id="team" className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
             <h2 className="mb-4 text-2xl font-bold text-[hsl(var(--foreground))]">{t('help:team.title')}</h2>
             <div className="space-y-4 text-sm text-[hsl(var(--foreground))]">
               <p>{t('help:team.intro')}</p>
@@ -116,7 +116,7 @@ export function HelpPage() {
           </section>
 
           {/* 审批流程 */}
-          <section id="approvals" className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+          <section id="approvals" className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
             <h2 className="mb-4 text-2xl font-bold text-[hsl(var(--foreground))]">{t('help:approvals.title')}</h2>
             <div className="space-y-4 text-sm text-[hsl(var(--foreground))]">
               <p>{t('help:approvals.intro')}</p>
@@ -134,7 +134,7 @@ export function HelpPage() {
           </section>
 
           {/* 配置中心 */}
-          <section id="config" className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+          <section id="config" className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
             <h2 className="mb-4 text-2xl font-bold text-[hsl(var(--foreground))]">{t('help:config.title')}</h2>
             <div className="space-y-4 text-sm text-[hsl(var(--foreground))]">
               <p>{t('help:config.intro')}</p>
@@ -152,7 +152,7 @@ export function HelpPage() {
           </section>
 
           {/* 部署管理 */}
-          <section id="deployments" className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+          <section id="deployments" className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
             <h2 className="mb-4 text-2xl font-bold text-[hsl(var(--foreground))]">{t('help:deployments.title')}</h2>
             <div className="space-y-4 text-sm text-[hsl(var(--foreground))]">
               <p>{t('help:deployments.intro')}</p>
@@ -170,11 +170,11 @@ export function HelpPage() {
           </section>
 
           {/* 常见问题 */}
-          <section id="faq" className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+          <section id="faq" className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
             <h2 className="mb-4 text-2xl font-bold text-[hsl(var(--foreground))]">{t('help:faq.title')}</h2>
             <div className="space-y-4">
               {[1, 2, 3, 4, 5].map((num) => (
-                <div key={num} className="rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] p-4">
+                <div key={num} className="rounded-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] p-4">
                   <h3 className="mb-2 font-semibold text-[hsl(var(--foreground))]">
                     {t(`help:faq.q${num}.question`)}
                   </h3>
@@ -187,7 +187,7 @@ export function HelpPage() {
           </section>
 
           {/* 键盘快捷键 */}
-          <section id="shortcuts" className="rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-workshop-sm">
+          <section id="shortcuts" className="rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-6 shadow-sm">
             <h2 className="mb-4 text-2xl font-bold text-[hsl(var(--foreground))]">{t('help:shortcuts.title')}</h2>
             <div className="space-y-3">
               {[
@@ -197,7 +197,7 @@ export function HelpPage() {
                 { key: 'Ctrl/Cmd + R', action: t('help:shortcuts.refresh') },
                 { key: 'Esc', action: t('help:shortcuts.close') }
               ].map((shortcut, index) => (
-                <div key={index} className="flex items-center justify-between rounded-workshop-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-4 py-3">
+                <div key={index} className="flex items-center justify-between rounded-md border border-[hsl(var(--border)_/_0.75)] bg-[hsl(var(--muted)_/_0.46)] px-4 py-3">
                   <span className="text-sm text-[hsl(var(--foreground))]">{shortcut.action}</span>
                   <kbd className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs font-mono text-[hsl(var(--muted-foreground))]">
                     {shortcut.key}

@@ -77,6 +77,15 @@
     "title": "流水线",
     "currentStep": "当前步骤",
     "nextStep": "下一步",
-    "progress": "进度"
+    "progress": "进度",
+    "advanceSuccess": "流水线已推进到下一步",
+    "advanceFailed": "推进流水线失败",
+    "needsApproval": "需要审批，审批 ID: {{ids}}",
+    "rollbackSuccess": "流水线已回滚到上一步",
+    "rollbackFailed": "回滚流水线失败"
+  },
+  "jobs": {
+    "retrySuccess": "作业重试已提交",
+    "retryFailed": "重试作业失败"
   }
 }

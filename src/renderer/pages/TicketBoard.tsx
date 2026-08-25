@@ -4,7 +4,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { SortableTicketCard } from '../components/SortableTicketCard'
-import { getApiPort } from '../lib/api'
+import { apiFetch } from '../lib/api'
 import { TicketCard } from '../components/TicketCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { LoadingState } from '../components/ui/LoadingState'
@@ -29,22 +29,19 @@ interface Ticket {
 export function TicketBoard() {
   const { t } = useTranslation(['tickets', 'common'])
   const [tickets, setTickets] = useState<Ticket[]>([])
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   
   const STATUSES = getStatuses(t)
   useEffect(() => {
-    getApiPort().then(port => {
-      setApiPort(port)
-      fetchTickets(port)
-    })
+    void (async () => {
+      await fetchTickets()
+    })()
   }, [])
-  const fetchTickets = async (port: number) => {
+  const fetchTickets = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/tickets`)
-      const data = await response.json()
+      const data = await apiFetch<Ticket[]>('/api/tickets')
       setTickets(data)
     } catch (error) {
       console.error('Failed to fetch tickets:', error)
@@ -58,7 +55,7 @@ export function TicketBoard() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     setActiveId(null)
-    if (!over || !apiPort) return
+    if (!over) return
     const ticketId = active.id as string
     const newStatus = over.id as string
     // 如果拖到同一列，不做处理
@@ -70,9 +67,8 @@ export function TicketBoard() {
     )
     // 更新服务器
     try {
-      await fetch(`http://127.0.0.1:${apiPort}/api/tickets/${ticketId}`, {
+      await apiFetch(`/api/tickets/${ticketId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       })
     } catch (error) {
@@ -86,13 +82,11 @@ export function TicketBoard() {
     }
   }
   const handleCreateTicket = async () => {
-    if (!apiPort) return
     const title = prompt(t('tickets:board.enterTitle'))
     if (!title) return
     try {
-      const response = await fetch(`http://127.0.0.1:${apiPort}/api/tickets`, {
+      const newTicket = await apiFetch<Ticket>('/api/tickets', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
           source: 'manual',
@@ -101,7 +95,6 @@ export function TicketBoard() {
           customerMeta: '{}'
         })
       })
-      const newTicket = await response.json()
       setTickets(prev => [...prev, newTicket])
     } catch (error) {
       console.error('Failed to create ticket:', error)
@@ -124,8 +117,8 @@ export function TicketBoard() {
           <button
             onClick={handleCreateTicket}
             className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]
-                     rounded-workshop-md hover:opacity-90 transition-opacity
-                     font-medium text-sm shadow-workshop-sm"
+                     rounded-md hover:opacity-90 transition-opacity
+                     font-medium text-sm shadow-sm"
           >
             {t('tickets:board.createTicket')}
           </button>
@@ -145,7 +138,7 @@ export function TicketBoard() {
                 items={ticketsByStatus[status.id]?.map(t => t.id) || []}
                 strategy={verticalListSortingStrategy}
               >
-                <div className={`${status.color} rounded-workshop-md p-4 min-h-[500px] w-64
+                <div className={`${status.color} rounded-md p-4 min-h-[500px] w-64
                                border border-[hsl(var(--border))]`}>
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="font-semibold text-[hsl(var(--foreground))]">{status.label}</h2>

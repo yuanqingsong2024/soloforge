@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="mainBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4285F4"/>
+      <stop offset="50%" style="stop-color:#34A853"/>
+      <stop offset="100%" style="stop-color:#FBBC05"/>
+    </linearGradient>
+    <linearGradient id="forgeBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="flameMain" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#FF6B35"/>
+      <stop offset="50%" style="stop-color:#F7931E"/>
+      <stop offset="100%" style="stop-color:#FBBC05"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#1a1a2e" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- 背景圆角矩形 -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="url(#mainBg)" filter="url(#shadow)"/>
+  
+  <!-- 内层深色圆形 -->
+  <circle cx="256" cy="230" r="180" fill="url(#forgeBg)"/>
+  
+  <!-- 装饰性圆环 -->
+  <circle cx="256" cy="230" r="160" fill="none" stroke="white" stroke-width="2" opacity="0.1"/>
+  <circle cx="256" cy="230" r="140" fill="none" stroke="white" stroke-width="1" opacity="0.05"/>
+  
+  <!-- 火焰主体 -->
+  <g filter="url(#glow)">
+    <!-- 主火焰 -->
+    <path d="M256 80 
+             C310 150 380 180 380 250
+             C380 310 330 350 290 380
+             L256 410
+             L222 380
+             C182 350 132 310 132 250
+             C132 180 202 150 256 80Z" 
+          fill="url(#flameMain)"/>
+    
+    <!-- 内部高光 -->
+    <path d="M256 120 
+             C290 170 340 190 340 240
+             C340 280 305 310 280 330
+             L256 350
+             L232 330
+             C207 310 172 280 172 240
+             C172 190 222 170 256 120Z" 
+          fill="white" opacity="0.25"/>
+    
+    <!-- 火焰尖 -->
+    <path d="M256 100 
+             C275 140 310 160 310 195
+             C310 225 285 250 265 265
+             L256 275
+             L247 265
+             C227 250 202 225 202 195
+             C202 160 237 140 256 100Z" 
+          fill="white" opacity="0.4"/>
+  </g>
+  
+  <!-- 锤子图形 -->
+  <g opacity="0.9">
+    <!-- 锤头 -->
+    <rect x="200" y="200" width="112" height="30" rx="6" fill="#1a1a2e"/>
+    <!-- 锤柄 -->
+    <rect x="238" y="230" width="36" height="80" rx="4" fill="#1a1a2e"/>
+    <!-- 锤柄装饰线 -->
+    <line x1="256" y1="245" x2="256" y2="295" stroke="url(#flameMain)" stroke-width="3" stroke-linecap="round"/>
+  </g>
+  
+  <!-- 品牌名称 -->
+  <text x="256" y="470" 
+        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" 
+        font-size="42" 
+        font-weight="700" 
+        fill="white" 
+        text-anchor="middle"
+        letter-spacing="12">SOLOFORGE</text>
+  
+  <!-- 副标题 -->
+  <text x="256" y="505" 
+        font-family="system-ui, -apple-system, sans-serif" 
+        font-size="16" 
+        font-weight="400" 
+        fill="white" 
+        fill-opacity="0.7"
+        text-anchor="middle"
+        letter-spacing="4">WORKSHOP OS</text>
+</svg>

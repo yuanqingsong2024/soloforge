@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
+import { formatDateTime } from '../lib/i18n-formatters'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { getHealthErrorPanelClass, getHealthSeverityBadgeClass, getHealthStatusBadgeClass } from '../lib/health-badge'
 import { translateEnum } from '../lib/i18n-helpers'
+import { LoadingState } from '../components/ui/LoadingState'
 
 interface DiagnosticReport {
   id: string
@@ -32,18 +34,6 @@ interface DoctorCheckListItem {
   score?: number | null
 }
 
-interface ApiSuccess<T> {
-  success: true
-  data: T
-}
-
-interface ApiFailure {
-  success: false
-  error: string
-}
-
-type ApiResponse<T> = ApiSuccess<T> | ApiFailure
-
 export function DoctorPage() {
   const { t } = useTranslation('common')
   const [searchParams] = useSearchParams()
@@ -64,22 +54,14 @@ export function DoctorPage() {
     try {
       setLoading(true)
       setError(null)
-      const port = await getApiPort()
       
-      const [reportsRes, checksRes] = await Promise.all([
-        fetch(`http://127.0.0.1:${port}/api/doctor/reports${workspaceId ? `?workspaceId=${workspaceId}` : ''}`),
-        fetch(`http://127.0.0.1:${port}/api/doctor/checks${workspaceId ? `?workspaceId=${workspaceId}` : ''}`)
+      const [reportsData, checksData] = await Promise.all([
+        apiFetch<ApiResponse<DiagnosticReport[]>>(`/api/doctor/reports${workspaceId ? `?workspaceId=${workspaceId}` : ''}`),
+        apiFetch<ApiResponse<DoctorCheckListItem[]>>(`/api/doctor/checks${workspaceId ? `?workspaceId=${workspaceId}` : ''}`)
       ])
 
-      if (!reportsRes.ok || !checksRes.ok) {
-        throw new Error('加载数据失败')
-      }
-
-      const reportsData = await reportsRes.json() as ApiResponse<DiagnosticReport[]>
-      const checksData = await checksRes.json() as ApiResponse<DoctorCheckListItem[]>
-
-      setReports(reportsData.success ? reportsData.data : [])
-      setChecks(checksData.success ? checksData.data : [])
+      setReports(reportsData.success ? (reportsData.data ?? []) : [])
+      setChecks(checksData.success ? (checksData.data ?? []) : [])
     } catch (err) {
       setError(err instanceof Error ? err.message : '未知错误')
     } finally {
@@ -91,17 +73,11 @@ export function DoctorPage() {
     try {
       setRunningCheck(true)
       setError(null)
-      const port = await getApiPort()
       
-      const res = await fetch(`http://127.0.0.1:${port}/api/doctor/run`, {
+      await apiFetch('/api/doctor/run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId, createdBy: 'admin' })
       })
-
-      if (!res.ok) {
-        throw new Error('执行诊断失败')
-      }
 
       await loadData()
     } catch (err) {
@@ -115,17 +91,11 @@ export function DoctorPage() {
     try {
       setRunningCheck(true)
       setError(null)
-      const port = await getApiPort()
       
-      const res = await fetch(`http://127.0.0.1:${port}/api/doctor/run/${checkId}`, {
+      await apiFetch(`/api/doctor/run/${checkId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId, createdBy: 'admin' })
       })
-
-      if (!res.ok) {
-        throw new Error('执行诊断失败')
-      }
 
       await loadData()
     } catch (err) {
@@ -136,14 +106,7 @@ export function DoctorPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-          <p className="mt-4 text-sm text-[hsl(var(--muted-foreground))]">加载中...</p>
-        </div>
-      </div>
-    )
+    return <LoadingState message="加载健康检查数据中..." fullPage />
   }
 
   if (error) {
@@ -175,7 +138,7 @@ export function DoctorPage() {
         <button
           onClick={runAllChecks}
           disabled={runningCheck}
-          className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-workshop-md hover:bg-[hsl(var(--primary))]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-md hover:bg-[hsl(var(--primary))]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {runningCheck ? '执行中...' : '执行全部诊断'}
         </button>
@@ -202,7 +165,7 @@ export function DoctorPage() {
                 <div
                   key={report.id}
                   onClick={() => setSelectedReport(report)}
-                  className={`p-4 rounded-workshop-md border cursor-pointer transition-colors ${
+                  className={`p-4 rounded-md border cursor-pointer transition-colors ${
                     selectedReport?.id === report.id
                       ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/5'
                       : 'border-[hsl(var(--border))] hover:border-[hsl(var(--primary))]/50'
@@ -229,7 +192,7 @@ export function DoctorPage() {
                         </p>
                       )}
                       <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                        {new Date(report.createdAt).toLocaleString('zh-CN')}
+                        {formatDateTime(report.createdAt)}
                       </p>
                     </div>
                   </div>
@@ -252,7 +215,7 @@ export function DoctorPage() {
                   关闭
                 </button>
               </div>
-              <div className="rounded-workshop-md border border-[hsl(var(--border))] p-4 space-y-4">
+              <div className="rounded-md border border-[hsl(var(--border))] p-4 space-y-4">
                 <div>
                   <label className="text-xs text-[hsl(var(--muted-foreground))]">检查项</label>
                   <p className="text-sm font-medium text-[hsl(var(--foreground))]">
@@ -300,7 +263,7 @@ export function DoctorPage() {
                 <div>
                   <label className="text-xs text-[hsl(var(--muted-foreground))]">执行时间</label>
                   <p className="text-sm text-[hsl(var(--foreground))]">
-                    {new Date(selectedReport.createdAt).toLocaleString('zh-CN')}
+                    {formatDateTime(selectedReport.createdAt)}
                   </p>
                 </div>
               </div>
@@ -322,7 +285,7 @@ export function DoctorPage() {
                   checks.filter(c => c.enabled).map((check) => (
                     <div
                       key={check.id}
-                      className="p-4 rounded-workshop-md border border-[hsl(var(--border))] hover:border-[hsl(var(--primary))]/50 transition-colors"
+                      className="p-4 rounded-md border border-[hsl(var(--border))] hover:border-[hsl(var(--primary))]/50 transition-colors"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -346,7 +309,7 @@ export function DoctorPage() {
                         <button
                           onClick={() => runSingleCheck(check.id)}
                           disabled={runningCheck}
-                          className="ml-4 px-3 py-1 text-sm bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] rounded-workshop-sm hover:bg-[hsl(var(--secondary))]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className="ml-4 px-3 py-1 text-sm bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] rounded-sm hover:bg-[hsl(var(--secondary))]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           执行
                         </button>

@@ -5,6 +5,9 @@
  */
 
 import { FastifyInstance } from 'fastify'
+import { v4 as uuidv4 } from 'uuid'
+import { ApprovalGuard } from '../approval-guard'
+import { writeAuditLogStrict } from '../audit-log-writer'
 import {
   queryAuditLogs,
   getAuditLogStatistics,
@@ -36,15 +39,46 @@ interface QueryRequest {
 
 interface ExportRequest {
   format: 'json' | 'csv'
+  approvalId: string
   filter: QueryRequest
   includeHashChain?: boolean
   masked?: boolean
+  traceId?: string
+}
+
+function validateExportFilter(filter: QueryRequest | undefined): AuditLogFilter {
+  if (!filter) throw new Error('导出 filter 不能为空')
+  const limit = filter.limit ?? 10000
+  const offset = filter.offset ?? 0
+  if (!Number.isInteger(limit) || limit < 1 || limit > 10000) throw new Error('limit 必须是 1 到 10000 的整数')
+  if (!Number.isInteger(offset) || offset < 0) throw new Error('offset 必须是非负整数')
+  const startDate = filter.startDate ? new Date(filter.startDate) : undefined
+  const endDate = filter.endDate ? new Date(filter.endDate) : undefined
+  if ((startDate && Number.isNaN(startDate.getTime())) || (endDate && Number.isNaN(endDate.getTime()))) {
+    throw new Error('日期格式无效')
+  }
+  if (startDate && endDate && startDate > endDate) throw new Error('startDate 不能晚于 endDate')
+  return {
+    workspaceId: filter.workspaceId,
+    startDate,
+    endDate,
+    actor: filter.actor,
+    action: filter.action,
+    tool: filter.tool,
+    ticketId: filter.ticketId,
+    approvalId: filter.approvalId,
+    traceId: filter.traceId,
+    limit,
+    offset
+  }
 }
 
 interface ReportRequest {
   workspaceId: string
   startDate: string
   endDate: string
+  approvalId: string
+  traceId?: string
 }
 
 interface VerifyHashRequest {
@@ -59,6 +93,23 @@ interface VerifyHashRequest {
 
 export function registerAuditExportRoutes(fastify: FastifyInstance): void {
   const prefix = '/api/audit-export'
+  const authorizeExport = async (approvalId: string) => {
+    if (!approvalId) throw new Error('approvalId 不能为空')
+    return await ApprovalGuard.getInstance().assertApproved(approvalId, 'EXPORT_DATA')
+  }
+
+  const auditExport = async (input: { traceId: string; approvalId: string; format: string; workspaceId?: string; totalRecords: number; status: string; error?: string }) => {
+    await writeAuditLogStrict({
+      workspaceId: input.workspaceId,
+      traceId: input.traceId,
+      actor: 'admin',
+      action: input.status === 'success' ? 'EXPORT_DATA' : 'EXPORT_DATA_FAILED',
+      tool: 'audit-export',
+      approvalId: input.approvalId,
+      request: { format: input.format, workspaceId: input.workspaceId },
+      response: { status: input.status, totalRecords: input.totalRecords, error: input.error }
+    })
+  }
 
   // 查询审计日志
   fastify.post<{ Body: QueryRequest }>(`${prefix}/query`, async (request) => {
@@ -104,104 +155,74 @@ export function registerAuditExportRoutes(fastify: FastifyInstance): void {
   )
 
   // 导出为 JSON
-  fastify.post<{ Body: ExportRequest }>(`${prefix}/export/json`, async (request) => {
-    const { format, filter, includeHashChain, masked } = request.body
-    
+  fastify.post<{ Body: ExportRequest }>(`${prefix}/export/json`, async (request, reply) => {
+    const { format, filter, includeHashChain, approvalId, traceId = uuidv4() } = request.body
     if (format !== 'json') {
-      return {
-        success: false,
-        error: '格式不匹配，请使用 format: json'
-      }
+      reply.code(400)
+      return { success: false, error: '格式不匹配，请使用 format: json' }
     }
-
-    const jsonContent = await exportAuditLogsToJson({
-      format: 'json',
-      filter: {
-        workspaceId: filter.workspaceId,
-        startDate: filter.startDate ? new Date(filter.startDate) : undefined,
-        endDate: filter.endDate ? new Date(filter.endDate) : undefined,
-        actor: filter.actor,
-        action: filter.action,
-        tool: filter.tool,
-        limit: filter.limit || 10000
-      },
-      includeHashChain: includeHashChain ?? false,
-      masked: masked ?? true
-    })
-
-    return {
-      success: true,
-      contentType: 'application/json',
-      filename: `audit-logs-${new Date().toISOString().split('T')[0]}.json`,
-      data: JSON.parse(jsonContent)
+    try {
+      await authorizeExport(approvalId)
+      const normalizedFilter = validateExportFilter(filter)
+      const jsonContent = await exportAuditLogsToJson({ format: 'json', filter: normalizedFilter, includeHashChain: includeHashChain ?? false, masked: true })
+      const data = JSON.parse(jsonContent) as { totalRecords: number; workspaceId?: string }
+      await auditExport({ traceId, approvalId, format, workspaceId: normalizedFilter.workspaceId, totalRecords: data.totalRecords, status: 'success' })
+      return { success: true, contentType: 'application/json', filename: `audit-logs-${new Date().toISOString().split('T')[0]}.json`, data }
+    } catch (error) {
+      await auditExport({ traceId, approvalId, format, workspaceId: filter?.workspaceId, totalRecords: 0, status: 'failed', error: error instanceof Error ? error.message : String(error) })
+      reply.code(403)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
   // 导出为 CSV
-  fastify.post<{ Body: ExportRequest }>(`${prefix}/export/csv`, async (request) => {
-    const { format, filter, includeHashChain } = request.body
-    
+  fastify.post<{ Body: ExportRequest }>(`${prefix}/export/csv`, async (request, reply) => {
+    const { format, filter, includeHashChain, approvalId, traceId = uuidv4() } = request.body
     if (format !== 'csv') {
-      return {
-        success: false,
-        error: '格式不匹配，请使用 format: csv'
-      }
+      reply.code(400)
+      return { success: false, error: '格式不匹配，请使用 format: csv' }
     }
-
-    const csvContent = await exportAuditLogsToCsv({
-      format: 'csv',
-      filter: {
-        workspaceId: filter.workspaceId,
-        startDate: filter.startDate ? new Date(filter.startDate) : undefined,
-        endDate: filter.endDate ? new Date(filter.endDate) : undefined,
-        actor: filter.actor,
-        action: filter.action,
-        tool: filter.tool,
-        limit: filter.limit || 10000
-      },
-      includeHashChain: includeHashChain ?? false,
-      masked: false
-    })
-
-    return {
-      success: true,
-      contentType: 'text/csv',
-      filename: `audit-logs-${new Date().toISOString().split('T')[0]}.csv`,
-      data: csvContent
+    try {
+      await authorizeExport(approvalId)
+      const normalizedFilter = validateExportFilter(filter)
+      const csvContent = await exportAuditLogsToCsv({ format: 'csv', filter: normalizedFilter, includeHashChain: includeHashChain ?? false, masked: true })
+      const totalRecords = Math.max(0, csvContent.split('\n').length - 1)
+      await auditExport({ traceId, approvalId, format, workspaceId: normalizedFilter.workspaceId, totalRecords, status: 'success' })
+      return { success: true, contentType: 'text/csv', filename: `audit-logs-${new Date().toISOString().split('T')[0]}.csv`, data: csvContent }
+    } catch (error) {
+      await auditExport({ traceId, approvalId, format, workspaceId: filter?.workspaceId, totalRecords: 0, status: 'failed', error: error instanceof Error ? error.message : String(error) })
+      reply.code(403)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
   // 生成完整报表
-  fastify.post<{ Body: ReportRequest }>(`${prefix}/report`, async (request) => {
-    const { workspaceId, startDate, endDate } = request.body
-    
-    const report = await generateAuditReport(
-      workspaceId,
-      new Date(startDate),
-      new Date(endDate)
-    )
-    
-    return {
-      success: true,
-      data: report
+  fastify.post<{ Body: ReportRequest }>(`${prefix}/report`, async (request, reply) => {
+    const { workspaceId, startDate, endDate, approvalId, traceId = uuidv4() } = request.body
+    try {
+      await authorizeExport(approvalId)
+      const report = await generateAuditReport(workspaceId, new Date(startDate), new Date(endDate))
+      await auditExport({ traceId, approvalId, format: 'report-json', workspaceId, totalRecords: report.summary?.totalOperations || 0, status: 'success' })
+      return { success: true, data: report }
+    } catch (error) {
+      await auditExport({ traceId, approvalId, format: 'report-json', workspaceId, totalRecords: 0, status: 'failed', error: error instanceof Error ? error.message : String(error) })
+      reply.code(403)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
   // 生成 CSV 报表
-  fastify.post<{ Body: ReportRequest }>(`${prefix}/report/csv`, async (request) => {
-    const { workspaceId, startDate, endDate } = request.body
-    
-    const csvContent = await generateAuditReportCsv(
-      workspaceId,
-      new Date(startDate),
-      new Date(endDate)
-    )
-    
-    return {
-      success: true,
-      contentType: 'text/csv',
-      filename: `audit-report-${new Date().toISOString().split('T')[0]}.csv`,
-      data: csvContent
+  fastify.post<{ Body: ReportRequest }>(`${prefix}/report/csv`, async (request, reply) => {
+    const { workspaceId, startDate, endDate, approvalId, traceId = uuidv4() } = request.body
+    try {
+      await authorizeExport(approvalId)
+      const csvContent = await generateAuditReportCsv(workspaceId, new Date(startDate), new Date(endDate))
+      await auditExport({ traceId, approvalId, format: 'report-csv', workspaceId, totalRecords: Math.max(0, csvContent.split('\n').length - 1), status: 'success' })
+      return { success: true, contentType: 'text/csv', filename: `audit-report-${new Date().toISOString().split('T')[0]}.csv`, data: csvContent }
+    } catch (error) {
+      await auditExport({ traceId, approvalId, format: 'report-csv', workspaceId, totalRecords: 0, status: 'failed', error: error instanceof Error ? error.message : String(error) })
+      reply.code(403)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 

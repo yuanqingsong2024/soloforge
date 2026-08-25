@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getApiPort } from '../lib/api'
+import { apiFetch, ApiResponse } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
-import { EmptyState } from '../components/ui/EmptyState'
+import { EmptyState, Button } from '../components/ui'
 import { LoadingState } from '../components/ui/LoadingState'
 import { ThemeCheckbox, ThemeInput, ThemeSelect, ThemeTextarea } from '../components/ui/FormFields'
 
@@ -30,7 +30,6 @@ interface CommsTarget {
 }
 
 export function Communications() {
-  const [apiPort, setApiPort] = useState<number | null>(null)
   const [commsProfiles, setCommsProfiles] = useState<CommsProfile[]>([])
   const [targets, setTargets] = useState<CommsTarget[]>([])
   const [connectionProfiles, setConnectionProfiles] = useState<ConnectionProfile[]>([])
@@ -55,72 +54,59 @@ export function Communications() {
   }, [targets, selectedTargetId])
 
   useEffect(() => {
-    getApiPort().then(async (port) => {
-      setApiPort(port)
-      await Promise.all([
-        fetchCommsProfiles(port),
-        fetchTargets(port),
-        fetchConnectionProfiles(port)
-      ])
-      setLoading(false)
-    })
+    void Promise.all([
+      fetchCommsProfiles(),
+      fetchTargets(),
+      fetchConnectionProfiles()
+    ]).finally(() => setLoading(false))
   }, [])
 
-  const fetchCommsProfiles = async (port: number) => {
-    const response = await fetch(`http://127.0.0.1:${port}/api/comms/profiles`)
-    const data = await response.json()
+  const fetchCommsProfiles = async () => {
+    const data = await apiFetch<CommsProfile[]>('/api/comms/profiles')
     setCommsProfiles(data)
   }
 
-  const fetchTargets = async (port: number) => {
-    const response = await fetch(`http://127.0.0.1:${port}/api/comms/targets`)
-    const data = await response.json()
+  const fetchTargets = async () => {
+    const data = await apiFetch<CommsTarget[]>('/api/comms/targets')
     setTargets(data)
   }
 
-  const fetchConnectionProfiles = async (port: number) => {
-    const response = await fetch(`http://127.0.0.1:${port}/api/profiles`)
-    const data = await response.json()
+  const fetchConnectionProfiles = async () => {
+    const data = await apiFetch<ConnectionProfile[]>('/api/profiles')
     setConnectionProfiles(data)
   }
 
   const handleCreateCommsProfile = async () => {
-    if (!apiPort || !newProfileName.trim()) return
+    if (!newProfileName.trim()) return
 
-    await fetch(`http://127.0.0.1:${apiPort}/api/comms/profiles`, {
+    await apiFetch('/api/comms/profiles', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: newProfileName,
         provider: newProvider,
-        openclawProfileId: newProvider === 'openclaw' && newOpenclawProfileId ? newOpenclawProfileId : undefined,
         enabled: true
       })
     })
 
     setNewProfileName('')
     setNewOpenclawProfileId('')
-    await fetchCommsProfiles(apiPort)
+    await fetchCommsProfiles()
   }
 
   const handleToggleCommsProfile = async (profile: CommsProfile) => {
-    if (!apiPort) return
-
-    await fetch(`http://127.0.0.1:${apiPort}/api/comms/profiles/${profile.id}`, {
+    await apiFetch(`/api/comms/profiles/${profile.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: !profile.enabled })
     })
 
-    await fetchCommsProfiles(apiPort)
+    await fetchCommsProfiles()
   }
 
   const handleCreateTarget = async () => {
-    if (!apiPort || !newTargetProfileId || !newTargetTo.trim() || !newTargetDisplayName.trim()) return
+    if (!newTargetProfileId || !newTargetTo.trim() || !newTargetDisplayName.trim()) return
 
-    const response = await fetch(`http://127.0.0.1:${apiPort}/api/comms/targets`, {
+    const result = await apiFetch<ApiResponse<{ status: string; approvalId?: string; message?: string }>>('/api/comms/targets', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         commsProfileId: newTargetProfileId,
         channel: newTargetChannel,
@@ -130,53 +116,52 @@ export function Communications() {
         notes: newTargetNotes || undefined
       })
     })
-    const result = await response.json()
 
-    if (result.status === 'pending_approval') {
-      setStatusMessage(`目标创建成功，allowlist 已提交审批，审批 ID: ${result.approvalId}`)
-    } else if (result.status === 'success') {
-      setStatusMessage('目标创建成功')
-    } else {
-      setStatusMessage(result.message || '创建目标失败')
+    if (result.success && result.data) {
+      if (result.data.status === 'pending_approval') {
+        setStatusMessage(`目标创建成功，allowlist 已提交审批，审批 ID: ${result.data.approvalId}`)
+      } else if (result.data.status === 'success') {
+        setStatusMessage('目标创建成功')
+      } else {
+        setStatusMessage(result.data.message || '创建目标失败')
+      }
     }
 
     setNewTargetTo('')
     setNewTargetDisplayName('')
     setNewTargetNotes('')
     setNewTargetAllowlisted(false)
-    await fetchTargets(apiPort)
+    await fetchTargets()
   }
 
   const handleRequestAllowlist = async (target: CommsTarget) => {
-    if (!apiPort) return
-
     if (target.allowlisted) {
       setStatusMessage('该目标已在 allowlist 中')
       return
     }
 
-    const response = await fetch(`http://127.0.0.1:${apiPort}/api/comms/targets/${target.id}/request-allowlist`, {
+    const result = await apiFetch<ApiResponse<{ status: string; approvalId?: string; message?: string }>>(`/api/comms/targets/${target.id}/request-allowlist`, {
       method: 'POST'
     })
-    const result = await response.json()
 
-    if (result.status === 'pending_approval') {
-      setStatusMessage(`已提交 allowlist 审批，审批 ID: ${result.approvalId}`)
-    } else if (result.status === 'success' || result.status === 'already_allowlisted') {
-      setStatusMessage('allowlist 状态已更新')
-    } else {
-      setStatusMessage(result.message || 'allowlist 提交失败')
+    if (result.success && result.data) {
+      if (result.data.status === 'pending_approval') {
+        setStatusMessage(`已提交 allowlist 审批，审批 ID: ${result.data.approvalId}`)
+      } else if (result.data.status === 'success' || result.data.status === 'already_allowlisted') {
+        setStatusMessage('allowlist 状态已更新')
+      } else {
+        setStatusMessage(result.data.message || 'allowlist 提交失败')
+      }
     }
 
-    await fetchTargets(apiPort)
+    await fetchTargets()
   }
 
   const handleSendTestMessage = async () => {
-    if (!apiPort || !selectedTarget) return
+    if (!selectedTarget) return
 
-    const createDraftResponse = await fetch(`http://127.0.0.1:${apiPort}/api/outbound-messages`, {
+    const draft = await apiFetch<{ id: string }>('/api/outbound-messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         channel: selectedTarget.channel,
         to: selectedTarget.to,
@@ -186,24 +171,23 @@ export function Communications() {
       })
     })
 
-    const draft = await createDraftResponse.json()
-
-    const sendResponse = await fetch(`http://127.0.0.1:${apiPort}/api/outbound-messages/${draft.id}/send`, {
+    const sendResult = await apiFetch<ApiResponse<{ status: string; approvalId?: string; message?: string }>>(`/api/outbound-messages/${draft.id}/send`, {
       method: 'POST'
     })
-    const sendResult = await sendResponse.json()
 
-    if (sendResult.status === 'blocked_allowlist') {
-      alert(sendResult.message)
-      return
+    if (sendResult.success && sendResult.data) {
+      if (sendResult.data.status === 'blocked_allowlist') {
+        alert(sendResult.data.message)
+        return
+      }
+
+      if (sendResult.data.status === 'pending_approval') {
+        alert(`测试消息已进入审批流程，审批 ID: ${sendResult.data.approvalId}`)
+        return
+      }
+
+      alert('测试消息已发送')
     }
-
-    if (sendResult.status === 'pending_approval') {
-      alert(`测试消息已进入审批流程，审批 ID: ${sendResult.approvalId}`)
-      return
-    }
-
-    alert('测试消息已发送')
   }
 
   if (loading) {
@@ -218,7 +202,7 @@ export function Communications() {
       />
 
       {statusMessage && (
-        <div className="mb-4 rounded-workshop-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] px-4 py-3 text-sm text-[hsl(var(--foreground))] shadow-workshop-sm">
+        <div className="mb-4 rounded-lg border border-[hsl(var(--google-blue)_/_0.12)] bg-[hsl(var(--google-blue)_/_0.08)] px-4 py-3 text-sm text-[hsl(var(--foreground))] shadow-sm">
           {statusMessage}
         </div>
       )}
@@ -226,17 +210,14 @@ export function Communications() {
         <SectionCard title="通讯档案（Comms Profiles）" description="将通讯能力映射到 OpenClaw 连接档案或 webhook provider">
           <div className="space-y-3 mb-4">
             {commsProfiles.map(profile => (
-              <div key={profile.id} className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
+              <div key={profile.id} className="flex items-center justify-between rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-sm">
                 <div>
                   <p className="font-medium text-[hsl(var(--foreground))]">{profile.name}</p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">provider: {profile.provider}</p>
                 </div>
-                <button
-                  onClick={() => handleToggleCommsProfile(profile)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${profile.enabled ? 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]' : 'border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}
-                >
+                <Button variant={profile.enabled ? 'secondary' : 'secondary'} size="sm" onClick={() => handleToggleCommsProfile(profile)}>
                   {profile.enabled ? '已启用' : '已停用'}
-                </button>
+                </Button>
               </div>
             ))}
             {commsProfiles.length === 0 && (
@@ -273,12 +254,9 @@ export function Communications() {
                 <option key={profile.id} value={profile.id}>{profile.name}</option>
               ))}
             </ThemeSelect>
-            <button
-              onClick={handleCreateCommsProfile}
-              className="w-full rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] transition-opacity hover:opacity-90"
-            >
+            <Button className="w-full" onClick={handleCreateCommsProfile}>
               创建通讯档案
-            </button>
+            </Button>
           </div>
         </SectionCard>
 
@@ -298,13 +276,9 @@ export function Communications() {
               ))}
             </ThemeSelect>
             <ThemeTextarea value={testMessageBody} onChange={e => setTestMessageBody(e.target.value)} fieldSize="lg" fieldShape="soft" rows={6} />
-            <button
-              onClick={handleSendTestMessage}
-              disabled={!selectedTargetId}
-              className="w-full rounded-full bg-[hsl(var(--warning))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--warning-foreground))] hover:opacity-90 disabled:opacity-50"
-            >
+            <Button variant="secondary" className="w-full" onClick={handleSendTestMessage} disabled={!selectedTargetId}>
               发送测试消息（走审批）
-            </button>
+            </Button>
           </div>
         </SectionCard>
       </div>
@@ -312,18 +286,15 @@ export function Communications() {
       <SectionCard title="通讯目标（Targets）" description="仅 allowlisted=true 的目标允许发送">
         <div className="space-y-3 mb-4">
           {targets.map(target => (
-            <div key={target.id} className="flex items-center justify-between rounded-workshop-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-workshop-sm">
+            <div key={target.id} className="flex items-center justify-between rounded-lg border border-[hsl(var(--border)_/_0.82)] bg-[hsl(var(--card))] p-3 shadow-sm">
               <div>
                 <p className="font-medium text-[hsl(var(--foreground))]">{target.displayName}</p>
                 <p className="text-xs text-[hsl(var(--muted-foreground))]">{target.channel} / {target.to}</p>
                 {target.notes && <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">备注：{target.notes}</p>}
               </div>
-              <button
-                onClick={() => handleRequestAllowlist(target)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium ${target.allowlisted ? 'border border-[hsl(var(--google-green)_/_0.18)] bg-[hsl(var(--google-green)_/_0.12)] text-[hsl(var(--success))]' : 'border border-[hsl(var(--google-yellow)_/_0.24)] bg-[hsl(var(--google-yellow)_/_0.2)] text-[hsl(var(--foreground))]'}`}
->
+              <Button variant="secondary" size="sm" onClick={() => handleRequestAllowlist(target)}>
                 {target.allowlisted ? '已允许' : '申请加入 allowlist'}
-              </button>
+              </Button>
             </div>
           ))}
           {targets.length === 0 && (
@@ -373,12 +344,9 @@ export function Communications() {
             <ThemeCheckbox checked={newTargetAllowlisted} onChange={e => setNewTargetAllowlisted(e.target.checked)} />
             创建时立即加入 allowlist
           </label>
-          <button
-            onClick={handleCreateTarget}
-            className="md:col-span-2 rounded-full bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90"
-          >
+          <Button className="md:col-span-2" onClick={handleCreateTarget}>
             新增目标
-          </button>
+          </Button>
         </div>
       </SectionCard>
     </div>
