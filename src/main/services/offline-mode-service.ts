@@ -28,8 +28,11 @@ export interface OfflineStatus {
   lastOfflineAt: string | null
 }
 
+export type OfflineSyncHandler = (operation: QueuedOperation) => Promise<void>
+
 class OfflineModeService {
   private isOnline = true
+  private syncHandler: OfflineSyncHandler | null = null
   private pendingOperations: Map<string, QueuedOperation> = new Map()
   private lastOnlineAt: string | null = null
   private lastOfflineAt: string | null = null
@@ -264,15 +267,20 @@ class OfflineModeService {
   }
 
   /**
+   * 注册离线操作同步处理器，由主进程 API 层注入真实实现。
+   */
+  setSyncHandler(handler: OfflineSyncHandler): void {
+    this.syncHandler = handler
+  }
+
+  /**
    * 同步单个操作
    */
   private async syncOperation(operation: QueuedOperation): Promise<void> {
-    // TODO: 根据操作类型和实体调用对应的 API
-    // 目前是占位实现，实际需要根据业务逻辑完善
-    console.log(`[OfflineMode] 同步操作:`, operation)
-    
-    // 模拟网络请求
-    await new Promise(resolve => setTimeout(resolve, 100))
+    if (!this.syncHandler) {
+      throw new Error(`离线操作暂不支持同步：${operation.type}/${operation.entity}`)
+    }
+    await this.syncHandler(operation)
   }
 
   /**

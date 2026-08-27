@@ -106,7 +106,7 @@ test.describe('失败重试验证', () => {
     const page = context.page
 
     const messages = await apiJson<Array<Record<string, unknown>>>(page, '/api/outbound-messages?status=FAILED')
-    if (messages.length === 0) test.skip()
+    expect(messages.length).toBeGreaterThan(0)
 
     const failedMsg = messages[0]
 

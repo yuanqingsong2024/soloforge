@@ -38,24 +38,45 @@ export interface ApplyChangeRequestOptions {
  * 与 Claude Code/Claude API 交互的客户端封装
  */
 export class ClaudeCodeClient {
-  private baseUrl: string
+  private readonly baseUrl: string
 
   constructor(baseUrl: string) {
-    this.baseUrl = baseUrl
+    this.baseUrl = baseUrl.replace(/\/$/, '')
+  }
+
+  private async request<T>(path: string, init: RequestInit, traceId: string): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Trace-ID': traceId,
+        ...(init.headers || {})
+      },
+      signal: AbortSignal.timeout(15000)
+    })
+    if (!response.ok) {
+      throw new Error(`Claude Code 请求失败: ${response.status} ${response.statusText}`)
+    }
+    return await response.json() as T
   }
 
   /**
    * 获取配置快照
    */
   async getConfigSnapshot(traceId: string): Promise<ConfigSnapshot> {
-    // TODO: 实现实际的 API 调用
-    // 目前返回空快照占位
-    void traceId
+    const response = await this.request<{ config?: Record<string, unknown>; hash?: string; contentHash?: string; updatedAt?: string }>(
+      '/config',
+      { method: 'GET' },
+      traceId
+    )
+    if (!response.config) {
+      throw new Error('Claude Code 返回的配置快照为空')
+    }
     return {
-      config: {},
-      hash: '',
-      contentHash: '',
-      updatedAt: new Date().toISOString()
+      config: response.config,
+      hash: response.hash || response.contentHash || '',
+      contentHash: response.contentHash || response.hash || '',
+      updatedAt: response.updatedAt || new Date().toISOString()
     }
   }
 
@@ -63,19 +84,26 @@ export class ClaudeCodeClient {
    * 应用配置变更
    */
   async applyConfig(config: Record<string, unknown>, traceId: string): Promise<boolean> {
-    // TODO: 实现实际的 API 调用
-    void config
-    void traceId
-    return true
+    await this.request<unknown>('/config', {
+      method: 'PATCH',
+      body: JSON.stringify(config)
+    }, traceId)
+    const snapshot = await this.getConfigSnapshot(traceId)
+    return Object.keys(snapshot.config || {}).length > 0
   }
 
   /**
    * 应用变更请求
    */
   async applyChangeRequest(options: ApplyChangeRequestOptions): Promise<boolean> {
-    // TODO: 实现实际的 API 调用
-    void options
-    return true
+    if (!options.diffJson && !options.changeRequest) {
+      throw new Error('变更请求缺少 diff 内容')
+    }
+    const diff = options.diffJson ? JSON.parse(options.diffJson) : options.changeRequest?.diff
+    if (!diff || typeof diff !== 'object') {
+      throw new Error('变更请求 diff 格式无效')
+    }
+    return await this.applyConfig(diff as Record<string, unknown>, options.traceId)
   }
 
   /**

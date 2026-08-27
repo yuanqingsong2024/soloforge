@@ -38,3 +38,11 @@ prisma/integration-test.db-journal
 # Environment
 .env
 .env.local
+
+# Internal backup / generated local dirs
+prisma/prisma
+release-clean
+release.previous-*
+.backup-pages
+.mimosa
+.zcode

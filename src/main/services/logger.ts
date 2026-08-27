@@ -116,7 +116,9 @@ class Logger {
           try {
             fs.unlinkSync(file.path)
           } catch (error) {
-            console.error(`Failed to delete old log file ${file.name}:`, error)
+            if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'ENOENT') {
+              console.error(`Failed to delete old log file ${file.name}:`, error)
+            }
           }
         })
       }

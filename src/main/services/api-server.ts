@@ -30,6 +30,7 @@ import { registerOpenClawRoutes } from './routes/openclaw'
 import { registerPluginRoutes } from './plugins/plugin-routes'
 import { registerImportExportRoutes } from './routes/import-export'
 import { registerAuditExportRoutes } from './routes/audit-export'
+import { type FastifyError } from 'fastify'
 import { registerHermesRoutes } from './routes/hermes-workers'
 import { registerAuthenticatedRoutes } from '../middleware/local-auth'
 import {
@@ -48,7 +49,7 @@ export async function startServer(): Promise<number> {
   // 应用 SQLite PRAGMA 优化（处理网络驱动器延迟）
   await optimizeSqlite()
 
-  fastify.setErrorHandler((error, request, reply) => {
+  fastify.setErrorHandler((error: FastifyError, request, reply) => {
     const traceId = (request.headers['x-trace-id'] as string | undefined) || uuidv4()
     const isValidationError = error.statusCode === 400 && Boolean((error as { validation?: unknown }).validation)
     const statusCode = error.statusCode ?? 500

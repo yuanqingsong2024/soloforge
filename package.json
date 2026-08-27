@@ -27,6 +27,9 @@
     "dev:oneclick:ps1": "powershell -ExecutionPolicy Bypass -File scripts/one-click-dev.ps1",
     "prebuild": "node scripts/prebuild.mjs",
     "build": "npm run prebuild && tsc && vite build && electron-builder",
+    "release:check": "node scripts/release-check.mjs && npm run release:generate-checksums",
+    "release:generate-checksums": "find release -type f ! -name SHA256SUMS.txt -print0 | xargs -0 sha256sum > release/SHA256SUMS.txt",
+    "release:verify-checksums": "node scripts/verify-release-checksums.mjs",
     "preview": "vite preview",
     "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
@@ -36,9 +39,9 @@
     "test:renderer:watch": "vitest --config vitest.config.ts",
     "test:integration": "node scripts/run-integration-tests.mjs",
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
-    "test:e2e": "playwright test tests/e2e/app-launch.spec.ts tests/e2e/dashboard-overview.spec.ts tests/e2e/dashboard-navigation.spec.ts tests/e2e/workspace-switch.spec.ts tests/e2e/theme-toggle.spec.ts tests/e2e/dashboard-empty-state.spec.ts tests/e2e/change-and-backup-flows.spec.ts tests/e2e/legacy-module-smoke.spec.ts tests/e2e/contact-binding.spec.ts tests/e2e/template-rendering.spec.ts tests/e2e/approval-flow.spec.ts tests/e2e/ticket-board.spec.ts tests/e2e/team-management.spec.ts tests/e2e/audit-logs.spec.ts tests/e2e/config-center.spec.ts tests/e2e/deployments.spec.ts tests/e2e/doctor-page.spec.ts",
-    "test:e2e:headed": "playwright test tests/e2e/app-launch.spec.ts tests/e2e/dashboard-overview.spec.ts tests/e2e/dashboard-navigation.spec.ts tests/e2e/workspace-switch.spec.ts tests/e2e/theme-toggle.spec.ts tests/e2e/dashboard-empty-state.spec.ts tests/e2e/change-and-backup-flows.spec.ts tests/e2e/legacy-module-smoke.spec.ts tests/e2e/contact-binding.spec.ts tests/e2e/template-rendering.spec.ts tests/e2e/approval-flow.spec.ts tests/e2e/ticket-board.spec.ts tests/e2e/team-management.spec.ts tests/e2e/audit-logs.spec.ts tests/e2e/config-center.spec.ts tests/e2e/deployments.spec.ts tests/e2e/doctor-page.spec.ts --headed",
-    "test:e2e:debug": "playwright test tests/e2e/app-launch.spec.ts tests/e2e/dashboard-overview.spec.ts tests/e2e/dashboard-navigation.spec.ts tests/e2e/workspace-switch.spec.ts tests/e2e/theme-toggle.spec.ts tests/e2e/dashboard-empty-state.spec.ts tests/e2e/change-and-backup-flows.spec.ts tests/e2e/legacy-module-smoke.spec.ts tests/e2e/contact-binding.spec.ts tests/e2e/template-rendering.spec.ts tests/e2e/approval-flow.spec.ts tests/e2e/ticket-board.spec.ts tests/e2e/team-management.spec.ts tests/e2e/audit-logs.spec.ts tests/e2e/config-center.spec.ts tests/e2e/deployments.spec.ts tests/e2e/doctor-page.spec.ts --debug",
+    "test:e2e": "playwright test tests/e2e",
+    "test:e2e:headed": "playwright test tests/e2e --headed",
+    "test:e2e:debug": "playwright test tests/e2e --debug",
     "test:e2e:live-openclaw": "playwright test tests/e2e/outbound-live-openclaw.spec.ts",
     "test:e2e:live-openclaw:headed": "playwright test tests/e2e/outbound-live-openclaw.spec.ts --headed",
     "test:e2e:live-openclaw:debug": "playwright test tests/e2e/outbound-live-openclaw.spec.ts --debug",
@@ -54,19 +57,19 @@
     "@types/dockerode": "^4.0.1",
     "@types/js-yaml": "^4.0.9",
     "@types/ssh2": "^1.15.5",
-    "dockerode": "^4.0.9",
+    "dockerode": "^5.0.1",
     "fastify": "^4.29.1",
     "i18next": "^26.0.8",
     "i18next-http-backend": "^3.0.6",
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^4.3.1",
     "jsondiffpatch": "^0.7.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-i18next": "^17.0.6",
-    "react-router-dom": "^7.13.1",
+    "react-router-dom": "^7.18.2",
     "ssh2": "^1.17.0",
-    "uuid": "^9.0.1",
-    "ws": "^8.16.0",
+    "uuid": "^11.1.1",
+    "ws": "^8.21.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -132,5 +135,11 @@
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@protobufjs/utf8": "^1.1.1",
+    "protobufjs": "^7.6.5",
+    "fast-uri": "^3.1.5"
   }
 }

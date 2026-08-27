@@ -40,7 +40,7 @@ export interface ExecutionResult {
   /** 是否有已注册的处理器（true=已执行，false=未实现或无额外处理） */
   handled: boolean
   /** 机器可读的执行状态 */
-  status?: 'EXECUTED' | 'NOT_IMPLEMENTED' | 'REJECTED'
+  status?: 'EXECUTED' | 'NOT_IMPLEMENTED' | 'EXECUTION_FAILED' | 'REJECTED'
   /** 处理器返回值（handled=false 时为 undefined） */
   result?: unknown
 }
@@ -98,8 +98,23 @@ class ApprovalExecutorClass {
 
     const handler = this.approvedHandlers.get(approval.actionType as HighRiskAction)
     if (handler) {
-      const result = await handler(approval, payload)
-      return { handled: true, status: 'EXECUTED', result }
+      try {
+        const result = await handler(approval, payload)
+        return { handled: true, status: 'EXECUTED', result }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        await writeAuditLogStrict({
+          traceId: uuidv4(),
+          actor: approval.approvedBy || approval.requestedBy,
+          action: `${approval.actionType}_EXECUTION_FAILED`,
+          tool: 'approval-executor',
+          approvalId: approval.id,
+          request: { actionType: approval.actionType, approvalId: approval.id, payload },
+          response: { status: 'execution_failed', error: message }
+        })
+        logger.error(`审批动作执行失败: ${approval.actionType}`, 'approval-executor', error instanceof Error ? error : undefined)
+        return { handled: true, status: 'EXECUTION_FAILED', result: { error: message } }
+      }
     }
 
     // 未实现的动作：记录审计日志（明确标记为未实现）

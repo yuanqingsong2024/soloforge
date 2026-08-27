@@ -150,8 +150,7 @@ export class ModelTester {
   }
 
   /**
-   * 调用模型（简化版：实际应通过 OpenClaw 调用）
-   * TODO: 集成 OpenClawClient
+   * 通过 Workspace 绑定的 OpenClaw 客户端调用模型。
    */
   private static async callModel(
     workspaceId: string,

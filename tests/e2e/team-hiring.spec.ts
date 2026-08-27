@@ -10,9 +10,7 @@ test.describe('一键招聘员工', () => {
       await waitForDashboardReady(context.page)
 
       const profiles = await apiJson<Array<{ id: string; name: string }>>(context.page, '/api/profiles')
-      if (profiles.length === 0) {
-        test.skip(true, '没有可用的 Connection Profile')
-      }
+      expect(profiles.length).toBeGreaterThan(0)
 
       const payload = await apiJson<{ success: boolean; data?: { hired: Array<{ agentName: string }> }; error?: string }>(context.page, '/api/team/hire', {
         method: 'POST',

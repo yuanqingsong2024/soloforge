@@ -88,17 +88,10 @@ test.describe('变更单与备份闭环', () => {
         await exportAlert.waitFor({ state: 'visible', timeout: 20000 })
       }
       
-      // 如果错误提示可见，跳过测试
       const hasError = await exportAlert.isVisible()
-      if (hasError) {
-        test.skip()
-      }
+      expect(hasError).toBe(false)
 
-      // 没有错误，说明导出成功 - 验证 textarea 有内容
-      const value = await exportTextarea.inputValue()
-      if (!value || value.trim() === '') {
-        test.skip()
-      }
+      await expect.poll(async () => (await exportTextarea.inputValue()).trim(), { timeout: 20000 }).not.toBe('')
       
       await expect(context.page.getByText('导出人：admin').first()).toBeVisible({ timeout: 20000 })
     } finally {
@@ -122,10 +115,7 @@ test.describe('变更单与备份闭环', () => {
       const errorPanel = context.page.getByText(/搜索失败/) 
       await expect(resultPanel.or(errorPanel)).toBeVisible({ timeout: 15000 })
 
-      if (await errorPanel.count() > 0 && await errorPanel.isVisible()) {
-        test.skip()
-      }
-
+      await expect(errorPanel).not.toBeVisible()
       await expect(resultPanel).toBeVisible()
     } finally {
       await closeElectronApp(context)

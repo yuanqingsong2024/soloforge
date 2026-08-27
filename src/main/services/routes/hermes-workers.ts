@@ -176,14 +176,16 @@ export async function registerHermesRoutes(fastify: FastifyInstance): Promise<vo
             success: { type: 'boolean' },
             data: workerSchema
           }
-        }
+        },
+        404: { type: 'object', properties: { success: { type: 'boolean' }, error: { type: 'string' } } }
       }
     }
   }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const worker = await HermesAdapter.getWorker(id)
     if (!worker) {
-      return reply.code(404).send({ success: false, error: 'Worker 不存在' })
+      reply.code(404)
+      return { success: false, error: 'Worker 不存在' }
     }
 
     return reply.send({
@@ -228,7 +230,8 @@ export async function registerHermesRoutes(fastify: FastifyInstance): Promise<vo
             success: { type: 'boolean' },
             data: workerSchema
           }
-        }
+        },
+        404: { type: 'object', properties: { success: { type: 'boolean' }, error: { type: 'string' } } }
       }
     }
   }, async (request, reply) => {
@@ -259,10 +262,11 @@ export async function registerHermesRoutes(fastify: FastifyInstance): Promise<vo
         }
       })
     } catch (error) {
-      return reply.code(404).send({
+      reply.code(404)
+      return {
         success: false,
         error: error instanceof Error ? error.message : '更新失败'
-      })
+      }
     }
   })
 
@@ -284,7 +288,8 @@ export async function registerHermesRoutes(fastify: FastifyInstance): Promise<vo
           properties: {
             success: { type: 'boolean' }
           }
-        }
+        },
+        404: { type: 'object', properties: { success: { type: 'boolean' }, error: { type: 'string' } } }
       }
     }
   }, async (request, reply) => {
@@ -297,10 +302,11 @@ export async function registerHermesRoutes(fastify: FastifyInstance): Promise<vo
 
       return reply.send({ success: true })
     } catch (error) {
-      return reply.code(404).send({
+      reply.code(404)
+      return {
         success: false,
         error: error instanceof Error ? error.message : '删除失败'
-      })
+      }
     }
   })
 
@@ -436,7 +442,8 @@ export async function registerHermesRoutes(fastify: FastifyInstance): Promise<vo
               }
             }
           }
-        }
+        },
+        400: { type: 'object', properties: { success: { type: 'boolean' }, error: { type: 'string' } } }
       }
     }
   }, async (request, reply) => {
@@ -459,10 +466,11 @@ export async function registerHermesRoutes(fastify: FastifyInstance): Promise<vo
         data: result
       })
     } catch (error) {
-      return reply.code(400).send({
+      reply.code(400)
+      return {
         success: false,
         error: error instanceof Error ? error.message : '派发失败'
-      })
+      }
     }
   })
 
@@ -485,7 +493,8 @@ export async function registerHermesRoutes(fastify: FastifyInstance): Promise<vo
             success: { type: 'boolean' },
             data: taskSchema
           }
-        }
+        },
+        404: { type: 'object', properties: { success: { type: 'boolean' }, error: { type: 'string' } } }
       }
     }
   }, async (request, reply) => {
@@ -504,10 +513,11 @@ export async function registerHermesRoutes(fastify: FastifyInstance): Promise<vo
         }
       })
     } catch (error) {
-      return reply.code(404).send({
+      reply.code(404)
+      return {
         success: false,
         error: error instanceof Error ? error.message : '任务不存在'
-      })
+      }
     }
   })
 
@@ -529,7 +539,8 @@ export async function registerHermesRoutes(fastify: FastifyInstance): Promise<vo
           properties: {
             success: { type: 'boolean' }
           }
-        }
+        },
+        400: { type: 'object', properties: { success: { type: 'boolean' }, error: { type: 'string' } } }
       }
     }
   }, async (request, reply) => {
@@ -539,10 +550,11 @@ export async function registerHermesRoutes(fastify: FastifyInstance): Promise<vo
       await HarnessController.cancelTask(id)
       return reply.send({ success: true })
     } catch (error) {
-      return reply.code(400).send({
+      reply.code(400)
+      return {
         success: false,
         error: error instanceof Error ? error.message : '取消失败'
-      })
+      }
     }
   })
 

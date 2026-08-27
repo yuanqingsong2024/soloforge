@@ -115,9 +115,35 @@ export function registerApprovalRoutes(fastify: FastifyInstance): void {
       return fail('审批记录不存在')
     }
 
+    if (status === 'APPROVED') {
+      const claimed = await prisma.approval.updateMany({
+        where: { id, status: 'APPROVED', OR: [{ executionStatus: null }, { executionStatus: 'PENDING' }] },
+        data: { executionStatus: 'EXECUTING' }
+      })
+      if (claimed.count !== 1) {
+        reply.code(409)
+        return fail('审批正在执行或已完成，不能重复执行')
+      }
+    }
+
     const executionResult = status === 'APPROVED'
-      ? await ApprovalExecutor.executeApprovedAction(decidedApproval)
+      ? await ApprovalExecutor.executeApprovedAction({ ...decidedApproval, executionStatus: 'EXECUTING' })
       : await ApprovalExecutor.handleRejectedAction(decidedApproval)
+
+    if (status === 'APPROVED') {
+      const executionStatus = executionResult.status === 'EXECUTED'
+        ? 'COMPLETED'
+        : executionResult.status === 'NOT_IMPLEMENTED'
+          ? 'NOT_IMPLEMENTED'
+          : 'FAILED'
+      await prisma.approval.update({
+        where: { id },
+        data: {
+          executionStatus,
+          executionResult: JSON.stringify(executionResult.result ?? { status: executionResult.status })
+        }
+      })
+    }
 
     await writeAuditLog({
       traceId,

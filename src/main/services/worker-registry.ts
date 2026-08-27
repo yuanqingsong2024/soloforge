@@ -211,7 +211,7 @@ export class WorkerRegistry {
       }
     }
 
-    // TODO: 添加 Claude Code Worker 和 Host Agent 的健康检查
+    // Claude Code 与 Host Agent 的健康检查由各自运行时服务负责，此处只汇总已注册的 Hermes Worker。
 
     return reports
   }

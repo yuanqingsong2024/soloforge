@@ -131,7 +131,9 @@ model Approval {
   ticketId    String?   @map("ticket_id")
   actionType  String    @map("action_type") // SEND_EXTERNAL, MERGE_MAIN, DEPLOY_PROD, EXPORT_DATA, PURCHASE, CHANGE_CONFIG, ROTATE_TOKEN
   payload     String // JSON string
-  status      String // PENDING, APPROVED, REJECTED
+  status          String // PENDING, APPROVED, REJECTED
+  executionStatus String? @map("execution_status") // PENDING, EXECUTING, COMPLETED, FAILED, NOT_IMPLEMENTED
+  executionResult String? @map("execution_result") // 脱敏后的 JSON 结果
   requestedBy String    @map("requested_by")
   approvedBy  String?   @map("approved_by")
   decidedAt   DateTime? @map("decided_at")

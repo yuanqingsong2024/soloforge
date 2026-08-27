@@ -5,10 +5,11 @@
  * - 解析 workspace 对应的 Claude Code 客户端
  * - 管理 per-workspace 的连接配置
  *
- * 注意：此模块目前为占位符，后续与 Claude CodeClient 集成时完善
+ * 连接配置由 WorkspaceProfile 解析，凭证通过安全存储在调用层注入。
  */
 
 import { ClaudeCodeClient } from './claudecode-client'
+import { prisma } from './db'
 
 // 导出 client 类型供其他模块使用
 export type ClaudeCodeClientType = ClaudeCodeClient
@@ -25,12 +26,19 @@ export interface ResolvedClient {
  * @param workspaceId - Workspace ID (预留，后续实现需要)
  * @returns 包含 profileId 和 client 的解析结果
  */
-export async function resolveWorkspaceClaudeCodeClient(_workspaceId: string): Promise<ResolvedClient> {
-  // TODO: 完整实现需要查询 workspace 关联的 ConnectionProfile 并创建对应的 Claude CodeClient
-  // 目前返回占位数据，后续与 Claude CodeClient 集成时完善
+export async function resolveWorkspaceClaudeCodeClient(workspaceId: string): Promise<ResolvedClient> {
+  const workspaceProfile = await prisma.workspaceProfile.findFirst({
+    where: { workspaceId },
+    orderBy: { isDefault: 'desc' },
+    include: { profile: true }
+  })
+  if (!workspaceProfile) {
+    throw new Error(`Workspace ${workspaceId} 未配置连接 Profile`)
+  }
+
   return {
-    profileId: '',
-    client: new ClaudeCodeClient('http://127.0.0.1:18789'),
-    baseUrl: 'http://127.0.0.1:18789'
+    profileId: workspaceProfile.profileId,
+    client: new ClaudeCodeClient(workspaceProfile.profile.baseUrl),
+    baseUrl: workspaceProfile.profile.baseUrl
   }
 }

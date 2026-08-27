@@ -363,8 +363,17 @@ export function registerOutboundMessagesRoutes(fastify: FastifyInstance): void {
       return { status: 'deferred', message: '仍在退避窗口内', nextRetryAt: message.nextRetryAt.toISOString() }
     }
 
-    const result = await dispatchOutboundMessage(message.id, 'admin')
-    return { status: 'sent', result }
+    try {
+      const result = await dispatchOutboundMessage(message.id, 'admin')
+      return { status: 'sent', result }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      await prisma.outboundMessage.update({
+        where: { id: message.id },
+        data: { status: 'FAILED', lastError: errorMessage }
+      })
+      return { status: 'failed', message: errorMessage }
+    }
   })
 
   // 批量重试待发送消息
