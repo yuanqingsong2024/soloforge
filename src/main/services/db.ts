@@ -11,8 +11,11 @@
  * - 所有关键操作写入审计日志
  */
 
-import { PrismaClient } from '@prisma/client'
+import PrismaClientPkg from '@prisma/client'
 import { logger } from './logger'
+
+// @prisma/client 是 CommonJS，值构造函数统一走默认导入插值
+const { PrismaClient } = PrismaClientPkg
 
 /**
  * 全局唯一 PrismaClient 实例

@@ -12,7 +12,7 @@
  * - 单元测试时可注入 mock 实现
  */
 
-import { PrismaClient } from '@prisma/client'
+import type { PrismaClient } from '@prisma/client'
 import { prisma as defaultPrisma } from './db'
 import { logger } from './logger'
 

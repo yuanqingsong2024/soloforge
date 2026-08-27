@@ -7,8 +7,12 @@
  * 3. 统计报表生成
  */
 
-import { PrismaClient, AuditLog } from '@prisma/client'
+import { AuditLog } from '@prisma/client'
+import PrismaClientPkg from '@prisma/client'
 import { maskSensitive } from './audit-log-writer'
+
+// 见 db.ts：@prisma/client 为 CommonJS，值构造函数走默认导入插值
+const { PrismaClient } = PrismaClientPkg
 
 const prisma = new PrismaClient()
 

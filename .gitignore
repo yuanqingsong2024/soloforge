@@ -41,6 +41,7 @@ prisma/integration-test.db-journal
 
 # Internal backup / generated local dirs
 prisma/prisma
+prisma/generated
 release-clean
 release.previous-*
 .backup-pages

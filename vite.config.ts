@@ -20,7 +20,9 @@ export default defineConfig({
               output: {
                 banner: 'import { fileURLToPath as __sf_fileURLToPath } from "node:url"; import __sf_path from "node:path"; const __filename = __sf_fileURLToPath(import.meta.url); const __dirname = __sf_path.dirname(__filename);'
               },
-              external: ['electron', '@prisma/client', 'fastify', 'ws', 'ssh2', 'dockerode']
+              external: (id: string) =>
+                id.includes('prisma/generated/client') ||
+                ['electron', '@prisma/client', 'fastify', 'ws', 'ssh2', 'dockerode'].includes(id)
             }
           }
         }

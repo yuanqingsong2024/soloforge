@@ -30,6 +30,7 @@
     "release:check": "node scripts/release-check.mjs && npm run release:generate-checksums",
     "release:generate-checksums": "find release -type f ! -name SHA256SUMS.txt -print0 | xargs -0 sha256sum > release/SHA256SUMS.txt",
     "release:verify-checksums": "node scripts/verify-release-checksums.mjs",
+    "release:verify-runtime": "node scripts/verify-packaged-runtime.mjs",
     "preview": "vite preview",
     "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
@@ -103,8 +104,11 @@
     "productName": "SoloForge",
     "icon": "build/icon.png",
     "npmRebuild": false,
+    "asar": false,
     "asarUnpack": [
-      "node_modules/**/*.node"
+      "node_modules/**/*.node",
+      "node_modules/@prisma/client/**/*",
+      "node_modules/.prisma/client/**/*"
     ],
     "directories": {
       "output": "release/${version}"
@@ -114,7 +118,12 @@
       "dist-electron"
     ],
     "extraResources": [
-      "resources/locales/**/*"
+      "resources/locales/**/*",
+      {
+        "from": "node_modules/.prisma",
+        "to": "app/node_modules/.prisma",
+        "filter": ["**/*"]
+      }
     ],
     "win": {
       "target": [
