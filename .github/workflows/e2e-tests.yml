@@ -41,7 +41,10 @@ jobs:
           npx prisma db seed
         env:
           DATABASE_URL: file:./e2e-test.db
-      
+
+      - name: Build application for E2E
+        run: npm run build
+
       - name: Run E2E tests
         shell: pwsh
         run: |
