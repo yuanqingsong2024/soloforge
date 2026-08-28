@@ -26,7 +26,7 @@
     "dev:oneclick": "node scripts/one-click-dev.mjs",
     "dev:oneclick:ps1": "powershell -ExecutionPolicy Bypass -File scripts/one-click-dev.ps1",
     "prebuild": "node scripts/prebuild.mjs",
-    "build": "npm run prebuild && tsc && vite build && electron-builder",
+    "build": "npm run prebuild && tsc && vite build && electron-builder --publish never",
     "release:check": "node scripts/release-check.mjs && npm run release:generate-checksums",
     "release:generate-checksums": "find release -type f ! -name SHA256SUMS.txt -print0 | xargs -0 sha256sum > release/SHA256SUMS.txt",
     "release:verify-checksums": "node scripts/verify-release-checksums.mjs",
