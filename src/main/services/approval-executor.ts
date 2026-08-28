@@ -94,7 +94,22 @@ class ApprovalExecutorClass {
       throw new Error(`审批未批准，禁止执行：${approval.id}`)
     }
 
-    const payload = this.parsePayload(approval)
+    let payload: unknown
+    try {
+      payload = this.parsePayload(approval)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      await writeAuditLogStrict({
+        traceId: uuidv4(),
+        actor: approval.approvedBy || approval.requestedBy,
+        action: `${approval.actionType}_EXECUTION_FAILED`,
+        tool: 'approval-executor',
+        approvalId: approval.id,
+        request: { actionType: approval.actionType, approvalId: approval.id },
+        response: { status: 'execution_failed', error: message }
+      })
+      return { handled: true, status: 'EXECUTION_FAILED', result: { error: message } }
+    }
 
     const handler = this.approvedHandlers.get(approval.actionType as HighRiskAction)
     if (handler) {
@@ -131,14 +146,12 @@ class ApprovalExecutorClass {
       },
       response: {
         status: 'not_implemented',
-        message: '该高危动作已批准但尚未实现执行逻辑，仅记录审计日志'
+        message: '该高危动作已批准但尚未实现执行逻辑，已安全阻断，未执行任何操作'
       }
     })
-    logger.warn(
-      `审批动作 ${approval.actionType} 已批准但尚未实现执行逻辑，仅记录审计日志`,
-      'approval-executor'
-    )
-    return { handled: false, status: 'NOT_IMPLEMENTED' }
+    const message = `审批动作 ${approval.actionType} 尚未实现，已安全阻断，未执行任何操作`
+    logger.warn(message, 'approval-executor')
+    return { handled: false, status: 'NOT_IMPLEMENTED', result: { error: message } }
   }
 
   /**

@@ -3,7 +3,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0--beta-green.svg)](ROADMAP.md)
 
-> 🎯 **AI Team OS for One-Person Companies** | 安全优先的 AI 团队协作桌面应用
+> **内部技术预览（0.1.0）** | 安全优先的 AI 团队协作桌面应用
+>
+> 当前仅支持内部受控测试。Linux AppImage 已有本地构建证据；Windows/macOS 构建、签名和安装启动尚未在本工作树验证。
 
 SoloForge 是一个 **PC 桌面端（非网页）** 的 AI 员工工作台 / Team OS，用于”一人公司”场景下创建与管理 AI 团队与员工，并与 **Claude Code（行动网关/调度器）** 联动，实现：
 
@@ -18,7 +20,7 @@ SoloForge 是一个 **PC 桌面端（非网页）** 的 AI 员工工作台 / Tea
 
 | 资源 | 链接 |
 |------|------|
-| 📖 **文档** | [ROADMAP.md](ROADMAP.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
+| 📖 **文档** | [ROADMAP.md](ROADMAP.md) · [DEVELOPMENT.md](DEVELOPMENT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) · [SUPPORT_POLICY.md](SUPPORT_POLICY.md) · [ROLLBACK_RUNBOOK.md](ROLLBACK_RUNBOOK.md) |
 | 💰 **定价** | [PRICING.md](PRICING.md) |
 | 📦 **下载** | [Releases](https://github.com/soloforge/soloforge/releases) |
 | 🔐 **安全** | [安全策略](SECURITY.md) · [security@soloforge.dev](mailto:security@soloforge.dev) |
@@ -379,8 +381,9 @@ npm run test:e2e:report
 - [x] Diff 对比
 - [x] Apply / 回滚（限频 60s/3次）
 - [x] 历史快照
-### ✅ 已完成（M7 打包）
-- [x] electron-builder 打包（Windows NSIS / macOS DMG / Linux AppImage）
+### ✅ 已完成（M7 打包，能力已实现但平台证据不完整）
+- [x] electron-builder 配置与 Linux AppImage 本地构建
+- [ ] Windows NSIS / macOS DMG 的构建、签名和安装启动验证（需对应原生 runner）
 ### ✅ 已完成（M8 Workspace 隔离）
 - [x] Workspace 数据模型（workspaces/workspace_profiles/workspace_policies）
 - [x] 现有表添加 workspace_id 外键
@@ -1611,8 +1614,8 @@ location / {
 ### ✅ Phase 3: 高级功能（已完成）
 - [x] 配置中心（M6）
 - [x] 打包（M7）
-### ✅ Phase 4: 增强（进行中）
-- [x] E2E 测试覆盖
+### 🚧 Phase 4: 增强（规划中）
+- [ ] 扩大 E2E 覆盖（当前仅有 Dashboard 等受控基线）
 - [ ] 多语言支持
 - [ ] 主题切换
 - [ ] 插件系统
@@ -1635,15 +1638,9 @@ location / {
 
 本项目采用 **MIT 许可证**，详见 [LICENSE](LICENSE)。
 
-### 开源 + 订阅模式
+### 使用政策
 
-| 版本 | 说明 |
-|------|------|
-| **社区版**（免费） | 最多 5 个 Agent，仅限非商业用途 |
-| **专业版**（订阅） | 无限 Agent，商业授权，¥199/人/月 |
-| **企业版**（定制） | 私有化部署，SSO，SLA 保障 |
-
-详细定价：[PRICING.md](PRICING.md)
+当前版本仅限内部受控使用，不提供公网自助注册、支付订阅、商业 SLA 或多租户服务。支持范围与限制见 [SUPPORT_POLICY.md](SUPPORT_POLICY.md)。
 
 ## 联系方式
 

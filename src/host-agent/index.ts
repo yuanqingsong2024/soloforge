@@ -268,8 +268,16 @@ class HostAgentRunner {
         return this.runDockerCompose(request, 'up')
       case 'DOCKER_COMPOSE_RESTART':
         return this.runDockerCompose(request, 'restart')
+      case 'BACKUP_OPENCLAW':
+        throw new Error('当前 Host Agent 尚未实现 OpenClaw 备份，动作已安全阻断')
+      case 'RESTORE_OPENCLAW':
+        throw new Error('当前 Host Agent 尚未实现 OpenClaw 恢复，动作已安全阻断')
+      case 'APPLY_CONFIG_PATCH':
+        throw new Error('当前 Host Agent 尚未实现配置补丁，动作已安全阻断')
+      case 'CUSTOM_SAFE_ACTION':
+        throw new Error('当前 Host Agent 不接受自定义动作，动作已安全阻断')
       default:
-        throw new Error(`当前 Agent 未实现动作 ${actionType}`)
+        throw new Error(`当前 Host Agent 不支持动作 ${actionType}，动作已安全阻断`)
     }
   }
 

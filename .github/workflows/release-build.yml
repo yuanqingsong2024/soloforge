@@ -32,27 +32,37 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run release:check
-      - name: Generate SHA256 checksums
+      - name: Generate and verify SHA256 checksums
         shell: bash
         run: |
-          find release -type f -print0 | xargs -0 sha256sum > release/SHA256SUMS.txt
-      - name: Verify platform artifact
+          npm run release:generate-checksums
+          npm run release:verify-checksums
+      - name: Validate version and platform artifact
+        shell: bash
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+          RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: npm run release:validate -- ${{ matrix.platform }}
+      - name: Verify packaged runtime
+        if: matrix.platform == 'linux'
+        run: npm run release:verify-runtime
+      - name: Verify signing status on Windows
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          $artifact = Get-ChildItem -Path release -Recurse -Filter *.exe | Select-Object -First 1
+          $status = Get-AuthenticodeSignature -FilePath $artifact.FullName
+          if ($status.Status -ne 'Valid') { throw "Windows 制品签名状态不是 Valid: $($status.Status)" }
+      - name: Verify signing status on macOS
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.platform == 'mac'
         shell: bash
         run: |
-          case "${{ matrix.platform }}" in
-            linux) test -f release/*/*.AppImage || test -f release/*.AppImage ;;
-            win) test -f release/*/*.exe || test -f release/*.exe ;;
-            mac) test -f release/*/*.dmg || test -f release/*.dmg ;;
-          esac
-      - name: Require signing credentials for release tags
-        if: startsWith(github.ref, 'refs/tags/v')
+          artifact=$(find release -type f -name '*.dmg' -print -quit)
+          codesign --verify --deep --strict "$artifact"
+      - name: Report signing status on Linux
+        if: matrix.platform == 'linux'
         shell: bash
-        run: |
-          if [ "${{ matrix.platform }}" = "win" ]; then
-            test -n "${WIN_CSC_LINK:-}" || { echo "Windows 签名凭证未配置，禁止标签发布"; exit 1; }
-          else
-            test -n "${CSC_LINK:-}" || { echo "${{ matrix.platform }} 签名凭证未配置，禁止标签发布"; exit 1; }
-          fi
+        run: echo "Linux AppImage 不伪造代码签名；完整性由 SHA256 校验保证"
       - name: Report unsigned internal build
         if: startsWith(github.ref, 'refs/tags/v') == false
         shell: bash

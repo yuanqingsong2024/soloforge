@@ -23,8 +23,8 @@
 - 单元测试：107/107
 - 渲染器测试：21/21
 - 集成测试：68/68
-- E2E：本地可控场景通过；真实 OpenClaw 测试需外部配置
-- Linux electron-builder：通过
+- E2E：仅本地可控场景通过；真实 OpenClaw 测试需外部配置，不能据此证明外部链路可用
+- Linux electron-builder：已有本地 AppImage 构建证据；Windows/macOS 尚未验证
 - 生产依赖审计：Fastify 4 链路仍有 2 个 High，见 `SECURITY_DEPENDENCY_EXCEPTIONS.md`；Fastify 5 因 Electron 28 运行时不兼容暂缓
 
 ## 已知限制
@@ -33,6 +33,10 @@
 - Windows/macOS 构建和签名需要 GitHub Actions runner 实际验证。
 - Claude Code Worker、Host Agent 探针和部分高危动作仍依赖对应运行时 handler。
 - 真实 OpenClaw、SSH、Docker 的端到端验证不包含在默认本地测试中。
+
+## 支持范围
+
+本版本仅供内部受控测试。Linux AppImage 有本地构建证据；Windows/macOS 构建、签名和安装启动仍待原生 runner 证据。真实 OpenClaw、SSH、Docker 和外部发送需单独配置，不属于默认测试承诺。问题反馈请提供版本、commit、复现步骤、trace_id 和脱敏日志；安全问题走 `security@soloforge.dev`。
 
 ## 升级与回滚
 

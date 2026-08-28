@@ -126,9 +126,22 @@ export function registerApprovalRoutes(fastify: FastifyInstance): void {
       }
     }
 
-    const executionResult = status === 'APPROVED'
-      ? await ApprovalExecutor.executeApprovedAction({ ...decidedApproval, executionStatus: 'EXECUTING' })
-      : await ApprovalExecutor.handleRejectedAction(decidedApproval)
+    let executionResult
+    try {
+      executionResult = status === 'APPROVED'
+        ? await ApprovalExecutor.executeApprovedAction({ ...decidedApproval, executionStatus: 'EXECUTING' })
+        : await ApprovalExecutor.handleRejectedAction(decidedApproval)
+    } catch (error) {
+      const message = toErrorMessage(error)
+      if (status === 'APPROVED') {
+        await prisma.approval.update({
+          where: { id },
+          data: { executionStatus: 'FAILED', executionResult: JSON.stringify({ status: 'EXECUTION_FAILED', error: message }) }
+        })
+      }
+      reply.code(400)
+      return fail(`审批执行失败：${message}`)
+    }
 
     if (status === 'APPROVED') {
       const executionStatus = executionResult.status === 'EXECUTED'
