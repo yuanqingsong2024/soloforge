@@ -8,8 +8,16 @@ on:
 
 jobs:
   test:
-    timeout-minutes: 60
+    timeout-minutes: 30
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - dashboard
+          - workflow
+          - operations
+          - reliability
     
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +43,14 @@ jobs:
           DATABASE_URL: file:./e2e-test.db
       
       - name: Run E2E tests
-        run: npx playwright test
+        shell: pwsh
+        run: |
+          switch ('${{ matrix.suite }}') {
+            'dashboard' { npx playwright test tests/e2e/app-launch.spec.ts tests/e2e/dashboard-*.spec.ts tests/e2e/workspace-switch.spec.ts tests/e2e/theme-toggle.spec.ts tests/e2e/dashboard-empty-state.spec.ts }
+            'workflow' { npx playwright test tests/e2e/approval-flow.spec.ts tests/e2e/ticket-board.spec.ts tests/e2e/team-management.spec.ts tests/e2e/team-hiring.spec.ts tests/e2e/contact-binding.spec.ts tests/e2e/template-rendering.spec.ts }
+            'operations' { npx playwright test tests/e2e/config-center.spec.ts tests/e2e/deployments.spec.ts tests/e2e/doctor-page.spec.ts tests/e2e/openclaw-bootstrap.spec.ts tests/e2e/legacy-module-smoke.spec.ts tests/e2e/change-and-backup-flows.spec.ts }
+            'reliability' { npx playwright test tests/e2e/retry-mechanism.spec.ts tests/e2e/idempotency.spec.ts }
+          }
         env:
           CI: true
           DATABASE_URL: file:./e2e-test.db
@@ -50,7 +65,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.suite }}
           path: test-results/
           retention-days: 30
       
@@ -58,6 +73,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-html-report
+          name: playwright-html-report-${{ matrix.suite }}
           path: test-results/html/
           retention-days: 30
