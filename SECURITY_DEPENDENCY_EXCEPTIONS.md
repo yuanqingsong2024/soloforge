@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-`npm audit --omit=dev` 在完成 Dockerode 5、Fastify 相关依赖和 overrides 更新后仍报告 2 个 High 漏洞，来源为 Fastify 4 及其 `find-my-way` 传递依赖。该记录保留 Fastify 5 迁移的历史评估，供后续 Electron 运行时升级时参考。
+`npm audit --omit=dev` 在完成 Dockerode 5、Fastify 相关依赖和 overrides 更新后仍报告 1 个 High 漏洞，来源为 Fastify 4 本体；`find-my-way` 已通过 override 升级到 9.9.0。该记录保留 Fastify 5 迁移的历史评估，供后续 Electron 运行时升级时参考。
 
 ## 暂缓项目
 
