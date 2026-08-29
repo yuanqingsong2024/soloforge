@@ -166,12 +166,12 @@ export class DoctorService {
           })
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       findings.push({
         category: 'WS_CONNECTION',
         severity: 'ERROR',
         message: 'WebSocket 连接检查失败',
-        details: error.message
+        details: error instanceof Error ? error.message : String(error)
       })
     }
 
@@ -242,12 +242,12 @@ export class DoctorService {
           recommendation: '请使用 token/password/trusted-proxy/none'
         })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       findings.push({
         category: 'AUTH',
         severity: 'ERROR',
         message: '认证配置检查失败',
-        details: error.message
+        details: error instanceof Error ? error.message : String(error)
       })
     }
 
@@ -302,12 +302,12 @@ export class DoctorService {
           details: latestDrift.summary
         })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       findings.push({
         category: 'CONFIG_DRIFT',
         severity: 'ERROR',
         message: '配置漂移检查失败',
-        details: error.message
+        details: error instanceof Error ? error.message : String(error)
       })
     }
 
@@ -366,12 +366,12 @@ export class DoctorService {
           message: 'Hooks 未启用'
         })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       findings.push({
         category: 'HOOKS',
         severity: 'ERROR',
         message: 'Hooks 配置检查失败',
-        details: error.message
+        details: error instanceof Error ? error.message : String(error)
       })
     }
 
@@ -445,12 +445,12 @@ export class DoctorService {
           message: 'trustedProxies 配置安全'
         })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       findings.push({
         category: 'TRUSTED_PROXIES',
         severity: 'ERROR',
         message: 'trustedProxies 检查失败',
-        details: error.message
+        details: error instanceof Error ? error.message : String(error)
       })
     }
 

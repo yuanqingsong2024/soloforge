@@ -109,11 +109,11 @@ export function useFormValidation<T extends Record<string, any>>(
    * 验证单个字段
    */
   const validateSingle = useCallback(
-    (field: keyof T, value: any): string | null => {
+    (field: keyof T, value: unknown): string | null => {
       const rule = schema[field]
       if (!rule) return null
 
-      const error = validateField(value, rule)
+      const error = validateField(value as T[keyof T], rule)
       setErrors((prev) => ({
         ...prev,
         [field]: error || undefined

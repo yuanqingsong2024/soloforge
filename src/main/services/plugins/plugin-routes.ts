@@ -16,7 +16,8 @@ import {
   updatePluginConfig,
   getPluginUI,
   getEnabledDashboardWidgets,
-  invokePluginMethod
+  invokePluginMethod,
+  scanPluginDirectory
 } from './plugin-core'
 import { writeAuditLog } from '../audit-log-writer'
 import { v4 as uuidv4 } from 'uuid'
@@ -64,6 +65,22 @@ export async function registerPluginRoutes(fastify: FastifyInstance): Promise<vo
     })
     
     return { success: true, data: plugins }
+  })
+
+  // 扫描插件目录
+  fastify.post('/api/plugins/scan', async () => {
+    const found = await scanPluginDirectory()
+
+    await writeAuditLog({
+      actor: 'system',
+      traceId: uuidv4(),
+      action: 'PLUGIN_DIRECTORY_SCANNED',
+      tool: 'plugin-routes',
+      request: { pluginCount: found.length },
+      response: { found }
+    })
+
+    return { success: true, data: { found } }
   })
 
   // 获取单个插件

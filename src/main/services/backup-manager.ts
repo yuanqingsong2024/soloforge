@@ -15,10 +15,10 @@ export interface BackupPack {
   exportedAt: string
   exportedBy: string
   config: {
-    desired?: any // 脱敏后的期望配置
-    actual?: any // 脱敏后的实际配置
+    desired?: unknown // 脱敏后的期望配置
+    actual?: unknown // 脱敏后的实际配置
   }
-  changeRequests?: any[] // 变更单历史
+  changeRequests?: unknown[] // 变更单历史
   metadata: {
     hash: string
     itemCount: number
@@ -350,8 +350,8 @@ export class BackupManager {
         warnings,
         credentialsNeeded
       }
-    } catch (error: any) {
-      errors.push(`导入失败: ${error.message}`)
+    } catch (error: unknown) {
+      errors.push(`导入失败: ${error instanceof Error ? error.message : String(error)}`)
       return { success: false, errors, warnings, credentialsNeeded }
     }
   }
@@ -360,7 +360,7 @@ export class BackupManager {
    * 脱敏配置
    * 移除所有敏感字段（token, password, apiKey 等）
    */
-  private static sanitizeConfig(config: any): any {
+  private static sanitizeConfig(config: unknown): unknown {
     if (!config || typeof config !== 'object') {
       return config
     }

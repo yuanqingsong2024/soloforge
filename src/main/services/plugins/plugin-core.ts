@@ -15,6 +15,11 @@
 
 import { prisma } from '../db'
 import { logger } from '../logger'
+import path from 'path'
+import fs from 'fs/promises'
+import { existsSync } from 'fs'
+
+const PLUGIN_DIR = path.join(process.cwd(), 'plugins')
 
 // ============================================
 // 类型定义
@@ -306,6 +311,79 @@ export function getEnabledDashboardWidgets(): NonNullable<PluginUI['dashboardWid
   }
 
   return widgets
+}
+
+// ============================================
+// 动态文件系统加载器
+// ============================================
+
+/**
+ * 扫描插件目录，发现并加载插件
+ */
+export async function scanPluginDirectory(): Promise<string[]> {
+  const found: string[] = []
+
+  if (!existsSync(PLUGIN_DIR)) {
+    logger.info('[Plugin] 插件目录不存在，跳过扫描')
+    return found
+  }
+
+  try {
+    const entries = await fs.readdir(PLUGIN_DIR, { withFileTypes: true })
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+
+      const pluginPath = path.join(PLUGIN_DIR, entry.name)
+      const manifestPath = path.join(pluginPath, 'manifest.json')
+
+      if (existsSync(manifestPath)) {
+        try {
+          const manifestContent = await fs.readFile(manifestPath, 'utf-8')
+          const manifest = JSON.parse(manifestContent) as PluginInterface
+
+          if (manifest.id && manifest.name && manifest.version) {
+            found.push(manifest.id)
+            logger.info(`[Plugin] 发现插件: ${manifest.id} v${manifest.version}`)
+          }
+        } catch {
+          logger.warn(`[Plugin] 跳过无效插件目录: ${entry.name}`)
+        }
+      }
+    }
+  } catch (err) {
+    logger.error('[Plugin] 扫描插件目录失败', 'plugin-core', err instanceof Error ? err : new Error(String(err)))
+  }
+
+  return found
+}
+
+/**
+ * 从文件系统加载单个插件
+ */
+export async function loadPluginFromDisk(pluginId: string): Promise<PluginInterface | null> {
+  const pluginPath = path.join(PLUGIN_DIR, pluginId)
+  const manifestPath = path.join(pluginPath, 'manifest.json')
+
+  if (!existsSync(manifestPath)) {
+    return null
+  }
+
+  try {
+    const manifestContent = await fs.readFile(manifestPath, 'utf-8')
+    const manifest = JSON.parse(manifestContent) as PluginInterface
+
+    // 验证必需字段
+    if (!manifest.id || !manifest.name || !manifest.version) {
+      logger.warn(`[Plugin] 插件 ${pluginId} 清单缺少必需字段`)
+      return null
+    }
+
+    return manifest
+  } catch (err) {
+    logger.error(`[Plugin] 加载插件 ${pluginId} 失败`, 'plugin-core', err instanceof Error ? err : new Error(String(err)))
+    return null
+  }
 }
 
 // ============================================

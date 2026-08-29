@@ -8,6 +8,7 @@
  */
 
 import { HermesAdapter } from './hermes-adapter'
+import { logger } from './logger'
 
 export type WorkerType = 'claude-code' | 'hermes' | 'host-agent'
 
@@ -169,8 +170,9 @@ export class WorkerRegistry {
           lastHealthAt: worker.lastHealthAt || undefined
         })
       }
-    } catch (error) {
-      console.error('同步 Hermes Worker 失败:', error)
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error))
+      logger.error('同步 Hermes Worker 失败', 'worker-registry', err)
     }
   }
 

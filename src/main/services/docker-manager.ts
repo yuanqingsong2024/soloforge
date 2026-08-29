@@ -304,13 +304,13 @@ export class DockerManager {
   async pullImage(imageName: string): Promise<void> {
     if (this.config.mode === 'local' && this.docker) {
       await new Promise((resolve, reject) => {
-        this.docker!.pull(imageName, (err: any, stream: any) => {
+        this.docker!.pull(imageName, (err: unknown, stream: unknown) => {
           if (err) {
-            reject(err)
+            reject(err instanceof Error ? err : new Error(String(err)))
             return
           }
-          this.docker!.modem.followProgress(stream, (err: any) => {
-            if (err) reject(err)
+          this.docker!.modem.followProgress(stream as NodeJS.ReadableStream, (err: unknown) => {
+            if (err) reject(err instanceof Error ? err : new Error(String(err)))
             else resolve(undefined)
           })
         })

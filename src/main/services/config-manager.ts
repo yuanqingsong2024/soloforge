@@ -323,7 +323,7 @@ export class ConfigManager {
   /**
    * 分析漂移严重程度
    */
-  private static analyzeDriftSeverity(delta: any): string {
+  private static analyzeDriftSeverity(delta: unknown): string {
     if (!delta) return 'LOW'
     const deltaStr = JSON.stringify(delta)
     // 高危字段：gateway.auth, trustedProxies, hooks.token, tools.allow/deny
@@ -348,9 +348,9 @@ export class ConfigManager {
   /**
    * 生成漂移摘要
    */
-  private static generateDriftSummary(delta: any): string {
-    if (!delta) return '无漂移'
-    const changes = Object.keys(delta).length
+  private static generateDriftSummary(delta: unknown): string {
+    if (!delta || typeof delta !== 'object') return '无漂移'
+    const changes = Object.keys(delta as Record<string, unknown>).length
     return `检测到 ${changes} 处配置差异`
   }
   /**

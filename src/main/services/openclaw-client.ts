@@ -116,18 +116,16 @@ export class OpenClawClient {
     }
   }
 
-  send(data: any, traceId?: string): void {
+  send(data: unknown, traceId?: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error('WebSocket not connected')
     }
 
-    const message = {
-      ...data,
-      traceId: traceId || uuidv4(),
-      timestamp: new Date().toISOString()
-    }
+    const payload = typeof data === 'object' && data !== null
+      ? { ...(data as Record<string, unknown>), traceId: traceId || uuidv4(), timestamp: new Date().toISOString() }
+      : { data, traceId: traceId || uuidv4(), timestamp: new Date().toISOString() }
 
-    this.ws.send(JSON.stringify(message))
+    this.ws.send(JSON.stringify(payload))
   }
 
   private getHeaders(): Record<string, string> {
@@ -336,7 +334,7 @@ export class OpenClawClient {
   /**
    * 脱敏配置：移除 token/password/apiKey 等敏感字段
    */
-  private sanitizeConfig(config: any): any {
+  private sanitizeConfig(config: unknown): unknown {
     if (typeof config !== 'object' || config === null) {
       return config
     }
@@ -345,8 +343,8 @@ export class OpenClawClient {
       return config.map(item => this.sanitizeConfig(item))
     }
 
-    const sanitized: any = {}
-    for (const [key, value] of Object.entries(config)) {
+    const sanitized: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(config as Record<string, unknown>)) {
       // 敏感字段列表
       const sensitiveKeys = ['token', 'password', 'apiKey', 'secret', 'key', 'credential']
       if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk.toLowerCase()))) {
@@ -362,7 +360,7 @@ export class OpenClawClient {
    * 计算配置哈希（用于内容判重）
    * 修复：使用稳定的深层序列化（排序所有层级的 key），而非仅排序顶层
    */
-  private hashConfig(config: any): string {
+  private hashConfig(config: unknown): string {
     const stable = this.toStableSorted(config)
     return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex')
   }

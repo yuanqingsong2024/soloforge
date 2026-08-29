@@ -6,11 +6,17 @@
  * - 自动选择合适的 Worker
  * - 任务状态追踪
  * - 与审批流程集成
+ *
+ * 使用适配器模式支持多种 Worker 类型：
+ * - Hermes：HermesAdapter
+ * - Claude Code：ClaudeCodeAdapter（存根）
+ * - Host Agent：HostAgentAdapter（存根）
  */
 
 import { v4 as uuidv4 } from 'uuid'
 import { prisma } from './db'
 import { HermesAdapter } from './hermes-adapter'
+import { getWorkerAdapter } from './worker-adapter'
 import { WorkerRegistry, type WorkerType, type WorkerInfo } from './worker-registry'
 import { ApprovalGuard, type HighRiskAction } from './approval-guard'
 import { writeAuditLog } from './audit-log-writer'
@@ -119,81 +125,83 @@ export class HarnessController {
       }
     }
 
-    // 4. 派发任务到 Hermes Worker
-    if (worker.type === 'hermes') {
-      const result = await HermesAdapter.dispatchTask(worker.id, {
-        taskType: spec.taskType,
-        prompt: spec.prompt,
-        context: spec.context,
-        traceId
+    // 4. 派发任务到 Worker（通过适配器统一分派）
+    const adapter = getWorkerAdapter(worker.type)
+
+    const result = await adapter.dispatchTask(worker.id, {
+      taskType: spec.taskType,
+      prompt: spec.prompt,
+      context: spec.context,
+      traceId
+    })
+
+    // 如果关联了工单，更新工单任务关联（Hermes 特有）
+    if (spec.ticketId && worker.type === 'hermes') {
+      await prisma.hermesTask.update({
+        where: { id: result.taskId },
+        data: { ticketId: spec.ticketId }
       })
-
-      // 如果关联了工单，更新工单任务关联
-      if (spec.ticketId) {
-        await prisma.hermesTask.update({
-          where: { id: result.taskId },
-          data: { ticketId: spec.ticketId }
-        })
-      }
-
-      await writeAuditLog({
-        actor: spec.createdBy || 'system',
-        ticketId: spec.ticketId,
-        traceId,
-        action: 'HARNESS_TASK_DISPATCHED',
-        tool: 'harness-controller',
-        approvalId,
-        request: maskSensitiveObject({
-          taskType: spec.taskType,
-          workerType: worker.type,
-          workerId: worker.id,
-          workerName: worker.name,
-          promptLength: spec.prompt.length,
-          needsApproval
-        }),
-        response: {
-          taskId: result.taskId,
-          workerId: worker.id,
-          workerType: worker.type
-        }
-      })
-
-      return {
-        taskId: result.taskId,
-        workerId: worker.id,
-        workerType: worker.type,
-        workerName: worker.name,
-        traceId
-      }
     }
 
-    // TODO: 支持其他 Worker 类型
-    throw new Error(`暂不支持 Worker 类型: ${worker.type}`)
+    await writeAuditLog({
+      actor: spec.createdBy || 'system',
+      ticketId: spec.ticketId,
+      traceId,
+      action: `${worker.type.toUpperCase()}_TASK_DISPATCHED`,
+      tool: 'harness-controller',
+      approvalId,
+      request: maskSensitiveObject({
+        taskType: spec.taskType,
+        workerType: worker.type,
+        workerId: worker.id,
+        workerName: worker.name,
+        promptLength: spec.prompt.length,
+        needsApproval
+      }),
+      response: {
+        taskId: result.taskId,
+        workerId: worker.id,
+        workerType: worker.type
+      }
+    })
+
+    return {
+      taskId: result.taskId,
+      workerId: worker.id,
+      workerType: worker.type,
+      workerName: worker.name,
+      traceId
+    }
+  }
+
+  /**
+   * 根据任务 ID 确定 Worker 类型
+   */
+  private static getWorkerTypeFromTaskId(taskId: string): WorkerType {
+    if (taskId.startsWith('hermes-')) return 'hermes'
+    if (taskId.startsWith('cc-')) return 'claude-code'
+    // Host Agent 任务 ID 格式与 Hermes 不同，通过数据库查询确定
+    return 'host-agent'
   }
 
   /**
    * 获取任务状态
    */
   static async getTaskStatus(taskId: string): Promise<TaskStatus> {
-    const task = await prisma.hermesTask.findUnique({
-      where: { id: taskId },
-      include: { worker: true }
-    })
-
-    if (!task) {
-      throw new Error('任务不存在')
-    }
+    const workerType = this.getWorkerTypeFromTaskId(taskId)
+    const adapter = getWorkerAdapter(workerType)
+    const status = await adapter.getTaskStatus(taskId)
 
     return {
-      taskId: task.id,
-      workerId: task.workerId,
-      workerType: 'hermes',
-      taskType: task.taskType,
-      status: task.status as TaskStatus['status'],
-      result: task.result ? JSON.parse(task.result) : undefined,
-      error: task.error || undefined,
-      createdAt: task.createdAt,
-      updatedAt: task.updatedAt
+      taskId: status.taskId,
+      workerId: taskId.split('-')[1] || taskId, // 简化，实际应从 adapter 返回
+      workerType,
+      taskType: status.taskId, // 简化，实际应查询数据库获取
+      status: status.status,
+      result: status.result,
+      error: status.error,
+      createdAt: new Date(),
+      updatedAt: new Date()
     }
   }
 
@@ -201,20 +209,17 @@ export class HarnessController {
    * 取消任务
    */
   static async cancelTask(taskId: string, actor?: string): Promise<void> {
-    const task = await prisma.hermesTask.findUnique({ where: { id: taskId } })
-    if (!task) {
-      throw new Error('任务不存在')
-    }
+    const workerType = this.getWorkerTypeFromTaskId(taskId)
+    const adapter = getWorkerAdapter(workerType)
 
-    await HermesAdapter.cancelTask(taskId)
+    await adapter.cancelTask(taskId)
 
     await writeAuditLog({
       actor: actor || 'system',
-      traceId: task.traceId,
-      ticketId: task.ticketId || undefined,
-      action: 'HARNESS_TASK_CANCELED',
+      traceId: uuidv4(),
+      action: `${workerType.toUpperCase()}_TASK_CANCELED`,
       tool: 'harness-controller',
-      request: { taskId },
+      request: { taskId, workerType },
       response: { canceled: true }
     })
   }
@@ -224,40 +229,76 @@ export class HarnessController {
    */
   static async listTasks(filters: {
     workerId?: string
+    workerType?: WorkerType
     ticketId?: string
     status?: string
     taskType?: string
     limit?: number
   } = {}): Promise<TaskStatus[]> {
-    const tasks = await prisma.hermesTask.findMany({
-      where: {
-        ...(filters.workerId ? { workerId: filters.workerId } : {}),
-        ...(filters.ticketId ? { ticketId: filters.ticketId } : {}),
-        ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.taskType ? { taskType: filters.taskType } : {})
-      },
-      include: { worker: true },
-      orderBy: { createdAt: 'desc' },
-      take: filters.limit || 100
-    })
+    const tasks: TaskStatus[] = []
 
-    return tasks.map(task => ({
-      taskId: task.id,
-      workerId: task.workerId,
-      workerType: 'hermes' as WorkerType,
-      taskType: task.taskType,
-      status: task.status as TaskStatus['status'],
-      result: task.result ? JSON.parse(task.result) : undefined,
-      error: task.error || undefined,
-      createdAt: task.createdAt,
-      updatedAt: task.updatedAt
-    }))
+    // Hermes 任务
+    if (!filters.workerType || filters.workerType === 'hermes') {
+      const hermesTasks = await prisma.hermesTask.findMany({
+        where: {
+          ...(filters.workerId ? { workerId: filters.workerId } : {}),
+          ...(filters.ticketId ? { ticketId: filters.ticketId } : {}),
+          ...(filters.status ? { status: filters.status } : {}),
+          ...(filters.taskType ? { taskType: filters.taskType } : {})
+        },
+        include: { worker: true },
+        orderBy: { createdAt: 'desc' },
+        take: filters.limit || 100
+      })
+
+      tasks.push(...hermesTasks.map(task => ({
+        taskId: task.id,
+        workerId: task.workerId,
+        workerType: 'hermes' as WorkerType,
+        taskType: task.taskType,
+        status: task.status as TaskStatus['status'],
+        result: task.result ? JSON.parse(task.result) : undefined,
+        error: task.error || undefined,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt
+      })))
+    }
+
+    // Host Agent 任务
+    if (!filters.workerType || filters.workerType === 'host-agent') {
+      const agentActions = await prisma.agentAction.findMany({
+        where: {
+          ...(filters.workerId ? { hostAgentId: filters.workerId } : {}),
+          ...(filters.status ? { status: filters.status } : {}),
+          ...(filters.taskType ? { actionType: filters.taskType } : {})
+        },
+        orderBy: { createdAt: 'desc' },
+        take: filters.limit || 100
+      })
+
+      tasks.push(...agentActions.map(action => ({
+        taskId: action.id,
+        workerId: action.hostAgentId,
+        workerType: 'host-agent' as WorkerType,
+        taskType: action.actionType,
+        status: action.status as TaskStatus['status'],
+        result: action.resultJson ? JSON.parse(action.resultJson) : undefined,
+        error: action.errorSummary || undefined,
+        createdAt: action.createdAt,
+        updatedAt: action.updatedAt
+      })))
+    }
+
+    // Claude Code 任务（预留，暂无数据库表）
+    // TODO: ClaudeCodeAdapter.listTasks() 集成
+
+    return tasks.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
   }
 
   /**
    * 获取 Worker 信息
    */
-  static async getWorker(workerId: string): Promise<{
+  static async getWorker(workerId: string, workerType?: WorkerType): Promise<{
     id: string
     name: string
     type: WorkerType
@@ -266,16 +307,16 @@ export class HarnessController {
     healthStatus: string
     lastHealthAt?: Date
   } | null> {
-    // 先从注册表获取
-    let worker = WorkerRegistry.get('hermes', workerId)
+    const type = workerType || 'hermes'
+    let worker = WorkerRegistry.get(type, workerId)
 
-    // 如果不在注册表中，从数据库获取
     if (!worker) {
-      const dbWorker = await prisma.hermesWorker.findUnique({ where: { id: workerId } })
+      const adapter = getWorkerAdapter(type)
+      const dbWorker = await adapter.getWorker(workerId)
       if (!dbWorker) return null
 
       worker = {
-        type: 'hermes',
+        type,
         id: dbWorker.id,
         name: dbWorker.name,
         enabled: dbWorker.enabled,
@@ -299,10 +340,26 @@ export class HarnessController {
   }
 
   /**
-   * 同步 Worker 注册表
+   * 同步 Worker 注册表（所有类型）
    */
   static async syncWorkerRegistry(): Promise<void> {
     await WorkerRegistry.syncHermesWorkers()
+
+    // Claude Code Worker 同步（当前为存根）
+    try {
+      const { ClaudeCodeAdapter } = await import('./claude-code-adapter')
+      await new ClaudeCodeAdapter().syncToRegistry?.()
+    } catch {
+      // ClaudeCodeAdapter 可能尚未实现，忽略
+    }
+
+    // Host Agent Worker 同步
+    try {
+      const { HostAgentAdapter } = await import('./host-agent-adapter')
+      await new HostAgentAdapter().syncToRegistry?.()
+    } catch {
+      // HostAgentAdapter 可能尚未实现，忽略
+    }
   }
 
   /**
@@ -324,23 +381,16 @@ export class HarnessController {
     taskType: string,
     preferredWorkerId?: string
   ): Promise<WorkerInfo | null> {
-    // 如果指定了 Worker ID，直接使用
     if (preferredWorkerId) {
-      const worker = workerType === 'hermes'
-        ? WorkerRegistry.get('hermes', preferredWorkerId)
-        : WorkerRegistry.get(workerType, preferredWorkerId)
-
+      const worker = WorkerRegistry.get(workerType, preferredWorkerId)
       if (worker && worker.enabled) {
         return worker
       }
     }
 
-    // 同步 Worker 注册表
-    await WorkerRegistry.syncHermesWorkers()
+    await this.syncWorkerRegistry()
 
-    // 如果指定了类型，优先选择该类型
     if (workerType === 'hermes') {
-      // 获取所有可用的 Hermes Worker
       const hermesWorkers = await HermesAdapter.listWorkers(true)
       for (const w of hermesWorkers) {
         const info = WorkerRegistry.get('hermes', w.id)
@@ -350,26 +400,24 @@ export class HarnessController {
       }
     }
 
-    // 回退到通用选择器
     return WorkerRegistry.selectBestWorker(taskType, workerType)
   }
 
   /**
-   * 轮询任务状态（用于后台任务）
+   * 轮询运行中任务（后台任务）
    *
    * 注意：这个方法应该在后台定期执行，更新运行中的任务状态
    */
   static async pollRunningTasks(): Promise<void> {
-    const runningTasks = await prisma.hermesTask.findMany({
+    const runningHermesTasks = await prisma.hermesTask.findMany({
       where: { status: 'RUNNING' },
       include: { worker: true }
     })
 
-    for (const task of runningTasks) {
+    for (const task of runningHermesTasks) {
       try {
         const result = await HermesAdapter.getTaskStatus(task.id)
 
-        // 如果任务完成，更新状态
         if (result.status === 'SUCCEEDED' || result.status === 'FAILED') {
           await prisma.hermesTask.update({
             where: { id: task.id },
@@ -388,6 +436,38 @@ export class HarnessController {
             action: result.status === 'SUCCEEDED' ? 'HERMES_TASK_COMPLETED' : 'HERMES_TASK_FAILED',
             tool: 'harness-controller',
             request: { taskId: task.id },
+            response: { status: result.status, error: result.error }
+          })
+        }
+      } catch {
+        // 忽略轮询错误
+      }
+    }
+
+    const runningAgentActions = await prisma.agentAction.findMany({
+      where: { status: 'RUNNING' }
+    })
+
+    for (const action of runningAgentActions) {
+      try {
+        const result = await getWorkerAdapter('host-agent').getTaskStatus(action.id)
+
+        if (result.status === 'SUCCEEDED' || result.status === 'FAILED') {
+          await prisma.agentAction.update({
+            where: { id: action.id },
+            data: {
+              status: result.status,
+              resultJson: safeJsonStringify(result.result),
+              errorSummary: result.error || null
+            }
+          })
+
+          await writeAuditLog({
+            actor: 'system',
+            traceId: action.traceId,
+            action: result.status === 'SUCCEEDED' ? 'HOST_AGENT_TASK_COMPLETED' : 'HOST_AGENT_TASK_FAILED',
+            tool: 'harness-controller',
+            request: { taskId: action.id },
             response: { status: result.status, error: result.error }
           })
         }

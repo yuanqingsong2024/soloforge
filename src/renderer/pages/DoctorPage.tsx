@@ -13,7 +13,7 @@ interface DiagnosticReport {
   checkId: string
   status: 'PASS' | 'WARN' | 'FAIL'
   message: string | null
-  details: any
+  details: unknown
   createdAt: string
   check?: {
     id: string
@@ -252,14 +252,14 @@ export function DoctorPage() {
                     <p className="text-sm text-[hsl(var(--foreground))]">{selectedReport.message}</p>
                   </div>
                 )}
-                {selectedReport.details && (
+                {selectedReport.details ? (
                   <div>
                     <label className="text-xs text-[hsl(var(--muted-foreground))]">详细信息</label>
                     <pre className="mt-1 p-2 bg-[hsl(var(--muted))] rounded text-xs overflow-auto max-h-64">
-                      {JSON.stringify(selectedReport.details, null, 2)}
+                      {JSON.stringify(selectedReport.details as object, null, 2)}
                     </pre>
                   </div>
-                )}
+                ) : null}
                 <div>
                   <label className="text-xs text-[hsl(var(--muted-foreground))]">执行时间</label>
                   <p className="text-sm text-[hsl(var(--foreground))]">

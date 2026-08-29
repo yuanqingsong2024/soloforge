@@ -10,6 +10,7 @@
 
 import { BrowserWindow, ipcMain } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
+import { logger } from './logger'
 
 export interface QueuedOperation {
   id: string
@@ -72,7 +73,7 @@ class OfflineModeService {
     // 启动同步检查（每 60 秒尝试同步一次待处理操作）
     this.startSyncChecker()
 
-    console.log('[OfflineMode] 离线模式服务已初始化')
+    logger.info('[OfflineMode] 离线模式服务已初始化', 'offline-mode')
   }
 
   /**
@@ -94,7 +95,7 @@ class OfflineModeService {
     ipcMain.removeHandler('offline:clearPendingOperations')
     ipcMain.removeHandler('offline:retrySync')
 
-    console.log('[OfflineMode] 离线模式服务已销毁')
+    logger.info('[OfflineMode] 离线模式服务已销毁', 'offline-mode')
   }
 
   /**
@@ -144,7 +145,7 @@ class OfflineModeService {
     this.pendingOperations.set(operationId, operation)
     this.notifyRenderer()
 
-    console.log(`[OfflineMode] 操作已加入队列: ${entity} ${type}`, { operationId })
+    logger.debug(`[OfflineMode] 操作已加入队列: ${entity} ${type}`, 'offline-mode', { operationId })
     return { queued: true, operationId }
   }
 
@@ -154,7 +155,7 @@ class OfflineModeService {
   removeOperation(operationId: string): void {
     if (this.pendingOperations.delete(operationId)) {
       this.notifyRenderer()
-      console.log(`[OfflineMode] 操作已从队列移除: ${operationId}`)
+      logger.debug(`[OfflineMode] 操作已从队列移除: ${operationId}`, 'offline-mode')
     }
   }
 
@@ -164,7 +165,7 @@ class OfflineModeService {
   clearPendingOperations(): void {
     this.pendingOperations.clear()
     this.notifyRenderer()
-    console.log('[OfflineMode] 已清空所有待处理操作')
+    logger.info('[OfflineMode] 已清空所有待处理操作', 'offline-mode')
   }
 
   /**
@@ -189,17 +190,17 @@ class OfflineModeService {
       } catch (error) {
         operation.retryCount++
         if (operation.retryCount >= operation.maxRetries) {
-          console.error(`[OfflineMode] 操作同步失败，已达最大重试次数:`, operation)
+          logger.error('[OfflineMode] 操作同步失败，已达最大重试次数', 'offline-mode', error instanceof Error ? error : new Error(String(operation)), { operation })
           this.pendingOperations.delete(operationId)
           failed++
         } else {
-          console.warn(`[OfflineMode] 操作同步失败，将重试:`, operation, error)
+          logger.warn('[OfflineMode] 操作同步失败，将重试', 'offline-mode', { operation, error: error instanceof Error ? error : new Error(String(error)) })
         }
       }
     }
 
     this.notifyRenderer()
-    console.log(`[OfflineMode] 同步完成: 成功 ${synced}, 失败 ${failed}`)
+    logger.info('[OfflineMode] 同步完成', 'offline-mode', { synced, failed })
     return { synced, failed }
   }
 
@@ -210,7 +211,7 @@ class OfflineModeService {
     if (!this.isOnline) {
       this.isOnline = true
       this.lastOnlineAt = new Date().toISOString()
-      console.log('[OfflineMode] 网络已恢复')
+      logger.info('[OfflineMode] 网络已恢复', 'offline-mode')
       this.notifyRenderer()
 
       // 自动触发同步
@@ -225,7 +226,7 @@ class OfflineModeService {
     if (this.isOnline) {
       this.isOnline = false
       this.lastOfflineAt = new Date().toISOString()
-      console.log('[OfflineMode] 网络已断开，进入离线模式')
+      logger.warn('[OfflineMode] 网络已断开，进入离线模式', 'offline-mode')
       this.notifyRenderer()
     }
   }
@@ -260,7 +261,7 @@ class OfflineModeService {
   private startSyncChecker(): void {
     this.syncInterval = setInterval(() => {
       if (this.isOnline && this.pendingOperations.size > 0) {
-        console.log('[OfflineMode] 定时同步检查...')
+        logger.debug('[OfflineMode] 定时同步检查', 'offline-mode')
         this.retrySync()
       }
     }, 60000) // 每 60 秒检查一次

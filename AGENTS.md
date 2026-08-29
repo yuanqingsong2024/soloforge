@@ -39,13 +39,16 @@
 │  ├─ API Server (Fastify, 随机端口)      │
 │  ├─ Keychain (safeStorage)              │
 │  ├─ Approval Guard (审批规则引擎)       │
-│  ├─ OpenClaw Client (REST + WebSocket)  │
-│  └─ Config Manager (配置管理 + 限频)    │
+│  ├─ Claude Code Client (REST + WebSocket)  │
+│  ├─ Harness Controller (多 Worker 编排)    │
+│  ├─ Hermes Adapter（Hermes Worker）      │
+│  ├─ Claude Code Adapter（存根）         │
+│  └─ Host Agent Adapter（存根）           │
 └─────────────────────────────────────────┘
               ↕ IPC (preload)
 ┌─────────────────────────────────────────┐
 │ Renderer Process (React)                │
-│  ├─ 8 Pages (Dashboard, Tickets, etc.)  │
+│  ├─ 45+ Pages (Dashboard, Tickets, etc.)│
 │  └─ API Client (fetch via getApiPort()) │
 └─────────────────────────────────────────┘
 ```
@@ -527,22 +530,37 @@ server {
 
 ## 13. 项目状态
 
-### ✅ 已完成（M0-M7）
+### ✅ 已完成（M0-M12）
 - [x] 基础设施层（Electron + React + Vite + TypeScript + Prisma + safeStorage）
 - [x] 工单管理（看板 + 详情页）
 - [x] 团队管理（Role/Agent/Tool CRUD + 授权矩阵）
 - [x] 审批流程（审批中心 + approval-guard）
 - [x] 审计系统（全链路日志 + 过滤查看）
-- [x] OpenClaw 连接（Local + Remote + 诊断）
+- [x] Claude Code 连接（Local + Remote + 诊断）
 - [x] 配置中心（表单/JSON 编辑 + Diff + 回滚 + 快照）
-- [x] 打包（electron-builder）
+- [x] 打包（electron-builder - Linux AppImage 已验证，Windows/macOS 待平台验证）
+- [x] M8 Workspace 隔离（多工作区 + Keychain 命名空间）
+- [x] M9 Jobs 执行引擎（幂等 + 重试 + 监控）
+- [x] M10 Policy-as-Code（四大策略 + PolicyGuard）
+- [x] M11 Workspace 分级与变更管理（Desired/Actual Snapshot + Drift Detection + Change Request + Outbox）
+- [x] M12 配置中心增强版（Draft/Published 三态 + Undo/Redo + 模型分组 + 网关表单化）
+- [x] Host Agent / Remote Runner Center（Bootstrap + 心跳 + 动作派发）
+- [x] Release & Upgrade Center（版本目录 + 升级计划 + Dry Run + Rollback）
+- [x] 部署管理（4 种部署模式 + 服务生命周期）
+- [x] 通讯增强（模板 + 联系人绑定 + 幂等重试）
+- [x] Dashboard 总控首页（高信息密度聚合 + Health Score）
+- [x] Hermes Worker 系统（Harness 编排）
+- [x] 多 Worker 类型支持（Harness + Hermes/Claude Code/Host Agent 适配器）
+- [x] 诊断中心（Doctor + Alerts + Health Monitoring）
+- [x] 事件中心（Activity Feed + Event Records）
 
-### 🚧 待实现
-- [ ] E2E 测试覆盖
-- [ ] 多语言支持
-- [ ] 主题切换
-- [ ] 插件系统
-- [ ] 数据导入/导出
+### 🚧 待实现（1.0 前需完成）
+- [ ] E2E 测试覆盖（当前仅 Dashboard 基线，需扩展至 Jobs/Policy/HostAgents）
+- [ ] 多语言支持（i18next 已引入，UI 字符串仍需提取）
+- [ ] 主题切换（基础实现存在，非生产就绪）
+- [ ] 插件系统（数据模型 + 路由 + UI 存在，动态加载器刚实现）
+- [ ] 数据导入/导出（部分存在，缺统一 UI 页面）
+- [ ] Windows/macOS 平台构建验证
 
 ---
 
@@ -551,15 +569,27 @@ server {
 | 文件 | 用途 |
 |---|---|
 | `src/main/index.ts` | Electron 主进程入口 |
-| `src/main/services/api-server.ts` | Fastify API 服务器（20+ 端点） |
+| `src/main/services/api-server.ts` | Fastify API 服务器（60+ 端点） |
 | `src/main/services/keychain.ts` | 凭证存储（safeStorage） |
 | `src/main/services/approval-guard.ts` | 审批规则引擎 |
-| `src/main/services/openclaw-client.ts` | OpenClaw REST/WS 客户端 |
-| `src/main/services/config-manager.ts` | 配置管理（限频、diff、快照） |
+| `src/main/services/openclaw-client.ts` | Claude Code REST/WS 客户端 |
+| `src/main/services/config-manager.ts` | 配置管理（限频、diff、快照、漂移检测） |
+| `src/main/services/harness-controller.ts` | 任务编排（Harness，多 Worker 适配器） |
+| `src/main/services/worker-registry.ts` | Worker 注册中心（Hermes/Claude Code/Host Agent） |
+| `src/main/services/worker-adapter.ts` | Worker 适配器接口（统一抽象） |
+| `src/main/services/hermes-adapter.ts` | Hermes Worker 适配器 |
+| `src/main/services/claude-code-adapter.ts` | Claude Code Worker 适配器（存根） |
+| `src/main/services/host-agent-adapter.ts` | Host Agent Worker 适配器（存根） |
+| `src/main/services/job-executor.ts` | Jobs 执行引擎 |
+| `src/main/services/policy-guard.ts` | Policy-as-Code 策略守卫 |
+| `src/main/services/doctor-service.ts` | 诊断中心（健康检查 + 告警） |
+| `src/main/services/retry-service.ts` | 重试服务（指数退避 + 幂等） |
+| `src/main/services/deployment-manager.ts` | 部署管理器（4 种部署模式） |
+| `src/main/services/release-upgrade-service.ts` | Release & Upgrade 服务 |
 | `src/preload/index.ts` | IPC 桥接（暴露 electronAPI） |
-| `src/renderer/App.tsx` | React 路由配置 |
+| `src/renderer/App.tsx` | React 路由配置（45+ 页面） |
 | `src/renderer/lib/api.ts` | getApiPort() 工具函数 |
-| `prisma/schema.prisma` | 数据库 schema（10 表） |
+| `prisma/schema.prisma` | 数据库 schema（50+ 张表） |
 | `prisma/seed.ts` | 种子数据 |
 | `package.json` | 依赖、脚本、electron-builder 配置 |
 | `vite.config.ts` | Vite + Electron 插件配置 |

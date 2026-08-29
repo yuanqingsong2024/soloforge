@@ -12,6 +12,7 @@ import { offlineModeService } from './services/offline-mode-service'
 import { getOrCreateLocalApiToken } from './middleware/local-auth'
 import { isE2ETestMode } from './runtime-mode'
 import { prisma } from './services/db'
+import { logger } from './services/logger'
 
 process.env.SOLOFORGE_PACKAGED = app.isPackaged ? '1' : '0'
 
@@ -107,10 +108,9 @@ async function ensureE2ETestData(): Promise<void> {
       })
     }
 
-    console.log('[E2E] 测试数据补种完成: pipeline=%s, connProfile=%s, commsProfile=%s', pipeline.id, connProfile.id, commsProfile.id)
+    logger.info('[E2E] 测试数据补种完成', 'startup', { pipelineId: pipeline.id, connProfileId: connProfile.id, commsProfileId: commsProfile.id })
   } catch (err) {
-    // 补种失败不阻塞启动，打日志供调试
-    console.warn('[E2E] 测试数据补种失败（不影响功能）:', err)
+    logger.warn('[E2E] 测试数据补种失败（不影响功能）', 'startup', err instanceof Error ? err : new Error(String(err)))
   }
 }
 
