@@ -23,6 +23,7 @@ test.describe('失败重试验证', () => {
     if (!context) throw new Error('Electron 上下文未初始化')
     const page = context.page
 
+    await ensureFailedMessage(page)
     await page.click('text=消息中心')
     await page.waitForSelector('text=消息中心')
 
@@ -49,10 +50,12 @@ test.describe('失败重试验证', () => {
     if (!context) throw new Error('Electron 上下文未初始化')
     const page = context.page
 
+    await ensureFailedMessage(page)
     const messages = await apiJson<Array<Record<string, unknown>>>(page, '/api/outbound-messages?status=FAILED')
 
     if (messages.length > 0) {
-      const failedMsg = messages[0]
+      const failedMsg = messages.find(message => Number(message.attempts) > 0 && Boolean(message.lastError))
+      if (!failedMsg) throw new Error('未找到带重试信息的 FAILED 消息')
 
       expect(failedMsg.status).toBe('FAILED')
       expect(failedMsg.attempts).toBeGreaterThan(0)
@@ -129,7 +132,8 @@ test.describe('失败重试验证', () => {
     if (!context) throw new Error('Electron 上下文未初始化')
     const page = context.page
 
-    const result = await apiJson<{ retriedCount: number; results: Array<{ id: string; status: string }> }>(page, '/api/outbound-messages/retry-due', {
+    await ensureFailedMessage(page)
+    const result = await apiJson<{ retriedCount: number; results: Array<{ id: string; success: boolean; error?: string }> }>(page, '/api/outbound-messages/retry-due', {
       method: 'POST'
     })
     expect(result).toHaveProperty('retriedCount')
@@ -139,8 +143,10 @@ test.describe('失败重试验证', () => {
     if (result.results.length > 0) {
       const firstResult = result.results[0]
       expect(firstResult).toHaveProperty('id')
-      expect(firstResult).toHaveProperty('status')
-      expect(['sent', 'skipped']).toContain(firstResult.status)
+      expect(typeof firstResult.success).toBe('boolean')
+      if (!firstResult.success) {
+        expect(firstResult.error).toBeTruthy()
+      }
     }
   })
 
@@ -185,8 +191,8 @@ test.describe('失败重试验证', () => {
 })
 
 async function ensureFailedMessage(page: import('@playwright/test').Page): Promise<void> {
-  const existing = await apiJson<Array<{ id: string }>>(page, '/api/outbound-messages?status=FAILED')
-  if (existing.length > 0) {
+  const existing = await apiJson<Array<{ id: string; attempts?: number; lastError?: string | null }>>(page, '/api/outbound-messages?status=FAILED')
+  if (existing.some(message => (message.attempts || 0) > 0 && Boolean(message.lastError))) {
     return
   }
 
@@ -209,8 +215,8 @@ async function ensureFailedMessage(page: import('@playwright/test').Page): Promi
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name: `${profileName}-comms`,
-      provider: 'claude-code',
-      claudeCodeProfileId: openclawProfile.id,
+      provider: 'openclaw',
+      openclawProfileId: openclawProfile.id,
       enabled: true
     })
   })
