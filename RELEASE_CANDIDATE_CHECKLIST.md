@@ -23,6 +23,7 @@
 - [x] 审批执行失败返回明确状态并写审计
 - [x] 外发失败不会伪标记为 SENT
 - [x] 本地 OpenClaw webhook 回环验证：live E2E 1/1，通过 token 鉴权、`POST /hooks/event`、provider 回执和 `SENT` 状态闭环
+- [x] GitHub Actions 远端验证：E2E 四个分片全部成功，Security Audit 成功（提交 `094bace`）
 
 ## P0 阻塞项
 
