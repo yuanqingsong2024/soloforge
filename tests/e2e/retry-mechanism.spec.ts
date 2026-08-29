@@ -24,8 +24,8 @@ test.describe('失败重试验证', () => {
     const page = context.page
 
     await ensureFailedMessage(page)
-    await page.click('text=消息中心')
-    await page.waitForSelector('text=消息中心')
+    await page.getByTestId('sidebar-link-outbound-messages').click()
+    await expect(page).toHaveURL(/#\/outbound-messages/)
 
     await page.click('button:has-text("失败")')
 
@@ -73,7 +73,8 @@ test.describe('失败重试验证', () => {
 
     await ensureFailedMessage(page)
 
-    await page.click('text=消息中心')
+    await page.getByTestId('sidebar-link-outbound-messages').click()
+    await expect(page).toHaveURL(/#\/outbound-messages/)
     await page.click('button:has-text("失败")')
 
     const failedSection = page.getByTestId('outbound-message-section-FAILED')
@@ -169,7 +170,8 @@ test.describe('失败重试验证', () => {
 
     await ensureFailedMessage(page)
 
-    await page.click('text=消息中心')
+    await page.getByTestId('sidebar-link-outbound-messages').click()
+    await expect(page).toHaveURL(/#\/outbound-messages/)
     await page.click('button:has-text("失败")')
 
     const failedSection = page.getByTestId('outbound-message-section-FAILED')

@@ -98,8 +98,8 @@ test.describe('幂等去重验证', () => {
     if (!context) throw new Error('Electron 上下文未初始化')
     const page = context.page
 
-    await page.click('text=消息中心')
-    await page.waitForSelector('text=消息中心')
+    await page.getByTestId('sidebar-link-outbound-messages').click()
+    await expect(page).toHaveURL(/#\/outbound-messages/)
 
     await page.click('button:has-text("已发送")')
     const sentSection = page.getByTestId('outbound-message-section-SENT')
