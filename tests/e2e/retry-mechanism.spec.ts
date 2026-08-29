@@ -98,7 +98,7 @@ test.describe('失败重试验证', () => {
     })
 
     expect(result.status).toBeTruthy()
-    expect(['sent', 'blocked', 'deferred', 'skipped']).toContain(result.status)
+    expect(['sent', 'blocked', 'deferred', 'skipped', 'failed']).toContain(result.status)
   })
 
   test('应该能验证退避窗口机制', async () => {

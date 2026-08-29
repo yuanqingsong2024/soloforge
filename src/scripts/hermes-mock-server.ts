@@ -28,6 +28,16 @@ interface TaskResponse {
   logs?: string[]
 }
 
+interface OpenClawEventRequest {
+  event: string
+  channel: string
+  to: string
+  subject?: string
+  body: string
+  traceId: string
+  timestamp: string
+}
+
 // 存储运行中的任务
 const runningTasks = new Map<string, NodeJS.Timeout>()
 
@@ -71,6 +81,31 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     // 健康检查
     if (url === '/health' && req.method === 'GET') {
       sendJson(res, { status: 'ok', timestamp: new Date().toISOString() })
+      return
+    }
+
+    // 模拟 OpenClaw webhook，只在本机记录请求并返回 provider 回执。
+    if (url === '/hooks/event' && req.method === 'POST') {
+      const body = await parseBody(req) as OpenClawEventRequest
+      if (body.event !== 'send_external' || !body.channel || !body.to || !body.body || !body.traceId) {
+        sendJson(res, { error: 'Invalid send_external event' }, 400)
+        return
+      }
+
+      const providerMessageId = `mock-${body.traceId}`
+      console.log(`  → OpenClaw 模拟外发: ${providerMessageId}, 渠道: ${body.channel}`)
+      sendJson(res, {
+        ok: true,
+        status: 'sent',
+        messageId: providerMessageId,
+        receipt: {
+          provider: 'local-openclaw-mock',
+          channel: body.channel,
+          target: body.to,
+          traceId: body.traceId,
+          receivedAt: new Date().toISOString()
+        }
+      })
       return
     }
 
@@ -156,7 +191,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 const PORT = 8080
 const server = http.createServer(handleRequest)
 
-server.listen(PORT, () => {
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
 ║          Hermes Agent Mock Server                            ║

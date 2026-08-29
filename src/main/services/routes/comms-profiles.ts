@@ -9,15 +9,15 @@ import { prisma } from '../api-shared'
 
 interface CreateCommsProfileBody {
   name: string
-  provider: 'claude-code' | 'webhook'
-  claudeCodeProfileId?: string
+  provider: 'openclaw' | 'webhook'
+  openclawProfileId?: string
   enabled?: boolean
 }
 
 interface UpdateCommsProfileBody {
   name?: string
-  provider?: 'claude-code' | 'webhook'
-  claudeCodeProfileId?: string | null
+  provider?: 'openclaw' | 'webhook'
+  openclawProfileId?: string | null
   enabled?: boolean
 }
 
@@ -42,7 +42,7 @@ export function registerCommsProfilesRoutes(fastify: FastifyInstance): void {
       data: {
         name: body.name,
         provider: body.provider,
-        claudeCodeProfileId: body.claudeCodeProfileId || null,
+        claudeCodeProfileId: body.openclawProfileId || null,
         enabled: body.enabled ?? true
       }
     })
@@ -55,7 +55,7 @@ export function registerCommsProfilesRoutes(fastify: FastifyInstance): void {
     const updateData: Record<string, unknown> = {}
     if (body.name !== undefined) updateData.name = body.name
     if (body.provider !== undefined) updateData.provider = body.provider
-    if (body.claudeCodeProfileId !== undefined) updateData.claudeCodeProfileId = body.claudeCodeProfileId
+    if (body.openclawProfileId !== undefined) updateData.claudeCodeProfileId = body.openclawProfileId
     if (body.enabled !== undefined) updateData.enabled = body.enabled
     return await prisma.commsProfile.update({
       where: { id },

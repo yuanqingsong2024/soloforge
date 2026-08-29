@@ -18,8 +18,10 @@ test.describe('真实 OpenClaw 外发集成', () => {
 
   test('可通过真实 OpenClaw 完成外发发送', async ({}, testInfo) => {
     const context = await launchElectronApp(testInfo)
-    const profileName = `E2E-Live-Profile-${Date.now()}`
-    const targetDisplay = `E2E-Live-Target-${Date.now()}`
+    const runId = Date.now()
+    const profileName = `E2E-Live-Profile-${runId}`
+    const targetDisplay = `E2E-Live-Target-${runId}`
+    const testTarget = `${LIVE_TARGET}-${runId}`
 
     try {
       await waitForDashboardReady(context.page)
@@ -55,7 +57,7 @@ test.describe('真实 OpenClaw 外发集成', () => {
         body: JSON.stringify({
           commsProfileId: commsProfile.id,
           channel: LIVE_CHANNEL,
-          to: LIVE_TARGET,
+          to: testTarget,
           displayName: targetDisplay,
           allowlisted: false
         })
@@ -72,9 +74,9 @@ test.describe('真实 OpenClaw 外发集成', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channel: LIVE_CHANNEL,
-          to: LIVE_TARGET,
-          subject: 'E2E Live Delivery',
-          body: '这是一条来自 SoloForge E2E 的真实外发集成测试消息。',
+          to: testTarget,
+          subject: `E2E Live Delivery ${Date.now()}`,
+          body: `这是一条来自 SoloForge E2E 的本地 OpenClaw 外发测试消息 ${Date.now()}。`,
           status: 'APPROVED'
         })
       })

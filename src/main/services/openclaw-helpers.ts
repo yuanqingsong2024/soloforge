@@ -255,7 +255,7 @@ async function dispatchOutboundMessage(
     throw new Error('目标未加入 allowlist，禁止发送')
   }
 
-  if (allowlistedTarget.commsProfile.provider !== 'claude-code' || !allowlistedTarget.commsProfile.claudeCodeProfileId) {
+  if (allowlistedTarget.commsProfile.provider !== 'openclaw' || !allowlistedTarget.commsProfile.claudeCodeProfileId) {
     throw new Error('当前仅支持通过 OpenClaw provider 发送')
   }
 
